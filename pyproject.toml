@@ -15,7 +15,10 @@ dependencies = [
 roadbook = "roadbook.cli:app"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = [
+    "prek>=0.5.3",
+    "pytest>=8",
+]
 
 [build-system]
 requires = ["hatchling"]
