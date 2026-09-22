@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ book.title }} — road book</title>
+<style>
+  @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
+  :root {
+    --w: {{ width }}mm; --l: {{ length }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Segoe UI", "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif; color: #111; }
+  .sheet { display: flex; flex-wrap: wrap; gap: 3mm; align-items: flex-start; }
+  .sheet > * { break-inside: avoid; flex: none; }
+  .emo { font-size: 10pt; line-height: 1; white-space: nowrap; }
+  .emo sup { font-size: 5pt; margin-left: 0.2mm; font-weight: 700; }
+  .km { font-weight: 700; font-variant-numeric: tabular-nums; }
+
+  /* ---------- strip layout: vertical, for the top tube ---------- */
+  .strip { width: var(--w); height: var(--l); border: 0.25mm dashed #888; overflow: hidden; font-size: 7.5pt; padding: var(--pad) 0; }
+  .strip .hdr { height: var(--hdr-h); margin: calc(-1 * var(--pad)) 0 var(--pad); background: #222; color: #fff; font-size: 6pt;
+                display: flex; justify-content: space-between; align-items: center; padding: 0 1.2mm; }
+  .row .main { height: var(--main-h); display: flex; align-items: center; gap: 1mm; padding: 0 var(--pad); }
+  .row .km { width: calc(var(--km-col) - var(--pad)); text-align: right; flex: none; }
+  .row .lbl { font-size: 6.5pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
+  .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
+  .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
+              font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
+  .row.climb { background: #fbe3c4; }
+  .row.checkpoint, .row.start, .row.finish { background: #d9e8ff; border-top: 0.2mm solid #345; border-bottom: 0.2mm solid #345; }
+  .row.climb .leg, .row.checkpoint .leg { border-left-color: #b45309; }
+
+  /* ---------- line layout: horizontal ribbons, one token per stop ---------- */
+  .ribbon { width: var(--l); height: var(--w); border: 0.25mm dashed #888; display: flex; overflow: hidden; }
+  .tok { flex: none; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center;
+         padding: 0.8mm; border-right: 0.2mm dotted #999; }
+  .tok .km { font-size: 6pt; }
+  .tok .leg { font-size: 5.5pt; color: #444; white-space: nowrap; }
+  .tok .sub { font-size: 5.5pt; font-weight: 600; white-space: nowrap; }
+  .tok.climb { background: #fbe3c4; }
+  .tok.checkpoint, .tok.start, .tok.finish { background: #d9e8ff; }
+
+  /* ---------- reference sheet ---------- */
+  .details { break-before: page; font-size: 7pt; columns: 2; column-gap: 8mm; }
+  .details h1 { font-size: 11pt; column-span: all; margin: 0 0 2mm; }
+  .details .stop { break-inside: avoid; margin-bottom: 1.6mm; }
+  .details .stop b { font-variant-numeric: tabular-nums; }
+  .details .off { color: #777; }
+  @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; } }
+</style>
+</head>
+<body>
+<div class="sheet">
+{% if layout == 'strip' %}
+  {% for s in strips %}
+  <div class="strip">
+    <div class="hdr"><span>km {{ s.first }} → {{ s.last }}</span><span>{{ loop.index }}/{{ loop.length }}</span></div>
+    {% for r in s.rows %}
+    <div class="row {{ r.kind }}">
+      <div class="main">
+        <span class="km">{{ r.km }}</span>
+        <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
+        {% if r.label %}<span class="lbl">{{ r.label }}</span>{% endif %}
+      </div>
+      {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
+      {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% else %}
+  {% for s in strips %}
+  <div class="ribbon">
+    {% for r in s.rows %}
+    <div class="tok {{ r.kind }}" style="width: {{ r.w }}mm">
+      <span class="km">{{ r.km }}</span>
+      <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
+      {% if r.sub_short %}<span class="sub">{{ r.sub_short }}</span>{% endif %}
+      {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
+    </div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+{% endif %}
+</div>
+
+{% if details %}
+<div class="details">
+  <h1>{{ book.title }} — {{ '%.0f' % book.length_km }} km · ↗️{{ '%.0f' % book.gain_m }} m ↘️{{ '%.0f' % book.loss_m }} m</h1>
+  {% for s in details %}
+  <div class="stop"><b>km {{ s.km }}</b>
+    {% for emoji, pois in s.groups %}
+    <div>{{ emoji }} {% for name, off in pois %}{{ name }}{% if off > 30 %} <span class="off">({{ off }} m)</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    {% endfor %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+</body>
+</html>

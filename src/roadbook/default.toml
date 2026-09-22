@@ -1,0 +1,80 @@
+# Default settings. Override any key with `roadbook --config my.toml` (deep-merged).
+
+[elevation]
+step_m = 25          # resampling grid
+smooth_m = 200       # moving-average window applied after a 5-point median
+swing_m = 3          # ignore up/down swings smaller than this when summing gain/loss
+
+[climbs]
+min_gain_m = 30
+min_length_m = 500
+min_grade_pct = 2.0
+merge_dip_m = 10     # merge two ascents separated by a descent of at most this many metres
+# category = first threshold reached, on score = length_m * avg_grade_pct (Tour de France style)
+categories = [["HC", 80000], ["1", 64000], ["2", 32000], ["3", 16000], ["4", 8000]]
+
+[pois]
+max_offset_m = 300   # ignore POIs further than this from the route
+enabled = ["water", "toilets", "bakery", "cafe", "food", "fastfood", "grocery", "fuel", "vending", "icecream"]
+
+[stops]
+gap_m = 500          # POIs closer than this are merged into one stop...
+max_span_m = 1500    # ...as long as the stop does not stretch beyond this
+
+[checkpoints]
+every_km = 0        # 0 disables automatic checkpoints
+extra = []           # [[km, "label"], ...]
+
+[render]
+layout = "strip"     # strip | line
+width_mm = 0         # short side; 0 = layout default (strip 35, line 16)
+length_mm = 200      # long side
+page = "A4"
+details = true       # append a POI-names reference sheet
+max_emojis = 0       # 0 = derived from width
+
+# --- categories: order = display priority. `match` is tested (accent/case-insensitive)
+# --- against the POI <type>, then its <name>. First category that matches wins.
+[categories.water]
+emoji = "🚰"
+match = ["eau potable", "drinking water", "cimetiere", "fontaine", "fountain"]
+
+[categories.toilets]
+emoji = "🚻"
+match = ["toilet", "wc"]
+
+[categories.bakery]
+emoji = "🥖"
+match = ["boulangerie", "bakery", "patisserie"]
+
+[categories.cafe]
+emoji = "☕"
+match = ["cafe", "bar", "brasserie", "salon de the"]
+
+[categories.food]
+emoji = "🍽️"
+match = ["restaurant"]
+
+[categories.fastfood]
+emoji = "🍔"
+match = ["restauration rapide", "fast food", "snack", "pizza", "kebab"]
+
+[categories.grocery]
+emoji = "🛒"
+match = ["epicerie", "supermarche", "supermarket", "convenience", "magasin", "superette", "alimentation"]
+
+[categories.fuel]
+emoji = "⛽"
+match = ["station-service", "station service", "fuel", "gas station"]
+
+[categories.vending]
+emoji = "🥤"
+match = ["distributeur", "vending"]
+
+[categories.icecream]
+emoji = "🍦"
+match = ["glacier", "ice cream"]
+
+[categories.lodging]
+emoji = "🛏️"
+match = ["hotel", "chambre d'hotes", "auberge", "hostel", "guest house", "camping", "gite"]

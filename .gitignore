@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+*.egg-info/
+dist/
+build/
+
+# generated outputs — keep the sample GPX, not the rendered road books/PDFs
+samples/*.html
+samples/*.pdf
