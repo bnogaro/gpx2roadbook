@@ -4,6 +4,7 @@ import itertools
 from typing import TYPE_CHECKING, Any
 
 from .climbs import find_climbs
+from .kinds import KINDS
 from .model import Climb, Item, Roadbook, Stop
 from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
@@ -12,9 +13,6 @@ from .snap import snap_pois
 
 if TYPE_CHECKING:
     from pathlib import Path
-
-# at equal km, a summit closes its climb before anything else opens
-_RANK = {"start": 0, "summit": 1, "checkpoint": 2, "stop": 3, "climb": 4, "finish": 9}
 
 
 def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str]]:
@@ -74,7 +72,7 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         if top := snapped.get((i, "summit")):
             items.append(item("summit", c.end_km, climb=c, **stop_kw(top)))
     items.append(item("finish", length, label="FINISH"))
-    items.sort(key=lambda it: (it.km, _RANK[it.kind]))
+    items.sort(key=lambda it: (it.km, KINDS[it.kind].rank))
 
     for a, b in itertools.pairwise(items):
         a.dist_to_next = b.km - a.km

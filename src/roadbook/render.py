@@ -7,10 +7,11 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from .kinds import KINDS, climb_of
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
-    from .model import Climb, Item, Poi, Roadbook
+    from .model import Item, Poi, Roadbook
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
@@ -36,14 +37,6 @@ def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[
     return kept, truncated, used + (MORE_W if truncated else 0)
 
 
-def _climb(it: Item) -> Climb:
-    """The climb behind a climb or summit row; build() always attaches one."""
-    if it.climb is None:
-        msg = f"{it.kind} row at km {it.km:.1f} has no climb"
-        raise ValueError(msg)
-    return it.climb
-
-
 def _category(p: Poi) -> str:
     """The category of a POI inside a stop; filter_pois() only keeps classified ones."""
     if p.category is None:
@@ -52,56 +45,42 @@ def _category(p: Poi) -> str:
     return p.category
 
 
-def _row(  # noqa: C901, PLR0912  one flat branch per row kind
+def _row(
     it: Item, book: Roadbook, avail: float, max_emojis: int, *, sep: str = " · ", leg_elevation: bool = True
 ) -> dict[str, Any]:
-    emojis, truncated, emoji_w = _fit(it.emojis, avail, max_emojis)
+    kind = KINDS[it.kind]
     row: dict[str, Any] = {
         "kind": it.kind,
         "km": f"{it.km:.1f}",
-        "emojis": emojis,
-        "more": truncated,
-        "label": it.label,
+        "label": kind.label(it, book),
         "sub": "",
         "leg": None,
         "dist": None,
     }
-    if it.kind == "start":
-        row["emojis"] = [("🟢", 0)]
-    elif it.kind == "finish":
-        row["emojis"] = [("🏁", 0)]
-    elif it.kind == "checkpoint":
-        row["emojis"] = [("🚩", 0)]
-        if it.label.startswith("CP"):
-            row["label"] = f"{it.label} · {book.length_km - it.km:.0f} to go"
-    elif it.kind in ("climb", "summit"):
-        # a climb's own emoji leads; a stop snapped onto its foot or summit follows in the space left.
+    if kind.emoji:
+        # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
         # The row is too narrow for both a stop and a full label, so with a stop on board the category
         # shrinks to a superscript on ⛰️, and the summit's elevation only shows if room is left.
-        if it.kind == "climb":
-            c = _climb(it)
-            own = ("⛰️", c.label if it.emojis and c.label else 0)
-            room = avail - EMOJI_W - (COUNT_W * len(c.label) if it.emojis else LABEL_W)
-            row["label"] = f"Cat {c.label}" if c.label and not it.emojis else ""
-            row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
-            row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
-        else:
-            own = ("🔝", 0)
-            room = avail - EMOJI_W
+        sup = kind.sup(it)
+        room = avail - EMOJI_W - COUNT_W * len(sup)
         # at least one stop emoji even when max_emojis is 1: a snapped stop must not vanish behind its climb
         stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
-        row["emojis"] = [own, *stop_emojis]
+        row["emojis"] = [(kind.emoji, sup or 0), *stop_emojis]
         emoji_w = EMOJI_W + stop_w
-        if it.kind == "summit" and stop_w + LABEL_W <= room:
-            row["label"] = f"{it.ele:.0f} m"
+        if kind.label_if_room and stop_w + LABEL_W > room:
+            row["label"] = ""
+    else:
+        row["emojis"], row["more"], emoji_w = _fit(it.emojis, avail, max_emojis)
+    if kind.stats:
+        c = climb_of(it)
+        row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
+        row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
     if it.dist_to_next is not None:
         if leg_elevation:
             row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
         else:  # a bare distance needs no line of its own
             row["dist"] = f"↓{it.dist_to_next:.1f}"
     row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
-    if it.kind in ("start", "finish", "checkpoint"):
-        emoji_w = EMOJI_W
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
     if it.dist_to_next is not None:
         row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if leg_elevation else "")
