@@ -26,6 +26,7 @@ lint = [
 ]
 test = [
     "pytest>=8",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
@@ -34,6 +35,14 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "--cov=roadbook",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",  # measured 80.5% (branch) when introduced; ratchet up as tests grow
+]
+
+[tool.coverage.run]
+branch = true
 
 [tool.ruff]
 line-length = 120
