@@ -40,6 +40,18 @@ def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph
     return kept, truncated, used + (MORE_W if truncated else 0)
 
 
+def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, float]:
+    """For when _fit keeps nothing: the first emoji alone, shedding its count, then the "+", until it fits.
+
+    The count goes first: that more kinds are there matters more than how many of the first. If even the bare
+    emoji does not fit, it is shown anyway, a hair over its room rather than gone.
+    """
+    bare = Glyph(emojis[0].emoji)
+    if len(emojis) > 1 and avail >= EMOJI_W + MORE_W:
+        return [bare], True, EMOJI_W + MORE_W
+    return [bare], False, EMOJI_W
+
+
 def _category(p: Poi) -> str:
     """The category of a POI inside a stop; filter_pois() only keeps classified ones."""
     if p.category is None:
@@ -76,8 +88,11 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         # shrinks to a superscript on ⛰️, and the summit's elevation only shows if room is left.
         sup = kind.sup(it)
         room = avail - EMOJI_W - COUNT_W * len(sup)
-        # at least one stop emoji even when max_emojis is 1: a snapped stop must not vanish behind its climb
+        # at least one stop emoji, even when max_emojis is 1 or the room is too tight for its count and a "+":
+        # a snapped stop must not vanish behind its climb
         stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
+        if it.emojis and not stop_emojis:
+            stop_emojis, row["more"], stop_w = _first_only(it.emojis, room)
         row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
         emoji_w = EMOJI_W + stop_w
         if kind.label_if_room and stop_w + LABEL_W > room:
