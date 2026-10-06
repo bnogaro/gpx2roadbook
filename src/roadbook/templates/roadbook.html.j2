@@ -8,7 +8,7 @@
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
     --main-h: {{ g.MAIN_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
-    --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm;
+    --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -32,6 +32,10 @@
   .row.climb { background: #fbe3c4; }
   .row.checkpoint, .row.start, .row.finish { background: #d9e8ff; border-top: 0.2mm solid #345; border-bottom: 0.2mm solid #345; }
   .row.climb .leg, .row.checkpoint .leg { border-left-color: #b45309; }
+  .strip { position: relative; }
+  .strip .row { margin-right: var(--gutter); }
+  .strip .row .sub, .strip .row .leg { overflow: hidden; }
+  .strip .gutter { position: absolute; right: 0; top: calc(var(--hdr-h) + var(--pad)); border-left: 0.2mm solid #bbb; }
 
   /* ---------- line layout: horizontal ribbons, one token per stop ---------- */
   .ribbon { width: var(--l); height: var(--w); border: 0.25mm dashed #888; display: flex; overflow: hidden; }
@@ -69,6 +73,7 @@
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
     {% endfor %}
+    {% if s.gutter %}{{ s.gutter | safe }}{% endif %}
   </div>
   {% endfor %}
 {% else %}

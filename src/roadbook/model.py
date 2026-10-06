@@ -1,8 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from .profile import Profile
 
 
 @dataclass
@@ -84,3 +88,4 @@ class Roadbook:
     climbs: list[Climb]
     poi_total: int
     poi_kept: int
+    profile: Profile | None = None

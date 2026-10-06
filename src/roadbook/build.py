@@ -64,4 +64,5 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         climbs=climbs,
         poi_total=len(pois),
         poi_kept=len(kept),
+        profile=profile,
     )
