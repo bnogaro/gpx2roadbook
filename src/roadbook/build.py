@@ -30,17 +30,25 @@ def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str
 
 
 def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> dict[tuple[int, str], Stop]:
-    """Attach each stop lying within `snap_m` of a climb's foot or summit to that edge, keyed by (climb index, edge)."""
+    """Attach each stop lying within `snap_m` of a climb's foot or summit to that edge, keyed by (climb index, edge).
+
+    Closest pairs are matched first, so a stop whose nearest edge is taken falls back to its next-nearest free one.
+    """
+    # one stop per edge: a climb or summit row has little room left for a stop's emojis
+    pairs = sorted(
+        (abs(km - s.km), s.km, j, i, k, s)
+        for j, s in enumerate(stops)
+        for i, c in enumerate(climbs)
+        for k, km in enumerate((c.start_km, c.end_km))
+        if abs(km - s.km) * 1000 <= snap_m
+    )  # ties go to the earlier stop, then the earlier edge; the stop index keeps Stop itself out of the comparison
     snapped: dict[tuple[int, str], Stop] = {}
-    for s in stops:
-        edges = [
-            (abs(km - s.km), (i, edge))
-            for i, c in enumerate(climbs)
-            for edge, km in (("foot", c.start_km), ("summit", c.end_km))
-        ]
-        gap, key = min(edges, default=(float("inf"), None))
-        if key is not None and gap * 1000 <= snap_m and key not in snapped:
+    taken: set[int] = set()
+    for *_, j, i, k, s in pairs:
+        key = (i, ("foot", "summit")[k])
+        if j not in taken and key not in snapped:
             snapped[key] = s
+            taken.add(j)
     return snapped
 
 
