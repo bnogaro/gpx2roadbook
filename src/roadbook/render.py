@@ -2,15 +2,18 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from .kinds import KINDS, climb_of
+from .model import Glyph
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
-    from .model import Climb, Item, Poi, Roadbook
+    from .model import Item, Poi, Roadbook
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
@@ -21,27 +24,20 @@ LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a clim
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 
 
-def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[list[tuple[str, int]], bool, float]:
+def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph], bool, float]:
     """Keep as many emojis (in priority order) as fit in `avail` mm. Returns (kept, truncated, width used)."""
-    kept: list[tuple[str, int]] = []
+    kept: list[Glyph] = []
     used = 0.0
-    for e, n in emojis:
-        w = EMOJI_W + (COUNT_W if n > 1 else 0)
+    for g in emojis:
+        # one COUNT_W per superscript, whatever its length: charging per character would widen 10+ POI tokens
+        w = EMOJI_W + (COUNT_W if g.sup else 0)
         more_w = MORE_W if len(kept) + 1 < len(emojis) else 0
         if len(kept) >= max_emojis or used + w + more_w > avail:
             break
-        kept.append((e, n))
+        kept.append(g)
         used += w
     truncated = len(kept) < len(emojis)
     return kept, truncated, used + (MORE_W if truncated else 0)
-
-
-def _climb(it: Item) -> Climb:
-    """The climb behind a climb or summit row; build() always attaches one."""
-    if it.climb is None:
-        msg = f"{it.kind} row at km {it.km:.1f} has no climb"
-        raise ValueError(msg)
-    return it.climb
 
 
 def _category(p: Poi) -> str:
@@ -52,59 +48,54 @@ def _category(p: Poi) -> str:
     return p.category
 
 
-def _row(  # noqa: C901, PLR0912  one flat branch per row kind
-    it: Item, book: Roadbook, avail: float, max_emojis: int, *, sep: str = " · ", leg_elevation: bool = True
-) -> dict[str, Any]:
-    emojis, truncated, emoji_w = _fit(it.emojis, avail, max_emojis)
+@dataclass(frozen=True)
+class RowLayout:
+    """What every row of one render shares, worked out once by render_html() from cfg["render"]."""
+
+    avail: float  # mm left for emojis on a row's main line
+    max_emojis: int
+    sep: str  # between the figures of a stats or leg line
+    leg_elevation: bool  # ↗️/↘️ metres on a leg line of its own, or only a bare distance on the main line
+
+
+def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
+    avail, max_emojis, sep = layout.avail, layout.max_emojis, layout.sep
+    kind = KINDS[it.kind]
     row: dict[str, Any] = {
         "kind": it.kind,
         "km": f"{it.km:.1f}",
-        "emojis": emojis,
-        "more": truncated,
-        "label": it.label,
+        "label": kind.label(it, book),
         "sub": "",
         "leg": None,
         "dist": None,
     }
-    if it.kind == "start":
-        row["emojis"] = [("🟢", 0)]
-    elif it.kind == "finish":
-        row["emojis"] = [("🏁", 0)]
-    elif it.kind == "checkpoint":
-        row["emojis"] = [("🚩", 0)]
-        if it.label.startswith("CP"):
-            row["label"] = f"{it.label} · {book.length_km - it.km:.0f} to go"
-    elif it.kind in ("climb", "summit"):
-        # a climb's own emoji leads; a stop snapped onto its foot or summit follows in the space left.
+    if kind.emoji:
+        # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
         # The row is too narrow for both a stop and a full label, so with a stop on board the category
         # shrinks to a superscript on ⛰️, and the summit's elevation only shows if room is left.
-        if it.kind == "climb":
-            c = _climb(it)
-            own = ("⛰️", c.label if it.emojis and c.label else 0)
-            room = avail - EMOJI_W - (COUNT_W * len(c.label) if it.emojis else LABEL_W)
-            row["label"] = f"Cat {c.label}" if c.label and not it.emojis else ""
-            row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
-            row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
-        else:
-            own = ("🔝", 0)
-            room = avail - EMOJI_W
+        sup = kind.sup(it)
+        room = avail - EMOJI_W - COUNT_W * len(sup)
         # at least one stop emoji even when max_emojis is 1: a snapped stop must not vanish behind its climb
         stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
-        row["emojis"] = [own, *stop_emojis]
+        row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
         emoji_w = EMOJI_W + stop_w
-        if it.kind == "summit" and stop_w + LABEL_W <= room:
-            row["label"] = f"{it.ele:.0f} m"
+        if kind.label_if_room and stop_w + LABEL_W > room:
+            row["label"] = ""
+    else:
+        row["emojis"], row["more"], emoji_w = _fit(it.emojis, avail, max_emojis)
+    if kind.stats:
+        c = climb_of(it)
+        row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
+        row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
     if it.dist_to_next is not None:
-        if leg_elevation:
+        if layout.leg_elevation:
             row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
         else:  # a bare distance needs no line of its own
             row["dist"] = f"↓{it.dist_to_next:.1f}"
     row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
-    if it.kind in ("start", "finish", "checkpoint"):
-        emoji_w = EMOJI_W
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
     if it.dist_to_next is not None:
-        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if leg_elevation else "")
+        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if layout.leg_elevation else "")
     return row
 
 
@@ -147,10 +138,8 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
             anchors.append((book.items[first].km, height))
         # each strip gets its own scale: one shared with a 1500 m pass would flatten every other strip
-        seg = p.e[(p.x >= anchors[0][0] * 1000) & (p.x <= anchors[-1][0] * 1000)]
-        lo = float(seg.min()) if seg.size else p.ele_at(anchors[0][0])
-        hi = max(float(seg.max()) if seg.size else lo, lo + GUTTER_MIN_SPAN_M)
-        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height, (lo, hi))
+        lo, hi = p.ele_range(anchors[0][0], anchors[-1][0])
+        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height, (lo, max(hi, lo + GUTTER_MIN_SPAN_M)))
 
 
 def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
@@ -166,10 +155,13 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     avail -= gutter
     if layout == "strip" and not r["leg_elevation"]:
         avail -= DIST_W
-    sep = " " if gutter else " · "  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-    rows = [
-        _row(it, book, avail, r["max_emojis"] or 99, sep=sep, leg_elevation=r["leg_elevation"]) for it in book.items
-    ]
+    row_layout = RowLayout(
+        avail=avail,
+        max_emojis=r["max_emojis"] or 99,
+        sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
+        leg_elevation=r["leg_elevation"],
+    )
+    rows = [_row(it, book, row_layout) for it in book.items]
 
     if layout == "strip":
         pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")

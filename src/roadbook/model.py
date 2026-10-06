@@ -63,13 +63,21 @@ class Climb:
         return self.end_km - self.start_km
 
 
+@dataclass(frozen=True)
+class Glyph:
+    """An emoji as a row shows it, with its superscript already formatted: a POI count ("2") or a category ("HC")."""
+
+    emoji: str
+    sup: str = ""
+
+
 @dataclass
 class Item:
-    kind: str  # start | stop | climb | summit | checkpoint | finish
+    kind: str  # a key of kinds.KINDS: start | stop | climb | summit | checkpoint | finish
     km: float
     ele: float
     label: str = ""
-    emojis: list[tuple[str, int]] = field(default_factory=list)
+    emojis: list[Glyph] = field(default_factory=list)
     climb: Climb | None = None
     stop: Stop | None = None
     dist_to_next: float | None = None  # km

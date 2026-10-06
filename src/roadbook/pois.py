@@ -4,7 +4,7 @@ import re
 import unicodedata
 from typing import Any
 
-from .model import Poi, Stop
+from .model import Glyph, Poi, Stop
 
 _SHORT_TERM = 3  # longest match term (in characters) that must match a whole word
 
@@ -56,10 +56,14 @@ def cluster(pois: list[Poi], gap_m: float, max_span_m: float) -> list[Stop]:
     return stops
 
 
-def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[tuple[str, int]]:
-    """Distinct emojis of a stop in category priority order, with how many POIs share each."""
+def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[Glyph]:
+    """Distinct emojis of a stop in category priority order, topped by how many POIs share each, if several."""
     counts: dict[str, int] = {}
     for p in stop.pois:
         if p.category is not None:  # stops only hold classified POIs; this narrows the type
             counts[p.category] = counts.get(p.category, 0) + 1
-    return [(categories[name]["emoji"], counts[name]) for name in categories if name in counts]
+    return [
+        Glyph(categories[name]["emoji"], str(n) if (n := counts[name]) > 1 else "")
+        for name in categories
+        if name in counts
+    ]
