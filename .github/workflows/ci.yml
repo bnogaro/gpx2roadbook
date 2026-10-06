@@ -40,3 +40,6 @@ jobs:
       - run: uv sync --locked
       - name: Lint and audit workflows (actionlint, zizmor)
         run: uv run prek run actionlint zizmor --all-files
+      - name: Audit dependencies (pip-audit)
+        # the project itself is not on PyPI, so skip it and audit the locked dependencies
+        run: uv run pip-audit --skip-editable
