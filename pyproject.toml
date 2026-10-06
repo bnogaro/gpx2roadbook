@@ -36,6 +36,7 @@ Changelog = "https://github.com/bnogaro/gpx2roadbook/blob/main/CHANGELOG.md"
 
 [project.scripts]
 roadbook = "roadbook.cli:app"
+gpx2roadbook = "roadbook.cli:app"  # same command under the package's name, so `uvx gpx2roadbook` works
 
 [dependency-groups]
 audit = [
