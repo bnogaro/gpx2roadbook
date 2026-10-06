@@ -102,6 +102,10 @@ max-positional-args = 6
     "PLC2701",  # tests exercise private helpers directly
     "INP001",   # tests/ is a pytest rootdir, not a package
 ]
+"scripts/*.py" = [
+    "INP001",  # standalone maintainer scripts, run as files, not a package
+    "T201",    # they report to the terminal with print
+]
 
 [tool.ruff.format]
 quote-style = "double"
