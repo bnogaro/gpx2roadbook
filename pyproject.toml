@@ -22,7 +22,7 @@ dev = [
     { include-group = "audit" },
     { include-group = "lint" },
     { include-group = "test" },
-    "prek>=0.5.3",
+    "prek>=0.5.4",
 ]
 lint = [
     "ruff>=0.16.10",
