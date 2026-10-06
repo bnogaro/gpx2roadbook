@@ -263,3 +263,16 @@ def test_gutter_follows_gutter_mm() -> None:
     assert html.count('<svg class="gutter"') == html.count('<div class="strip">') > 0
     cfg["render"]["gutter_mm"] = 0
     assert 'class="gutter"' not in render_html(book, cfg)
+
+
+@pytest.mark.parametrize(
+    ("kind", "avail", "shown"), [("summit", 12.5, ["🔝", "🚰", "+"]), ("climb", 12.5, ["⛰️", "🚰"])]
+)
+def test_a_crowded_stop_on_a_climb_or_summit_keeps_its_first_emoji(kind: str, avail: float, shown: list[str]) -> None:
+    # 🚰 x3 plus two more kinds: with its count and a "+", not even the first fits beside ⛰️⁴ or 🔝
+    climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "4")
+    book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
+    glyphs = [Glyph("🚰", "3"), Glyph("🚻"), Glyph("🥖")]
+    row = _row(Item(kind, 10.0, 0, climb=climb, emojis=glyphs), book, _layout(avail))
+    assert [g.emoji for g in row["emojis"]] + (["+"] if row["more"] else []) == shown
+    assert row["emojis"][1].sup == ""  # the count gave way first
