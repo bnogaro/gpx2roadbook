@@ -33,10 +33,16 @@ Then:
 uv tool install gpx2roadbook     # or: pipx install gpx2roadbook
 ```
 
-This puts the `roadbook` command on your PATH. To update to the latest release:
+This puts the `roadbook` command on your PATH (`gpx2roadbook` works too, it is the same command). To update to the latest release:
 
 ```sh
 uv tool upgrade gpx2roadbook     # or: pipx upgrade gpx2roadbook
+```
+
+To try it once without installing anything:
+
+```sh
+uvx gpx2roadbook my_ride.gpx
 ```
 
 ## Usage
