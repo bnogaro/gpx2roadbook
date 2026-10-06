@@ -16,7 +16,7 @@ if TYPE_CHECKING:
     from .model import Item, Poi, Roadbook, Stop
 
 # Row geometry (mm). Must match the CSS variables in the template.
-MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
+MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
 KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
@@ -38,6 +38,39 @@ def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph
         used += w
     truncated = len(kept) < len(emojis)
     return kept, truncated, used + (MORE_W if truncated else 0)
+
+
+def _wrap(emojis: list[Glyph], widths: list[float], max_emojis: int) -> tuple[list[list[Glyph]], bool, float]:
+    """Pour emojis (in priority order) into lines of the given widths, mm. Returns (lines, truncated, first width).
+
+    Only the last line keeps room for a "+"; the ones before it overflow onto the next instead. A line may stay
+    empty when not even one emoji fits there, which lets a crowded climb row send its stop down a line. With a
+    single width this is exactly _fit.
+    """
+    lines: list[list[Glyph]] = []
+    first_w = 0.0
+    i = 0
+    for n, avail in enumerate(widths):
+        last = n == len(widths) - 1
+        line: list[Glyph] = []
+        used = 0.0
+        while i < len(emojis) and i < max_emojis:
+            w = EMOJI_W + (COUNT_W if emojis[i].sup else 0)  # one COUNT_W per superscript, as in _fit
+            more_w = MORE_W if last and i + 1 < len(emojis) else 0
+            if used + w + more_w > avail:
+                break
+            line.append(emojis[i])
+            used += w
+            i += 1
+        lines.append(line)
+        if n == 0:
+            first_w = used
+        if i >= min(len(emojis), max_emojis):
+            break
+    while len(lines) > 1 and not lines[-1]:
+        lines.pop()
+    truncated = i < len(emojis)
+    return lines, truncated, first_w + (MORE_W if truncated and len(lines) == 1 else 0)
 
 
 def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, float]:
@@ -69,6 +102,8 @@ class RowLayout:
     sep: str  # between the figures of a stats or leg line
     leg_elevation: bool  # ↗️/↘️ metres on a leg line of its own, or only a bare distance on the main line
     range_m: float  # a stop stretching at least this far shows where it ends
+    emoji_lines: int = 1  # lines a row's emojis may fill; more than 1 wraps a crowded stop below its main line
+    wrap_avail: float = 0.0  # mm for emojis on those extra lines, which carry no ↓ distance
 
 
 def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
@@ -90,15 +125,16 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         room = avail - EMOJI_W - COUNT_W * len(sup)
         # at least one stop emoji, even when max_emojis is 1 or the room is too tight for its count and a "+":
         # a snapped stop must not vanish behind its climb
-        stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
-        if it.emojis and not stop_emojis:
+        stop_emojis, extra, row["more"], stop_w = _emoji_lines(it.emojis, room, max(1, max_emojis - 1), layout)
+        if it.emojis and not stop_emojis and not extra:
             stop_emojis, row["more"], stop_w = _first_only(it.emojis, room)
         row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
+        row["emoji_lines"] = extra
         emoji_w = EMOJI_W + stop_w
         if kind.label_if_room and stop_w + LABEL_W > room:
             row["label"] = ""
     else:
-        row["emojis"], row["more"], emoji_w = _fit(it.emojis, avail, max_emojis)
+        row["emojis"], row["emoji_lines"], row["more"], emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
     if kind.stats:
         c = climb_of(it)
         row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
@@ -111,11 +147,21 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
             row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
         else:  # a bare distance needs no line of its own
             row["dist"] = f"↓{it.dist_to_next:.1f}"
-    row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
+    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
     if it.dist_to_next is not None:
         row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if layout.leg_elevation else "")
     return row
+
+
+def _emoji_lines(
+    emojis: list[Glyph], avail: float, max_emojis: int, layout: RowLayout
+) -> tuple[list[Glyph], list[list[Glyph]], bool, float]:
+    """A row's emojis: those on its main line, the lines wrapped below it, whether some are still left out, and the
+    main line's width."""
+    widths = [avail] + [layout.wrap_avail] * (layout.emoji_lines - 1)
+    lines, truncated, first_w = _wrap(emojis, widths, max_emojis)
+    return lines[0], lines[1:], truncated, first_w
 
 
 def _spans(stop: Stop, range_m: float) -> bool:
@@ -185,6 +231,9 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
         leg_elevation=r["leg_elevation"],
         range_m=r["stop_range_m"],
+        # tokens of the line layout grow sideways instead
+        emoji_lines=r["emoji_lines"] if layout == "strip" else 1,
+        wrap_avail=avail + (DIST_W if layout == "strip" and not r["leg_elevation"] else 0),
     )
     rows = [_row(it, book, row_layout) for it in book.items]
 
@@ -215,6 +264,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
             "HDR_H": HDR_H,
             "KM_COL": KM_COL,
             "PAD": PAD,
+            "EMO_H": EMO_H,
             "GUTTER": gutter,
         },
     )

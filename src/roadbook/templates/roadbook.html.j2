@@ -1,5 +1,5 @@
-{#- a row's emojis, each with its superscript (a count or a climb category), and a "+" when some were left out -#}
-{% macro emo(r) %}<span class="emo">{% for g in r.emojis %}{{ g.emoji }}{% if g.sup %}<sup>{{ g.sup }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>{% endmacro -%}
+{#- emojis, each with its superscript (a count or a climb category), and a "+" when some were left out -#}
+{% macro emo(glyphs, more) %}<span class="emo">{% for g in glyphs %}{{ g.emoji }}{% if g.sup %}<sup>{{ g.sup }}</sup>{% endif %}{% endfor %}{% if more %}+{% endif %}</span>{% endmacro -%}
 <!doctype html>
 <html lang="en">
 <head>
@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -29,6 +29,8 @@
   .row .km { width: calc(var(--km-col) - var(--pad)); text-align: right; flex: none; }
   .row .dist { margin-left: auto; flex: none; font-size: 6pt; color: #555; font-variant-numeric: tabular-nums; }
   .row .lbl { font-size: 6.5pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
+  /* a crowded stop's emojis carry on below its main line, lined up under the first one */
+  .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
@@ -70,10 +72,13 @@
     <div class="row {{ r.kind }}">
       <div class="main">
         <span class="km">{{ r.km }}</span>
-        {{ emo(r) }}
+        {{ emo(r.emojis, r.more and not r.emoji_lines) }}
         {% if r.label %}<span class="lbl">{{ r.label }}</span>{% endif %}
         {% if r.dist %}<span class="dist">{{ r.dist }}</span>{% endif %}
       </div>
+      {%- for line in r.emoji_lines %}
+      <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
+      {%- endfor %}
       {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
@@ -87,7 +92,7 @@
     {% for r in s.rows %}
     <div class="tok {{ r.kind }}" style="width: {{ r.w }}mm">
       <span class="km">{{ r.km }}</span>
-      {{ emo(r) }}
+      {{ emo(r.emojis, r.more) }}
       {% if r.sub_short %}<span class="sub">{{ r.sub_short }}</span>{% endif %}
       {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
     </div>
