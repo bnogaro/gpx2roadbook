@@ -10,8 +10,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v3
+      - uses: astral-sh/setup-uv@v10
         with:
           enable-cache: true
       - run: uv sync --locked
-      - run: uv run pytest -q
+      - name: Format
+        run: uv run ruff format --check .
+      - name: Lint
+        run: uv run ruff check --output-format=github .
+      - name: Type check
+        run: uv run ty check src/
+      - name: Test with coverage
+        run: uv run pytest -q
