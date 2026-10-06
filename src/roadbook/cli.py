@@ -99,6 +99,9 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         cfg["pois"]["enabled"] = [c.strip() for c in categories.split(",")]
 
     if interactive:
+        if not sys.stdin.isatty():
+            typer.echo("-i asks its questions in a terminal; give the settings as options instead.", err=True)
+            raise typer.Exit(2)
         gpx, out, pdf = ask(gpx, out, pdf, cfg)
         same = command(gpx, out, pdf=pdf, cfg=cfg, base=load_config(config), config=config)
         typer.echo(f"\nSame as: {same}\n")

@@ -9,12 +9,15 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-import typer
+import questionary
 
 from .render import LAYOUT_WIDTH
 
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+    from prompt_toolkit.input import Input
+    from prompt_toolkit.output import Output
 
 
 @dataclass(frozen=True)
@@ -27,6 +30,7 @@ class Setting:
     question: str
     kind: type  # float, int, bool or str
     shown: Callable[[dict[str, Any]], Any] | None = None  # the value 0 stands for, when 0 means "automatic"
+    choices: tuple[str, ...] = ()  # offered as a menu, with "Other…" for anything else
 
     def get(self, cfg: dict[str, Any]) -> Any:  # noqa: ANN401  cfg values are plain TOML scalars
         return cfg[self.section][self.key]
@@ -44,7 +48,7 @@ def _span(cfg: dict[str, Any]) -> float:
 
 
 COMMON = [
-    Setting("render", "page", "--page", "Paper size (A4, A5, Letter…)", str),
+    Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
     Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
 ]
 ADVANCED = [
@@ -60,19 +64,23 @@ ADVANCED = [
 ]
 
 
-def _number(kind: type) -> Callable[[str], Any]:
-    def parse(text: str) -> Any:  # noqa: ANN401
-        try:
-            value = kind(text)
-        except ValueError:
-            msg = f"{text!r} is not a number"
-            raise typer.BadParameter(msg) from None
-        if value < 0:
-            msg = "must be 0 or more"
-            raise typer.BadParameter(msg)
-        return value
+OTHER = "Other…"
 
-    return parse
+
+@dataclass(frozen=True)
+class _Prompts:
+    """questionary, wired to a terminal, or to a pipe and a dummy screen in tests."""
+
+    input: Input | None = None
+    output: Output | None = None
+
+    def __call__(self, question: questionary.Question) -> Any:  # noqa: ANN401
+        # unsafe_ask lets Ctrl+C through as KeyboardInterrupt, which Typer turns into "Aborted!"
+        return question.unsafe_ask()
+
+    @property
+    def io(self) -> dict[str, Any]:
+        return {"input": self.input, "output": self.output}
 
 
 def _plain(value: Any) -> Any:  # noqa: ANN401
@@ -80,94 +88,114 @@ def _plain(value: Any) -> Any:  # noqa: ANN401
     return int(value) if isinstance(value, float) and value.is_integer() else value
 
 
-def _ask(s: Setting, cfg: dict[str, Any]) -> None:
+def _is_number(kind: type) -> Callable[[str], bool | str]:
+    def check(text: str) -> bool | str:
+        try:
+            return kind(text) >= 0 or "must be 0 or more"
+        except ValueError:
+            return f"{text!r} is not a number"
+
+    return check
+
+
+def _shown(s: Setting, cfg: dict[str, Any]) -> str:
+    """A setting's value as listed in the advanced menu."""
+    value = s.get(cfg)
+    if s.kind is bool:
+        return "yes" if value else "no"
+    if s.shown and not value:
+        return f"{_plain(s.shown(cfg))}, auto"
+    return str(_plain(value))
+
+
+def _ask(s: Setting, cfg: dict[str, Any], ask: _Prompts) -> None:
     current = s.get(cfg)
     if s.kind is bool:
-        s.set(cfg, typer.confirm(s.question, default=current))
-        return
-    if s.kind is str:
-        s.set(cfg, typer.prompt(s.question, default=current).strip())
-        return
-    # a 0 that means "automatic" is offered as the value it stands for, and kept as 0 if accepted unchanged
-    auto = s.shown(cfg) if s.shown and not current else None
-    answer = typer.prompt(s.question, default=_plain(auto if auto is not None else current), value_proc=_number(s.kind))
-    s.set(cfg, 0 if auto is not None and answer == auto else answer)
+        s.set(cfg, ask(questionary.confirm(s.question, default=current, **ask.io)))
+    elif s.choices:
+        options = [*s.choices, *([current] if current not in s.choices else []), OTHER]
+        answer = ask(questionary.select(s.question, choices=options, default=current, **ask.io))
+        if answer == OTHER:
+            answer = ask(questionary.text(s.question, validate=lambda t: bool(t.strip()) or "required", **ask.io))
+        s.set(cfg, answer.strip())
+    elif s.kind is str:
+        s.set(cfg, ask(questionary.text(s.question, default=current, **ask.io)).strip())
+    else:
+        # a 0 that means "automatic" is offered as the value it stands for, and kept as 0 if accepted unchanged
+        auto = s.shown(cfg) if s.shown and not current else None
+        default = str(_plain(auto if auto is not None else current))
+        answer = s.kind(ask(questionary.text(s.question, default=default, validate=_is_number(s.kind), **ask.io)))
+        s.set(cfg, 0 if auto is not None and answer == auto else answer)
 
 
-def _gpx(given: Path | None) -> Path:
-    def existing(text: str) -> Path:
-        path = Path(text.strip().strip('"')).expanduser()
-        if not path.is_file():
-            msg = f"no file at {path}"
-            raise typer.BadParameter(msg)
-        return path
+def _gpx(given: Path | None, ask: _Prompts) -> Path:
+    if given:
+        return given
 
-    return given or typer.prompt("GPX file", value_proc=existing)
+    def is_file(text: str) -> bool | str:
+        return Path(text.strip().strip('"')).expanduser().is_file() or "no such file"
+
+    answer = ask(questionary.path("GPX file", validate=is_file, file_filter=_gpx_or_dir, **ask.io))
+    return Path(answer.strip().strip('"')).expanduser()
 
 
-def _layout(cfg: dict[str, Any]) -> None:
-    def choice(text: str) -> str:
-        if text not in LAYOUT_WIDTH:
-            msg = f"choose one of: {', '.join(LAYOUT_WIDTH)}"
-            raise typer.BadParameter(msg)
-        return text
+def _gpx_or_dir(path: str) -> bool:
+    """Tab completion offers folders to walk through and .gpx files to pick."""
+    return Path(path).is_dir() or path.lower().endswith(".gpx")
 
-    cfg["render"]["layout"] = typer.prompt(
-        f"Layout ({', '.join(LAYOUT_WIDTH)})", default=cfg["render"]["layout"], value_proc=choice
+
+def _layout(cfg: dict[str, Any], ask: _Prompts) -> None:
+    choices = [
+        questionary.Choice("strip  vertical, for the top tube", value="strip"),
+        questionary.Choice("line   one horizontal ribbon", value="line"),
+    ]
+    cfg["render"]["layout"] = ask(
+        questionary.select("Layout", choices=choices, default=cfg["render"]["layout"], **ask.io)
     )
 
 
-def _categories(cfg: dict[str, Any]) -> None:
-    known = cfg["categories"]
-    typer.echo("POI categories: " + "  ".join(f"{spec['emoji']} {name}" for name, spec in known.items()))
-
-    def names(text: str) -> list[str]:
-        chosen = list(known) if text.strip() == "all" else [n.strip() for n in text.split(",") if n.strip()]
-        if unknown := [n for n in chosen if n not in known]:
-            msg = f"unknown: {', '.join(unknown)}"
-            raise typer.BadParameter(msg)
-        return chosen
-
-    cfg["pois"]["enabled"] = typer.prompt(
-        "Categories to show (comma-separated, or all)", default=",".join(cfg["pois"]["enabled"]), value_proc=names
+def _categories(cfg: dict[str, Any], ask: _Prompts) -> None:
+    enabled = cfg["pois"]["enabled"]
+    choices = [
+        questionary.Choice(f"{spec['emoji']} {name}", value=name, checked=name in enabled)
+        for name, spec in cfg["categories"].items()
+    ]
+    cfg["pois"]["enabled"] = ask(
+        questionary.checkbox(
+            "POI categories to show",
+            choices=choices,
+            validate=lambda picked: bool(picked) or "pick at least one",
+            **ask.io,
+        )
     )
 
 
-def _advanced(cfg: dict[str, Any]) -> None:
-    typer.echo("\nAdvanced options:")
-    for n, s in enumerate(ADVANCED, 1):
-        value = s.get(cfg)
-        if s.kind is bool:
-            value = "yes" if value else "no"
-        elif s.shown and not value:
-            value = f"{_plain(s.shown(cfg))} (auto)"
-        typer.echo(f"  {n:>2}. {s.question} [{_plain(value)}]")
-
-    def numbers(text: str) -> list[int]:
-        try:
-            picked = [int(n) for n in text.replace(" ", ",").split(",") if n]
-        except ValueError:
-            msg = "give numbers from the list, e.g. 1,6"
-            raise typer.BadParameter(msg) from None
-        if bad := [n for n in picked if not 1 <= n <= len(ADVANCED)]:
-            msg = f"not in the list: {', '.join(map(str, bad))}"
-            raise typer.BadParameter(msg)
-        return picked
-
-    for n in typer.prompt("Numbers to change, e.g. 1,6 (Enter = none)", default="", value_proc=numbers):
-        _ask(ADVANCED[n - 1], cfg)
+def _advanced(cfg: dict[str, Any], ask: _Prompts) -> None:
+    choices = [questionary.Choice(f"{s.question} ({_shown(s, cfg)})", value=s) for s in ADVANCED]
+    for s in ask(questionary.checkbox("Advanced options to change (Enter = none)", choices=choices, **ask.io)):
+        _ask(s, cfg, ask)
 
 
-def ask(gpx: Path | None, out: Path | None, pdf: bool, cfg: dict[str, Any]) -> tuple[Path, Path, bool]:  # noqa: FBT001
+def ask(
+    gpx: Path | None,
+    out: Path | None,
+    pdf: bool,  # noqa: FBT001
+    cfg: dict[str, Any],
+    *,
+    input: Input | None = None,  # noqa: A002  prompt_toolkit's own name for it
+    output: Output | None = None,
+) -> tuple[Path, Path, bool]:
     """Prompt for every setting, defaulting to what `cfg` (defaults, config file and flags) already says."""
-    gpx = _gpx(gpx)
-    _layout(cfg)
+    prompts = _Prompts(input, output)
+    gpx = _gpx(gpx, prompts)
+    _layout(cfg, prompts)
     for s in COMMON:
-        _ask(s, cfg)
-    _categories(cfg)
-    pdf = typer.confirm("Also export a PDF?", default=pdf)
-    out = typer.prompt("Output file", default=str(out or gpx.with_suffix(".roadbook.html")), value_proc=Path)
-    _advanced(cfg)
+        _ask(s, cfg, prompts)
+    _categories(cfg, prompts)
+    pdf = prompts(questionary.confirm("Also export a PDF?", default=pdf, **prompts.io))
+    default_out = str(out or gpx.with_suffix(".roadbook.html"))
+    out = Path(prompts(questionary.path("Output file", default=default_out, **prompts.io)))
+    _advanced(cfg, prompts)
     return gpx, out, pdf
 
 
