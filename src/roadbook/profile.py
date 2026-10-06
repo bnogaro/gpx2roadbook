@@ -58,6 +58,14 @@ class Profile:
     def ele_at(self, km: float) -> float:
         return float(np.interp(km * 1000, self.x, self.e))
 
+    def ele_range(self, km_a: float, km_b: float) -> tuple[float, float]:
+        """(lowest, highest) elevation on the grid between two km; a stretch shorter than a step has only km_a's."""
+        seg = self.e[(self.x >= km_a * 1000) & (self.x <= km_b * 1000)]
+        if not seg.size:
+            ele = self.ele_at(km_a)
+            return ele, ele
+        return float(seg.min()), float(seg.max())
+
     def gain(self, km_a: float, km_b: float) -> float:
         return float(np.interp(km_b * 1000, self.x, self._gain) - np.interp(km_a * 1000, self.x, self._gain))
 
