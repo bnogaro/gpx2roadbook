@@ -27,3 +27,16 @@ jobs:
         run: uv run ty check src/
       - name: Test with coverage
         run: uv run pytest -q
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+      - run: uv sync --locked
+      - name: Lint and audit workflows (actionlint, zizmor)
+        run: uv run prek run actionlint zizmor --all-files
