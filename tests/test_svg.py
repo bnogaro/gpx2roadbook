@@ -5,7 +5,7 @@ import pytest
 
 from roadbook.model import Climb, Track
 from roadbook.profile import Profile
-from roadbook.svg import profile_svg
+from roadbook.svg import gutter_svg, profile_svg
 
 
 def _flat_track(length_m: float = 5000.0, ele: float = 100.0) -> Track:
@@ -71,3 +71,25 @@ def test_profile_svg_shades_only_climbs_overlapping_the_range():
     x, width = rects[0]
     assert x == pytest.approx(6.0, abs=0.1)      # (1 - 0) / 5 * 30mm
     assert width == pytest.approx(6.0, abs=0.1)  # (2 - 1) / 5 * 30mm
+
+
+def test_gutter_svg_puts_a_dot_on_each_row_and_stretches_legs_between_them():
+    profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)
+    # three rows unevenly spaced in km but evenly on paper, plus a continuation anchor on the bottom edge
+    anchors = [(0.0, 2.0), (0.5, 12.0), (4.0, 22.0), (5.0, 30.0)]
+    svg = gutter_svg(profile, [_climb(1, 2)], anchors, width_mm=4, height_mm=30, ele_range=(0, 200))
+
+    dots = [float(y) for y in re.findall(r'<circle[^>]*\bcy="([^"]+)"', svg)]
+    assert dots == [2.0, 12.0, 22.0]  # none for the continuation anchor
+    points = _polyline_points(svg)
+    assert points[0][1] == pytest.approx(2.0) and points[-1][1] == pytest.approx(30.0)
+    # km 1..2 lies inside the 10 mm between the 0.5 km and 4.0 km rows
+    assert 'class="climb"' in svg
+
+
+def test_gutter_svg_maps_ele_range_onto_its_width():
+    profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)  # 0 m -> 200 m over 5 km
+    svg = gutter_svg(profile, [], [(0.0, 0.0), (5.0, 30.0)], width_mm=4, height_mm=30, ele_range=(0, 400))
+    xs = [x for x, _ in _polyline_points(svg)]
+    assert min(xs) == pytest.approx(0, abs=0.2)
+    assert max(xs) == pytest.approx(2, abs=0.2)  # 200 m of a 400 m span fills half the gutter

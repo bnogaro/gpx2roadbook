@@ -38,13 +38,14 @@ def main(
     max_offset: Annotated[Optional[float], typer.Option(help="Ignore POIs further than this from the route, metres.")] = None,
     categories: Annotated[Optional[str], typer.Option(help="Comma-separated POI categories to keep, e.g. water,bakery,lodging.")] = None,
     details: Annotated[Optional[bool], typer.Option(help="Append a POI names reference sheet.")] = None,
+    leg_elevation: Annotated[Optional[bool], typer.Option(help="Show climbing/descent metres on each leg between rows.")] = None,
     pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,
     config: Annotated[Optional[Path], typer.Option(help="TOML file overriding default.toml.")] = None,
 ) -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
     cfg["render"]["layout"] = layout.value
-    for key, value in (("width_mm", width), ("length_mm", length), ("page", page), ("details", details)):
+    for key, value in (("width_mm", width), ("length_mm", length), ("page", page), ("details", details), ("leg_elevation", leg_elevation)):
         if value is not None:
             cfg["render"][key] = value
     if checkpoint_every is not None:

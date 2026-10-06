@@ -10,6 +10,7 @@ min_gain_m = 30
 min_length_m = 500
 min_grade_pct = 2.0
 merge_dip_m = 10     # merge two ascents separated by a descent of at most this many metres
+snap_m = 300         # a stop this close to a climb's foot or summit is shown on that climb's row / as its summit
 # category = first threshold reached, on score = length_m * avg_grade_pct (Tour de France style)
 categories = [["HC", 80000], ["1", 64000], ["2", 32000], ["3", 16000], ["4", 8000]]
 
@@ -31,7 +32,9 @@ width_mm = 0         # short side; 0 = layout default (strip 35, line 16)
 length_mm = 200      # long side
 page = "A4"
 details = true       # append a POI-names reference sheet
+leg_elevation = false  # show ↗️/↘️ metres on each leg between rows (the gutter already shows the terrain)
 max_emojis = 0       # 0 = derived from width
+gutter_mm = 4        # strip layout: elevation profile down the right edge, aligned to the rows; 0 = off
 
 # --- categories: order = display priority. `match` is tested (accent/case-insensitive)
 # --- against the POI <type>, then its <name>. First category that matches wins.

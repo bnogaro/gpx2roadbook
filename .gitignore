@@ -6,6 +6,7 @@ __pycache__/
 dist/
 build/
 
-# generated outputs — keep the sample GPX, not the rendered road books/PDFs
+# generated outputs (renders, screenshots) — keep the sample GPX, not the rendered road books/PDFs
 samples/*.html
 samples/*.pdf
+out/
