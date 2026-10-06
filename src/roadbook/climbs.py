@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .model import Climb
-from .profile import Profile
+
+if TYPE_CHECKING:
+    from .profile import Profile
 
 
 def _label(score: float, categories: list[list]) -> str:

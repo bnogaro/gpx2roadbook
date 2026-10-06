@@ -3,12 +3,14 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
-from .model import Item, Roadbook
 from .svg import gutter_svg
+
+if TYPE_CHECKING:
+    from .model import Climb, Item, Poi, Roadbook
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
@@ -34,7 +36,25 @@ def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[
     return kept, truncated, used + (MORE_W if truncated else 0)
 
 
-def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " · ", leg_elevation: bool = True) -> dict[str, Any]:
+def _climb(it: Item) -> Climb:
+    """The climb behind a climb or summit row; build() always attaches one."""
+    if it.climb is None:
+        msg = f"{it.kind} row at km {it.km:.1f} has no climb"
+        raise ValueError(msg)
+    return it.climb
+
+
+def _category(p: Poi) -> str:
+    """The category of a POI inside a stop; filter_pois() only keeps classified ones."""
+    if p.category is None:
+        msg = f"POI {p.name!r} at km {p.km:.1f} has no category"
+        raise ValueError(msg)
+    return p.category
+
+
+def _row(  # noqa: C901, PLR0912  one flat branch per row kind
+    it: Item, book: Roadbook, avail: float, max_emojis: int, *, sep: str = " · ", leg_elevation: bool = True
+) -> dict[str, Any]:
     emojis, truncated, emoji_w = _fit(it.emojis, avail, max_emojis)
     row: dict[str, Any] = {
         "kind": it.kind,
@@ -58,8 +78,8 @@ def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " �
         # a climb's own emoji leads; a stop snapped onto its foot or summit follows in the space left.
         # The row is too narrow for both a stop and a full label, so with a stop on board the category
         # shrinks to a superscript on ⛰️, and the summit's elevation only shows if room is left.
-        c = it.climb
         if it.kind == "climb":
+            c = _climb(it)
             own = ("⛰️", c.label if it.emojis and c.label else 0)
             room = avail - EMOJI_W - (COUNT_W * len(c.label) if it.emojis else LABEL_W)
             row["label"] = f"Cat {c.label}" if c.label and not it.emojis else ""
@@ -105,8 +125,8 @@ def _details(book: Roadbook, categories: dict[str, Any]) -> list[dict[str, Any]]
     order = list(categories)
     for s in book.stops:
         groups: dict[str, list[tuple[str, int]]] = {}
-        for p in sorted(s.pois, key=lambda p: (order.index(p.category), p.km)):
-            groups.setdefault(categories[p.category]["emoji"], []).append((p.name or p.type, round(p.offset_m)))
+        for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
+            groups.setdefault(categories[_category(p)]["emoji"], []).append((p.name or p.type, round(p.offset_m)))
         out.append({"km": f"{s.km:.1f}", "groups": list(groups.items())})
     return out
 
@@ -114,11 +134,13 @@ def _details(book: Roadbook, categories: dict[str, Any]) -> list[dict[str, Any]]
 def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, height: float) -> None:
     """Give each strip a profile whose km scale follows its rows: one anchor at each row's main line."""
     p = book.profile
+    if p is None:  # render_html() only asks for gutters when there is a profile
+        return
     first = 0  # index in book.items of the strip's first row
     for s in strips:
         items = book.items[first : first + len(s["rows"])]
         anchors, y = [], 0.0
-        for it, row in zip(items, s["rows"]):
+        for it, row in zip(items, s["rows"], strict=True):
             anchors.append((it.km, y + MAIN_H / 2))
             y += row["h"]
         first += len(items)
@@ -137,16 +159,17 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     width = r["width_mm"] or LAYOUT_WIDTH[layout]
     length = r["length_mm"]
 
-    if layout == "strip":
-        avail = width - KM_COL - 3 * PAD  # what is left of the row once the km column is taken
-    else:
-        avail = 40.0  # tokens may grow; cap so a single stop can't eat the whole ribbon
+    # strip: what is left of the row once the km column is taken.
+    # line: tokens may grow; cap so a single stop can't eat the whole ribbon.
+    avail = width - KM_COL - 3 * PAD if layout == "strip" else 40.0
     gutter = r["gutter_mm"] if layout == "strip" and book.profile is not None else 0
     avail -= gutter
     if layout == "strip" and not r["leg_elevation"]:
         avail -= DIST_W
     sep = " " if gutter else " · "  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-    rows = [_row(it, book, avail, r["max_emojis"] or 99, sep, r["leg_elevation"]) for it in book.items]
+    rows = [
+        _row(it, book, avail, r["max_emojis"] or 99, sep=sep, leg_elevation=r["leg_elevation"]) for it in book.items
+    ]
 
     if layout == "strip":
         pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")
@@ -168,7 +191,15 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         page=r["page"],
         orientation=orientation,
         details=_details(book, cfg["categories"]) if r["details"] else [],
-        g=dict(MAIN_H=MAIN_H, SUB_H=SUB_H, LEG_H=LEG_H, HDR_H=HDR_H, KM_COL=KM_COL, PAD=PAD, GUTTER=gutter),
+        g={
+            "MAIN_H": MAIN_H,
+            "SUB_H": SUB_H,
+            "LEG_H": LEG_H,
+            "HDR_H": HDR_H,
+            "KM_COL": KM_COL,
+            "PAD": PAD,
+            "GUTTER": gutter,
+        },
     )
 
 
@@ -190,9 +221,17 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
     """Print via a headless Chromium-based browser (Edge/Chrome), which renders colour emoji reliably."""
     exe = _find_browser()
     if exe is None:
-        raise RuntimeError("No Edge/Chrome found for PDF export; open the HTML and print it instead.")
-    subprocess.run(
-        [exe, "--headless", "--disable-gpu", "--no-pdf-header-footer", f"--print-to-pdf={pdf.resolve()}", html.resolve().as_uri()],
+        msg = "No Edge/Chrome found for PDF export; open the HTML and print it instead."
+        raise RuntimeError(msg)
+    subprocess.run(  # noqa: S603  fixed argv, no shell; exe comes from PATH or a known install path
+        [
+            exe,
+            "--headless",
+            "--disable-gpu",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={pdf.resolve()}",
+            html.resolve().as_uri(),
+        ],
         check=True,
         capture_output=True,
     )

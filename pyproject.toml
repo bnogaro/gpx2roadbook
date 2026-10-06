@@ -16,16 +16,68 @@ roadbook = "roadbook.cli:app"
 
 [dependency-groups]
 dev = [
+    { include-group = "lint" },
+    { include-group = "test" },
     "prek>=0.5.3",
+]
+lint = [
+    "ruff>=0.16.10",
+    "ty>=0.0.84",
+]
+test = [
     "pytest>=8",
+    "pytest-cov>=7.1.0",
 ]
 
 [build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.hatch.build.targets.wheel]
-packages = ["src/roadbook"]
+requires = ["uv_build>=0.12.23,<0.13"]
+build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = [
+    "--cov=roadbook",
+    "--cov-report=term-missing",
+    "--cov-fail-under=80",  # measured 80.5% (branch) when introduced; ratchet up as tests grow
+]
+
+[tool.coverage.run]
+branch = true
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",       # docstrings: not enforced; key functions carry short ones already
+    "COM812",  # trailing comma: conflicts with the formatter
+    "ISC001",  # implicit string concat: conflicts with the formatter
+    "CPY001",  # copyright header: the project does not use per-file notices
+]
+
+[tool.ruff.lint.pylint]
+# the SVG and row builders take a profile/item plus a handful of geometry inputs
+max-args = 6
+max-positional-args = 6
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",     # assert is how pytest tests are written
+    "PLR2004",  # literal expected values are clearer than named constants in tests
+    "PLC2701",  # tests exercise private helpers directly
+    "INP001",   # tests/ is a pytest rootdir, not a package
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
+
+[tool.ty.environment]
+python-version = "3.11"
+
+[tool.ty.terminal]
+error-on-warning = true

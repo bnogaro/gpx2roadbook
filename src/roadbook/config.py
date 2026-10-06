@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import tomllib
 from importlib import resources
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
