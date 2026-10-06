@@ -1,4 +1,4 @@
-.PHONY: dev lint format test build
+.PHONY: dev lint format test audit build
 
 dev:
 	uv sync --all-groups
@@ -15,6 +15,10 @@ format:
 
 test:
 	uv run pytest
+
+# audits the locked environment; the project itself is not on PyPI, so skip it
+audit:
+	uv run --locked pip-audit --skip-editable
 
 build:
 	uv build
