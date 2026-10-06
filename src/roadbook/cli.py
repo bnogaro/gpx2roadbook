@@ -42,6 +42,9 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     checkpoint_every: Annotated[float | None, typer.Option(help="Auto checkpoint every N km (0 = off).")] = None,
     checkpoint: Annotated[list[str] | None, typer.Option(help="Extra checkpoint, KM or KM:LABEL. Repeatable.")] = None,
     gap: Annotated[float | None, typer.Option(help="Merge POIs closer than this many metres into one stop.")] = None,
+    min_climb: Annotated[
+        float | None, typer.Option(help="Smallest gain, metres, for an ascent to count as a climb (default 80).")
+    ] = None,
     max_span: Annotated[
         float | None, typer.Option(help="Longest a stop may stretch, metres; longer runs split (default 3 x gap).")
     ] = None,
@@ -68,6 +71,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "details", details),
         ("render", "leg_elevation", leg_elevation),
         ("checkpoints", "every_km", checkpoint_every),
+        ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),
         ("stops", "max_span_m", max_span),
         ("pois", "max_offset_m", max_offset),

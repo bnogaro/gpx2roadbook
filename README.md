@@ -70,6 +70,7 @@ Either way, cut along the dashed lines.
 | `--checkpoint KM:LABEL` | Add one checkpoint, e.g. `--checkpoint 87.5:Lunch`. Repeat it for more. |
 | `--categories water,bakery,toilets` | Keep only these POI categories. The names are the `[categories.*]` sections of `default.toml`. |
 | `--max-offset M` | Ignore POIs further than this many metres from the route (default 300). |
+| `--min-climb M` | Only count ascents gaining at least this many metres as climbs (default 80). Lower it to see smaller rises. |
 | `--gap M` | Merge POIs closer than this many metres into one stop (default 500). |
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
@@ -121,7 +122,7 @@ Each strip has a dark header with its km range and its number (`2/3`). Below tha
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. A **`+`** means more kinds are there than fit on the row. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
-- **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and ↗️ total gain, e.g. `4.3km 2.6% ↗️110`. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category.
+- **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and ↗️ total gain, e.g. `4.3km 2.6% ↗️110`. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Stops on a climb.** A stop within 300 m (`climbs.snap_m`) of a climb's foot or summit is merged into that row rather than given a row of its own. A ⛰️ row with a stop on it has no room for "Cat 4", so the category becomes a small superscript on the mountain (⛰️⁴ 🍔).
 - **🔝 rows** mark a summit. They only appear when a stop sits at the top; the profile already shows every other summit. If there is room, the row also gives the summit's elevation. A 🔝 row closes its climb with an orange line.
 

@@ -2,8 +2,10 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from typer.testing import CliRunner
 
 from roadbook.build import build
+from roadbook.cli import app
 from roadbook.climbs import find_climbs
 from roadbook.config import load_config
 from roadbook.model import Track
@@ -72,3 +74,19 @@ def test_ubf_merges_the_climb_split_at_km_114_only() -> None:
     assert not [c for c in climbs if 111.5 < c[0] < 116.2]
     # 1.6 km and 134 m apart: two climbs
     assert [c[:2] for c in climbs if 121 < c[0] < 125] == [(121.2, 122.8), (124.4, 131.0)]
+
+
+def test_an_ascent_under_min_gain_is_no_climb() -> None:
+    climbs = load_config()["climbs"]
+    bump = _profile((1000, 60))  # 6% but only 60 m: under the 80 m default
+    assert find_climbs(bump, climbs) == []
+    assert len(find_climbs(bump, {**climbs, "min_gain_m": 30})) == 1
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_min_climb_flag_sets_the_threshold(tmp_path: Path) -> None:
+    out = tmp_path / "rb.html"
+    for flag, climbs in (([], 10), (["--min-climb", "30"], 18)):
+        result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), *flag])
+        assert result.exit_code == 0, result.output
+        assert f"; {climbs} climbs" in result.output
