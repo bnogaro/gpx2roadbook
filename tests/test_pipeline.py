@@ -6,6 +6,7 @@ import pytest
 
 from roadbook.build import _snap_to_climbs, build
 from roadbook.config import load_config
+from roadbook.kinds import KINDS
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster
 from roadbook.profile import Profile, turning_points
@@ -155,6 +156,30 @@ def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji() -> None:
     capped = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1), ("🚰", 1)]), book, avail=30, max_emojis=1)
     assert capped["emojis"][1:] == [("🍔", 1)]
     assert capped["more"]
+
+
+def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() -> None:
+    book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
+    rows = [
+        _row(Item(kind, km, 0, label=label), book, avail=20, max_emojis=99)
+        for kind, km, label in (("start", 0, "START"), ("checkpoint", 20, "CP1"), ("checkpoint", 30, "Lunch"))
+    ]
+    assert [r["emojis"] for r in rows] == [[("🟢", 0)], [("🚩", 0)], [("🚩", 0)]]
+    assert [r["label"] for r in rows] == ["START", "CP1 · 30 to go", "Lunch"]
+
+
+def test_summit_elevation_gives_way_to_its_stop() -> None:
+    climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "2")
+    book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
+    top = Item("summit", 15.0, 1240.4, climb=climb, emojis=[("🍔", 1)])
+    assert _row(top, book, avail=30, max_emojis=99)["label"] == "1240 m"
+    assert _row(top, book, avail=12, max_emojis=99)["label"] == ""
+    assert _row(top, book, avail=12, max_emojis=99)["emojis"] == [("🔝", 0), ("🍔", 1)]
+
+
+def test_kinds_sort_a_summit_before_whatever_opens_at_its_km() -> None:
+    order = sorted(KINDS, key=lambda k: KINDS[k].rank)
+    assert order == ["start", "summit", "checkpoint", "stop", "climb", "finish"]
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
