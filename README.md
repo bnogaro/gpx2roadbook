@@ -57,6 +57,18 @@ This writes `my_ride.roadbook.html` next to the GPX and prints a short summary: 
 roadbook my_ride.gpx -o ~/Desktop/ride.html
 ```
 
+### Interactive mode
+
+Not sure which options to use? Let `roadbook` ask:
+
+```sh
+roadbook -i                 # or: roadbook -i my_ride.gpx
+```
+
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+
+At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
+
 ### Printing
 
 Open the HTML in your browser and print it. Print at **100 % scale**, not "fit to page", so the strips keep their real size in millimetres. If the coloured rows come out white, turn on "background graphics".
@@ -90,6 +102,7 @@ Either way, cut along the dashed lines.
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
+| `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
 
 For the full list:

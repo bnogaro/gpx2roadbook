@@ -9,6 +9,7 @@ import typer
 
 from .build import build
 from .config import load_config
+from .interactive import ask, command
 from .render import html_to_pdf, render_html
 
 if TYPE_CHECKING:
@@ -29,7 +30,10 @@ def _extra_checkpoint(value: str) -> list:
 
 @app.command()
 def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expects
-    gpx: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="GPX file (route/track + waypoints).")],
+    gpx: Annotated[
+        Path | None,
+        typer.Argument(exists=True, dir_okay=False, help="GPX file (route/track + waypoints); asked for with -i."),
+    ] = None,
     out: Annotated[Path | None, typer.Option("--out", "-o", help="Output .html (default: next to the GPX).")] = None,
     layout: Annotated[
         Layout, typer.Option(help="strip: vertical, top tube. line: one horizontal ribbon of tokens.")
@@ -64,6 +68,12 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     ] = None,
     pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,  # noqa: FBT002  a --pdf flag
     config: Annotated[Path | None, typer.Option(help="TOML file overriding default.toml.")] = None,
+    interactive: Annotated[  # noqa: FBT002  a -i flag
+        bool,
+        typer.Option(
+            "--interactive", "-i", help="Ask for the settings step by step, starting from the ones given as options."
+        ),
+    ] = False,
 ) -> None:
     cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
@@ -87,6 +97,17 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         cfg["checkpoints"]["extra"] += [_extra_checkpoint(c) for c in checkpoint]
     if categories:
         cfg["pois"]["enabled"] = [c.strip() for c in categories.split(",")]
+
+    if interactive:
+        if not sys.stdin.isatty():
+            typer.echo("-i asks its questions in a terminal; give the settings as options instead.", err=True)
+            raise typer.Exit(2)
+        gpx, out, pdf = ask(gpx, out, pdf, cfg)
+        same = command(gpx, out, pdf=pdf, cfg=cfg, base=load_config(config), config=config)
+        typer.echo(f"\nSame as: {same}\n")
+    elif gpx is None:
+        typer.echo("Missing GPX file: give one, or use -i to be asked.", err=True)
+        raise typer.Exit(2)
 
     book = build(gpx, cfg)
     html = render_html(book, cfg)
