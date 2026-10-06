@@ -10,7 +10,7 @@ from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import COUNT_W, EMOJI_W, RowLayout, _fit, _row, render_html
+from roadbook.render import COUNT_W, EMOJI_W, RowLayout, _fit, _row, _wrap, render_html
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -276,3 +276,38 @@ def test_a_crowded_stop_on_a_climb_or_summit_keeps_its_first_emoji(kind: str, av
     row = _row(Item(kind, 10.0, 0, climb=climb, emojis=glyphs), book, _layout(avail))
     assert [g.emoji for g in row["emojis"]] + (["+"] if row["more"] else []) == shown
     assert row["emojis"][1].sup == ""  # the count gave way first
+
+
+def test_wrap_with_one_width_is_fit() -> None:
+    glyphs = [Glyph("🚰", "2"), Glyph("🚻"), Glyph("🥖"), Glyph("☕")]
+    for avail in (5.0, 12.5, 30.0):
+        lines, more, w = _wrap(glyphs, [avail], 99)
+        assert (lines[0], more, w) == _fit(glyphs, avail, 99)
+
+
+def test_wrap_carries_a_crowded_stop_onto_the_next_line() -> None:
+    glyphs = [Glyph(e) for e in "🚰🚻🥖☕🛒⛽🍔"]
+    lines, more, _ = _wrap(glyphs, [12.5, 18.5], 99)
+    # two fit beside the km; the next line takes three and keeps room for the "+" only there
+    assert [len(line) for line in lines] == [2, 3]
+    assert more
+    lines, more, _ = _wrap(glyphs[:4], [12.5, 18.5], 99)
+    assert [len(line) for line in lines] == [2, 2]
+    assert not more
+
+
+def test_a_crowded_row_grows_a_line_and_a_quiet_one_does_not() -> None:
+    book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
+    crowded = Item("stop", 10.0, 0, emojis=[Glyph(e) for e in "🚰🚻🥖☕"])
+    quiet = Item("stop", 10.0, 0, emojis=[Glyph("🚰")])
+    one = _layout(12.5)
+    two = RowLayout(
+        avail=12.5, max_emojis=99, sep=" ", leg_elevation=False, range_m=1000, emoji_lines=2, wrap_avail=18.5
+    )
+    cut = _row(crowded, book, one)
+    assert cut["more"]
+    assert not cut["emoji_lines"]
+    wrapped = _row(crowded, book, two)
+    assert len(wrapped["emojis"]) + sum(map(len, wrapped["emoji_lines"])) == 4
+    assert not wrapped["more"]
+    assert wrapped["h"] > _row(quiet, book, two)["h"] == _row(quiet, book, one)["h"]

@@ -36,6 +36,7 @@ page = "A4"
 details = true       # append a POI-names reference sheet
 stop_range_m = 1000  # a stop stretching at least this far shows where it ends ("→125.0")
 leg_elevation = false  # show ↗️/↘️ metres on each leg between rows (the gutter already shows the terrain)
+emoji_lines = 2      # strip layout: lines a crowded stop's emojis may fill (1 = cut to its row, with a "+")
 max_emojis = 0       # 0 = derived from width
 gutter_mm = 4        # strip layout: elevation profile down the right edge, aligned to the rows; 0 = off
 

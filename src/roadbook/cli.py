@@ -58,6 +58,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     leg_elevation: Annotated[
         bool | None, typer.Option(help="Show climbing/descent metres on each leg between rows.")
     ] = None,
+    emoji_lines: Annotated[
+        int | None,
+        typer.Option(help="Lines a crowded stop's emojis may fill on a strip (default 2; 1 = one line, with a +)."),
+    ] = None,
     pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,  # noqa: FBT002  a --pdf flag
     config: Annotated[Path | None, typer.Option(help="TOML file overriding default.toml.")] = None,
 ) -> None:
@@ -70,6 +74,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "page", page),
         ("render", "details", details),
         ("render", "leg_elevation", leg_elevation),
+        ("render", "emoji_lines", emoji_lines),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),
