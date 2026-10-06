@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import re
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import gpxpy
 import numpy as np
 
 from .model import Poi, Track
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+_MIN_POINTS = 2  # a route needs at least two points to have a length
 
 # OnRouteMap writes e.g. "Ligne droite jusqu'à l'itinéraire: 8 m, Kilomètre d'itinéraire: 30.8 km"
 _KM = re.compile(r"Kilom[eè]tre d'itin[eé]raire:\s*([\d.]+)\s*km", re.IGNORECASE)
@@ -31,14 +36,15 @@ def _fill_missing(ele: np.ndarray) -> np.ndarray:
 
 
 def read_gpx(path: Path) -> tuple[Track, list[Poi]]:
-    with open(path, encoding="utf-8") as fh:
+    with path.open(encoding="utf-8") as fh:
         gpx = gpxpy.parse(fh)
 
     points = [p for t in gpx.tracks for s in t.segments for p in s.points]
     if not points:  # fall back to a planned route
         points = [p for r in gpx.routes for p in r.points]
-    if len(points) < 2:
-        raise ValueError(f"{path.name}: no track or route points found")
+    if len(points) < _MIN_POINTS:
+        msg = f"{path.name}: no track or route points found"
+        raise ValueError(msg)
 
     lat = np.array([p.latitude for p in points])
     lon = np.array([p.longitude for p in points])

@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import sys
-from enum import Enum
-from pathlib import Path
-from typing import Annotated
+from enum import StrEnum
+from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
+from typing import TYPE_CHECKING, Annotated, cast
 
 import typer
 
@@ -11,10 +11,13 @@ from .build import build
 from .config import load_config
 from .render import html_to_pdf, render_html
 
+if TYPE_CHECKING:
+    from io import TextIOWrapper
+
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
 
 
-class Layout(str, Enum):
+class Layout(StrEnum):
     strip = "strip"
     line = "line"
 
@@ -25,7 +28,7 @@ def _extra_checkpoint(value: str) -> list:
 
 
 @app.command()
-def main(
+def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expects
     gpx: Annotated[Path, typer.Argument(exists=True, dir_okay=False, help="GPX file (route/track + waypoints).")],
     out: Annotated[Path | None, typer.Option("--out", "-o", help="Output .html (default: next to the GPX).")] = None,
     layout: Annotated[
@@ -49,10 +52,10 @@ def main(
     leg_elevation: Annotated[
         bool | None, typer.Option(help="Show climbing/descent metres on each leg between rows.")
     ] = None,
-    pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,
+    pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,  # noqa: FBT002  a --pdf flag
     config: Annotated[Path | None, typer.Option(help="TOML file overriding default.toml.")] = None,
 ) -> None:
-    sys.stdout.reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
+    cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
     cfg["render"]["layout"] = layout.value
     for key, value in (
@@ -91,5 +94,5 @@ def main(
             html_to_pdf(out, pdf_path)
         except (RuntimeError, OSError) as exc:
             typer.echo(f"PDF not written: {exc}", err=True)
-            raise typer.Exit(1)
+            raise typer.Exit(1) from exc
         typer.echo(f"Wrote {pdf_path}")

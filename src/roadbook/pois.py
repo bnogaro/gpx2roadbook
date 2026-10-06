@@ -6,6 +6,8 @@ from typing import Any
 
 from .model import Poi, Stop
 
+_SHORT_TERM = 3  # longest match term (in characters) that must match a whole word
+
 
 def _norm(s: str) -> str:
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
@@ -16,7 +18,7 @@ def _compile(categories: dict[str, Any]) -> list[tuple[str, re.Pattern]]:
     for name, spec in categories.items():
         terms = [re.escape(_norm(m)) for m in spec["match"]]
         # short terms must match a whole word ("bar", "wc"); longer ones a word prefix ("toilet" -> "toilettes")
-        parts = [rf"\b{t}\b" if len(t) <= 3 else rf"\b{t}" for t in terms]
+        parts = [rf"\b{t}\b" if len(t) <= _SHORT_TERM else rf"\b{t}" for t in terms]
         out.append((name, re.compile("|".join(parts))))
     return out
 
@@ -58,5 +60,6 @@ def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[tuple[str, int]
     """Distinct emojis of a stop in category priority order, with how many POIs share each."""
     counts: dict[str, int] = {}
     for p in stop.pois:
-        counts[p.category] = counts.get(p.category, 0) + 1
+        if p.category is not None:  # stops only hold classified POIs; this narrows the type
+            counts[p.category] = counts.get(p.category, 0) + 1
     return [(categories[name]["emoji"], counts[name]) for name in categories if name in counts]

@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 from numpy.lib.stride_tricks import sliding_window_view
 
-from .model import Track
+if TYPE_CHECKING:
+    from .model import Track
 
 
 def turning_points(e: np.ndarray, swing: float) -> list[int]:
@@ -30,12 +33,12 @@ def turning_points(e: np.ndarray, swing: float) -> list[int]:
 class Profile:
     """Smoothed elevation profile on a regular distance grid, with gain/loss queries."""
 
-    def __init__(self, track: Track, step_m: float = 25, smooth_m: float = 200, swing_m: float = 3):
+    def __init__(self, track: Track, step_m: float = 25, smooth_m: float = 200, swing_m: float = 3) -> None:
         self.step = step_m
         self.x = np.arange(0, track.dist[-1] + step_m, step_m)
         raw = np.interp(self.x, track.dist, track.ele)
         med = np.median(sliding_window_view(np.pad(raw, 2, mode="edge"), 5), axis=1)
-        k = max(1, int(round(smooth_m / step_m))) | 1
+        k = max(1, round(smooth_m / step_m)) | 1
         self.e = np.convolve(np.pad(med, k // 2, mode="edge"), np.ones(k) / k, mode="valid")
 
         self.turns = turning_points(self.e, swing_m)

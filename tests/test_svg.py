@@ -37,17 +37,18 @@ def _climb(start_km: float, end_km: float) -> Climb:
     return Climb(start_km=start_km, end_km=end_km, gain_m=40.0, avg_grade=4.0, max_grade=6.0, label="")
 
 
-def test_profile_svg_has_requested_viewbox_and_size():
+def test_profile_svg_has_requested_viewbox_and_size() -> None:
     profile = Profile(_flat_track(), step_m=25, smooth_m=100, swing_m=3)
     svg = profile_svg(profile, climbs=[], km_a=0, km_b=5, width_mm=30, height_mm=10)
 
-    assert svg.strip().startswith("<svg") and svg.strip().endswith("</svg>")
+    assert svg.strip().startswith("<svg")
+    assert svg.strip().endswith("</svg>")
     assert 'viewBox="0 0 30 10"' in svg
     assert 'width="30mm"' in svg
     assert 'height="10mm"' in svg
 
 
-def test_profile_svg_draws_a_rising_line_for_a_climb():
+def test_profile_svg_draws_a_rising_line_for_a_climb() -> None:
     profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)
     svg = profile_svg(profile, climbs=[], km_a=0, km_b=5, width_mm=30, height_mm=10)
     points = _polyline_points(svg)
@@ -61,7 +62,7 @@ def test_profile_svg_draws_a_rising_line_for_a_climb():
     assert points[-1][1] < points[0][1]
 
 
-def test_profile_svg_shades_only_climbs_overlapping_the_range():
+def test_profile_svg_shades_only_climbs_overlapping_the_range() -> None:
     profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)
     climbs = [_climb(1, 2), _climb(6, 7)]  # second is outside the 0..5 km window requested below
     svg = profile_svg(profile, climbs, km_a=0, km_b=5, width_mm=30, height_mm=10)
@@ -73,7 +74,7 @@ def test_profile_svg_shades_only_climbs_overlapping_the_range():
     assert width == pytest.approx(6.0, abs=0.1)  # (2 - 1) / 5 * 30mm
 
 
-def test_gutter_svg_puts_a_dot_on_each_row_and_stretches_legs_between_them():
+def test_gutter_svg_puts_a_dot_on_each_row_and_stretches_legs_between_them() -> None:
     profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)
     # three rows unevenly spaced in km but evenly on paper, plus a continuation anchor on the bottom edge
     anchors = [(0.0, 2.0), (0.5, 12.0), (4.0, 22.0), (5.0, 30.0)]
@@ -82,12 +83,13 @@ def test_gutter_svg_puts_a_dot_on_each_row_and_stretches_legs_between_them():
     dots = [float(y) for y in re.findall(r'<circle[^>]*\bcy="([^"]+)"', svg)]
     assert dots == [2.0, 12.0, 22.0]  # none for the continuation anchor
     points = _polyline_points(svg)
-    assert points[0][1] == pytest.approx(2.0) and points[-1][1] == pytest.approx(30.0)
+    assert points[0][1] == pytest.approx(2.0)
+    assert points[-1][1] == pytest.approx(30.0)
     # km 1..2 lies inside the 10 mm between the 0.5 km and 4.0 km rows
     assert 'class="climb"' in svg
 
 
-def test_gutter_svg_maps_ele_range_onto_its_width():
+def test_gutter_svg_maps_ele_range_onto_its_width() -> None:
     profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)  # 0 m -> 200 m over 5 km
     svg = gutter_svg(profile, [], [(0.0, 0.0), (5.0, 30.0)], width_mm=4, height_mm=30, ele_range=(0, 400))
     xs = [x for x, _ in _polyline_points(svg)]

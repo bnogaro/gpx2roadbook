@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import numpy as np
 
-from .model import Poi, Track
+if TYPE_CHECKING:
+    from .model import Poi, Track
 
 _R = 6371008.8
 
@@ -14,7 +17,7 @@ class Snapper:
     around it, which keeps loops / out-and-backs / crossings unambiguous.
     """
 
-    def __init__(self, track: Track):
+    def __init__(self, track: Track) -> None:
         self._lat0 = np.radians(track.lat.mean())
         x, y = self._project(track.lat, track.lon)
         self._ax, self._ay = x[:-1], y[:-1]
@@ -23,10 +26,10 @@ class Snapper:
         self._d0 = track.dist[:-1]
         self._seg = np.diff(track.dist)
 
-    def _project(self, lat, lon):
+    def _project(self, lat: np.ndarray, lon: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         return np.radians(lon) * np.cos(self._lat0) * _R, np.radians(lat) * _R
 
-    def snap(self, lat: float, lon: float, hint_km: float | None = None):
+    def snap(self, lat: float, lon: float, hint_km: float | None = None) -> tuple[float, float]:
         px, py = self._project(np.array(lat), np.array(lon))
         t = np.clip(((px - self._ax) * self._dx + (py - self._ay) * self._dy) / self._l2, 0, 1)
         d = np.hypot(self._ax + t * self._dx - px, self._ay + t * self._dy - py)
