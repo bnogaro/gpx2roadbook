@@ -34,3 +34,30 @@ build-backend = "uv_build"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+src = ["src"]
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "D",       # docstrings: not enforced; key functions carry short ones already
+    "COM812",  # trailing comma: conflicts with the formatter
+    "ISC001",  # implicit string concat: conflicts with the formatter
+    "CPY001",  # copyright header: the project does not use per-file notices
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+    "S101",     # assert is how pytest tests are written
+    "PLR2004",  # literal expected values are clearer than named constants in tests
+    "PLC2701",  # tests exercise private helpers directly
+    "INP001",   # tests/ is a pytest rootdir, not a package
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+docstring-code-format = true
