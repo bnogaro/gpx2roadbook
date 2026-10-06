@@ -28,9 +28,9 @@ class Poi:
     type: str
     lat: float
     lon: float
-    hint_km: float | None = None    # route km stated by the exporter, if any
-    km: float = 0.0                 # route km after snapping onto our own track
-    offset_m: float = 0.0           # distance from the route
+    hint_km: float | None = None  # route km stated by the exporter, if any
+    km: float = 0.0  # route km after snapping onto our own track
+    offset_m: float = 0.0  # distance from the route
     category: str | None = None
 
 
@@ -54,9 +54,9 @@ class Climb:
     start_km: float
     end_km: float
     gain_m: float
-    avg_grade: float   # percent
-    max_grade: float   # percent over ~200 m
-    label: str         # "HC", "1".."4" or "" when below category 4
+    avg_grade: float  # percent
+    max_grade: float  # percent over ~200 m
+    label: str  # "HC", "1".."4" or "" when below category 4
 
     @property
     def length_km(self) -> float:
@@ -65,16 +65,16 @@ class Climb:
 
 @dataclass
 class Item:
-    kind: str                       # start | stop | climb | summit | checkpoint | finish
+    kind: str  # start | stop | climb | summit | checkpoint | finish
     km: float
     ele: float
     label: str = ""
     emojis: list[tuple[str, int]] = field(default_factory=list)
     climb: Climb | None = None
     stop: Stop | None = None
-    dist_to_next: float | None = None   # km
-    gain_to_next: float | None = None   # m
-    loss_to_next: float | None = None   # m
+    dist_to_next: float | None = None  # km
+    gain_to_next: float | None = None  # m
+    loss_to_next: float | None = None  # m
 
 
 @dataclass

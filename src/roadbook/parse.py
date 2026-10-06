@@ -9,7 +9,7 @@ import numpy as np
 from .model import Poi, Track
 
 # OnRouteMap writes e.g. "Ligne droite jusqu'à l'itinéraire: 8 m, Kilomètre d'itinéraire: 30.8 km"
-_KM = re.compile(r"Kilom[eè]tre d'itin[eé]raire:\s*([\d.]+)\s*km", re.I)
+_KM = re.compile(r"Kilom[eè]tre d'itin[eé]raire:\s*([\d.]+)\s*km", re.IGNORECASE)
 
 
 def _haversine_cumulative(lat: np.ndarray, lon: np.ndarray) -> np.ndarray:

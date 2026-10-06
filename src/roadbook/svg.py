@@ -6,7 +6,9 @@ from .model import Climb
 from .profile import Profile
 
 
-def profile_svg(profile: Profile, climbs: list[Climb], km_a: float, km_b: float, width_mm: float, height_mm: float) -> str:
+def profile_svg(
+    profile: Profile, climbs: list[Climb], km_a: float, km_b: float, width_mm: float, height_mm: float
+) -> str:
     """A small elevation profile over [km_a, km_b], with climbs shaded, sized in mm to print true-to-scale."""
     x = np.arange(km_a * 1000, km_b * 1000 + profile.step, profile.step)
     ele = np.interp(x, profile.x, profile.e)
@@ -75,7 +77,8 @@ def gutter_svg(
     line = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(x, y))
     dots = "".join(
         f'<circle cx="{(np.interp(k * 1000, profile.x, profile.e) - lo) / span * width_mm:.2f}" cy="{yy:.2f}" r="0.45" fill="#111"/>'
-        for k, yy in anchors if yy < height_mm  # a trailing anchor on the bottom edge only continues the line
+        for k, yy in anchors
+        if yy < height_mm  # a trailing anchor on the bottom edge only continues the line
     )
     return (
         f'<svg class="gutter" viewBox="0 0 {width_mm} {height_mm}" width="{width_mm}mm" height="{height_mm}mm">'

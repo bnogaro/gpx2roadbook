@@ -34,7 +34,9 @@ def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[
     return kept, truncated, used + (MORE_W if truncated else 0)
 
 
-def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " · ", leg_elevation: bool = True) -> dict[str, Any]:
+def _row(
+    it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " · ", leg_elevation: bool = True
+) -> dict[str, Any]:
     emojis, truncated, emoji_w = _fit(it.emojis, avail, max_emojis)
     row: dict[str, Any] = {
         "kind": it.kind,
@@ -192,7 +194,14 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
     if exe is None:
         raise RuntimeError("No Edge/Chrome found for PDF export; open the HTML and print it instead.")
     subprocess.run(
-        [exe, "--headless", "--disable-gpu", "--no-pdf-header-footer", f"--print-to-pdf={pdf.resolve()}", html.resolve().as_uri()],
+        [
+            exe,
+            "--headless",
+            "--disable-gpu",
+            "--no-pdf-header-footer",
+            f"--print-to-pdf={pdf.resolve()}",
+            html.resolve().as_uri(),
+        ],
         check=True,
         capture_output=True,
     )

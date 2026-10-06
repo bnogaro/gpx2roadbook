@@ -69,7 +69,7 @@ def test_profile_svg_shades_only_climbs_overlapping_the_range():
     rects = _climb_rects(svg)
     assert len(rects) == 1
     x, width = rects[0]
-    assert x == pytest.approx(6.0, abs=0.1)      # (1 - 0) / 5 * 30mm
+    assert x == pytest.approx(6.0, abs=0.1)  # (1 - 0) / 5 * 30mm
     assert width == pytest.approx(6.0, abs=0.1)  # (2 - 1) / 5 * 30mm
 
 

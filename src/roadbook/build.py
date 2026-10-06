@@ -30,7 +30,11 @@ def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> di
     """Attach each stop lying within `snap_m` of a climb's foot or summit to that edge, keyed by (climb index, edge)."""
     snapped: dict[tuple[int, str], Stop] = {}
     for s in stops:
-        edges = [(abs(km - s.km), (i, edge)) for i, c in enumerate(climbs) for edge, km in (("foot", c.start_km), ("summit", c.end_km))]
+        edges = [
+            (abs(km - s.km), (i, edge))
+            for i, c in enumerate(climbs)
+            for edge, km in (("foot", c.start_km), ("summit", c.end_km))
+        ]
         gap, key = min(edges, default=(float("inf"), None))
         if gap * 1000 <= snap_m and key not in snapped:
             snapped[key] = s

@@ -51,7 +51,10 @@ def test_snapper_uses_hint_to_disambiguate_out_and_back():
 
 def test_classify_french_and_english_types():
     cats = load_config()["categories"]
-    pois = [Poi("x", t, 0, 0) for t in ("Cimetière (eau potable)", "Toilettes", "Restauration rapide", "Restaurant", "drinking water")]
+    pois = [
+        Poi("x", t, 0, 0)
+        for t in ("Cimetière (eau potable)", "Toilettes", "Restauration rapide", "Restaurant", "drinking water")
+    ]
     classify(pois, cats)
     assert [p.category for p in pois] == ["water", "toilets", "fastfood", "food", "water"]
 
