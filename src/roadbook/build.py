@@ -58,7 +58,8 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     snap_pois(track, pois)
     classify(pois, cfg["categories"])
     kept = filter_pois(pois, cfg["pois"]["enabled"], cfg["pois"]["max_offset_m"])
-    stops = cluster(kept, cfg["stops"]["gap_m"], cfg["stops"]["max_span_m"])
+    gap_m = cfg["stops"]["gap_m"]
+    stops = cluster(kept, gap_m, cfg["stops"]["max_span_m"] or 3 * gap_m)
     climbs = find_climbs(profile, cfg["climbs"])
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields

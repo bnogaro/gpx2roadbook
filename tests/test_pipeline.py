@@ -75,6 +75,33 @@ def test_cluster_chains_close_pois_but_caps_span() -> None:
     assert stops[0].km == 1.0
 
 
+def test_cluster_cuts_long_runs_at_their_widest_gap_keeping_one_spot_together() -> None:
+    # one chain under a 5 km gap, too long for 1.5 km: the cut falls in the 1.5 km hole, not inside the 123.9 cluster
+    kms = (122.4, 122.4, 123.9, 123.9, 123.9, 124.0, 124.2, 124.9, 125.0)
+    stops = cluster([Poi("p", "", 0, 0, km=k) for k in kms], gap_m=5000, max_span_m=1500)
+    assert [(s.km, s.km_end) for s in stops] == [(122.4, 122.4), (123.9, 125.0)]
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_max_span_follows_gap_unless_set() -> None:
+    def spans(**stops_cfg: float) -> float:
+        cfg = load_config()
+        cfg["stops"].update(stops_cfg)
+        return max(s.km_end - s.km for s in build(HILLY, cfg).stops)
+
+    assert spans() <= 1.5  # default gap 500 m -> 1.5 km
+    assert spans(gap_m=5000) > 1.5  # the span grows with the gap instead of capping it
+    assert spans(gap_m=5000, max_span_m=1000) <= 1.0
+
+
+def test_a_long_stop_shows_where_it_ends() -> None:
+    book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
+    long_stop, short_stop = (Stop([Poi("p", "", 0, 0, km=10.0), Poi("p", "", 0, 0, km=k)]) for k in (11.2, 10.4))
+    long_row = _row(Item("stop", 10.0, 0, stop=long_stop), book, _layout(20))
+    assert long_row["sub"] == long_row["sub_short"] == "→11.2"
+    assert long_row["h"] > _row(Item("stop", 10.0, 0, stop=short_stop), book, _layout(20))["h"]
+
+
 def test_stops_snap_to_the_nearest_climb_edge_within_reach() -> None:
     climbs = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1")]
     near_foot, mid, near_top, far = (Stop([Poi("p", "", 0, 0, km=k)]) for k in (9.8, 12.0, 15.25, 15.5))
@@ -152,7 +179,7 @@ def test_leg_elevation_is_opt_in() -> None:
 
 
 def _layout(avail: float, *, max_emojis: int = 99, leg_elevation: bool = False) -> RowLayout:
-    return RowLayout(avail=avail, max_emojis=max_emojis, sep=" · ", leg_elevation=leg_elevation)
+    return RowLayout(avail=avail, max_emojis=max_emojis, sep=" · ", leg_elevation=leg_elevation, range_m=1000)
 
 
 def test_row_layout_picks_a_leg_line_or_a_bare_distance() -> None:

@@ -42,6 +42,9 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     checkpoint_every: Annotated[float | None, typer.Option(help="Auto checkpoint every N km (0 = off).")] = None,
     checkpoint: Annotated[list[str] | None, typer.Option(help="Extra checkpoint, KM or KM:LABEL. Repeatable.")] = None,
     gap: Annotated[float | None, typer.Option(help="Merge POIs closer than this many metres into one stop.")] = None,
+    max_span: Annotated[
+        float | None, typer.Option(help="Longest a stop may stretch, metres; longer runs split (default 3 x gap).")
+    ] = None,
     max_offset: Annotated[
         float | None, typer.Option(help="Ignore POIs further than this from the route, metres.")
     ] = None,
@@ -58,23 +61,21 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
     cfg["render"]["layout"] = layout.value
-    for key, value in (
-        ("width_mm", width),
-        ("length_mm", length),
-        ("page", page),
-        ("details", details),
-        ("leg_elevation", leg_elevation),
+    for section, key, value in (
+        ("render", "width_mm", width),
+        ("render", "length_mm", length),
+        ("render", "page", page),
+        ("render", "details", details),
+        ("render", "leg_elevation", leg_elevation),
+        ("checkpoints", "every_km", checkpoint_every),
+        ("stops", "gap_m", gap),
+        ("stops", "max_span_m", max_span),
+        ("pois", "max_offset_m", max_offset),
     ):
         if value is not None:
-            cfg["render"][key] = value
-    if checkpoint_every is not None:
-        cfg["checkpoints"]["every_km"] = checkpoint_every
+            cfg[section][key] = value
     if checkpoint:
         cfg["checkpoints"]["extra"] += [_extra_checkpoint(c) for c in checkpoint]
-    if gap is not None:
-        cfg["stops"]["gap_m"] = gap
-    if max_offset is not None:
-        cfg["pois"]["max_offset_m"] = max_offset
     if categories:
         cfg["pois"]["enabled"] = [c.strip() for c in categories.split(",")]
 

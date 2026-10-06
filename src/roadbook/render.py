@@ -13,7 +13,7 @@ from .model import Glyph
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
-    from .model import Item, Poi, Roadbook
+    from .model import Item, Poi, Roadbook, Stop
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
@@ -56,6 +56,7 @@ class RowLayout:
     max_emojis: int
     sep: str  # between the figures of a stats or leg line
     leg_elevation: bool  # ↗️/↘️ metres on a leg line of its own, or only a bare distance on the main line
+    range_m: float  # a stop stretching at least this far shows where it ends
 
 
 def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
@@ -87,6 +88,9 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         c = climb_of(it)
         row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
         row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
+    elif it.stop and _spans(it.stop, layout.range_m):
+        # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
+        row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
     if it.dist_to_next is not None:
         if layout.leg_elevation:
             row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
@@ -97,6 +101,10 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
     if it.dist_to_next is not None:
         row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if layout.leg_elevation else "")
     return row
+
+
+def _spans(stop: Stop, range_m: float) -> bool:
+    return (stop.km_end - stop.km) * 1000 >= range_m
 
 
 def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[list[dict[str, Any]]]:
@@ -111,14 +119,15 @@ def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[lis
     return pages
 
 
-def _details(book: Roadbook, categories: dict[str, Any]) -> list[dict[str, Any]]:
+def _details(book: Roadbook, categories: dict[str, Any], range_m: float) -> list[dict[str, Any]]:
     out = []
     order = list(categories)
     for s in book.stops:
         groups: dict[str, list[tuple[str, int]]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
             groups.setdefault(categories[_category(p)]["emoji"], []).append((p.name or p.type, round(p.offset_m)))
-        out.append({"km": f"{s.km:.1f}", "groups": list(groups.items())})
+        km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
+        out.append({"km": km, "groups": list(groups.items())})
     return out
 
 
@@ -160,6 +169,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         max_emojis=r["max_emojis"] or 99,
         sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
         leg_elevation=r["leg_elevation"],
+        range_m=r["stop_range_m"],
     )
     rows = [_row(it, book, row_layout) for it in book.items]
 
@@ -182,7 +192,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         length=length,
         page=r["page"],
         orientation=orientation,
-        details=_details(book, cfg["categories"]) if r["details"] else [],
+        details=_details(book, cfg["categories"], r["stop_range_m"]) if r["details"] else [],
         g={
             "MAIN_H": MAIN_H,
             "SUB_H": SUB_H,
