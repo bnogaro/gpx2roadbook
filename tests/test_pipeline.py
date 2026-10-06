@@ -93,7 +93,22 @@ def test_leg_elevation_is_opt_in():
     cfg = load_config()
     book = build(SAMPLE, cfg)
     assert cfg["render"]["leg_elevation"] is False
-    legs = _legs(render_html(book, cfg))
-    assert legs and not any("↗" in leg for leg in legs)
+    html = render_html(book, cfg)
+    # by default the bare distance rides on each row's main line instead of a leg line of its own
+    assert not _legs(html)
+    assert len(re.findall(r'<span class="dist">↓[\d.]+</span>', html)) == len(book.items) - 1
     cfg["render"]["leg_elevation"] = True
-    assert all("↗" in leg and "↘" in leg for leg in _legs(render_html(book, cfg)))
+    legs = _legs(render_html(book, cfg))
+    assert len(legs) == len(book.items) - 1 and all("↗" in leg and "↘" in leg for leg in legs)
+
+
+def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji():
+    from roadbook.model import Item, Roadbook
+    from roadbook.render import _row
+
+    climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "4")
+    book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
+    bare = _row(Item("climb", 10.0, 0, climb=climb), book, avail=12.5, max_emojis=99)
+    loaded = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1)]), book, avail=12.5, max_emojis=99)
+    assert bare["emojis"] == [("⛰️", 0)] and bare["label"] == "Cat 4"
+    assert loaded["emojis"] == [("⛰️", "4"), ("🍔", 1)] and loaded["label"] == ""

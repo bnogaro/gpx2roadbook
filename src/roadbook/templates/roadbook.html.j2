@@ -25,6 +25,7 @@
                 display: flex; justify-content: space-between; align-items: center; padding: 0 1.2mm; }
   .row .main { height: var(--main-h); display: flex; align-items: center; gap: 1mm; padding: 0 var(--pad); }
   .row .km { width: calc(var(--km-col) - var(--pad)); text-align: right; flex: none; }
+  .row .dist { margin-left: auto; flex: none; font-size: 6pt; color: #555; font-variant-numeric: tabular-nums; }
   .row .lbl { font-size: 6.5pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
@@ -67,8 +68,9 @@
     <div class="row {{ r.kind }}">
       <div class="main">
         <span class="km">{{ r.km }}</span>
-        <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
+        <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n is string or n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
         {% if r.label %}<span class="lbl">{{ r.label }}</span>{% endif %}
+        {% if r.dist %}<span class="dist">{{ r.dist }}</span>{% endif %}
       </div>
       {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
@@ -83,7 +85,7 @@
     {% for r in s.rows %}
     <div class="tok {{ r.kind }}" style="width: {{ r.w }}mm">
       <span class="km">{{ r.km }}</span>
-      <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
+      <span class="emo">{% for e, n in r.emojis %}{{ e }}{% if n is string or n > 1 %}<sup>{{ n }}</sup>{% endif %}{% endfor %}{% if r.more %}+{% endif %}</span>
       {% if r.sub_short %}<span class="sub">{{ r.sub_short }}</span>{% endif %}
       {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
     </div>
