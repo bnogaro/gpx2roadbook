@@ -25,11 +25,12 @@ build:
 
 # Opens a "bump: …" PR for the next version, worked out by commitizen from the Conventional Commits since the last
 # tag; merging it publishes to PyPI (.github/workflows/release.yml). main only takes PRs, so nothing is tagged here.
+# The version is read by the shell after the bump: make would expand $(shell …) before running any line of the recipe.
+# PUSH and GH can be set to `true` to try it without touching GitHub: make release PUSH=true GH=true
+PUSH ?= git push
+GH ?= gh
 release:
+	@test -z "$$(git status --porcelain)" || { echo "make release needs a clean working tree"; exit 1; }
 	git switch main && git pull --ff-only
 	uvx --from commitizen cz bump --files-only --changelog --yes
-	$(eval VERSION := $(shell uv version --short))
-	git switch -c release/v$(VERSION)
-	git commit -am "bump: version $(VERSION)"
-	git push -u origin release/v$(VERSION)
-	gh pr create --base main --title "bump: version $(VERSION)" --body "Release v$(VERSION). Merging publishes it to PyPI and creates the tag and GitHub Release."
+	version="$$(uv version --short)" && 	git switch -c "release/v$$version" && 	git add pyproject.toml uv.lock CHANGELOG.md && 	git commit -m "bump: version $$version" && 	$(PUSH) -u origin "release/v$$version" && 	$(GH) pr create --base main --title "bump: version $$version" 		--body "Release v$$version. Merging publishes it to PyPI and creates the tag and GitHub Release."

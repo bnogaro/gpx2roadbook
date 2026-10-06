@@ -187,6 +187,8 @@ make release
 
 This works out the next version with [commitizen](https://commitizen-tools.github.io/commitizen/), updates `pyproject.toml`, `uv.lock` and `CHANGELOG.md`, and opens a `bump: version X.Y.Z` pull request. Merging it publishes the release: the [release workflow](https://github.com/bnogaro/gpx2roadbook/blob/main/.github/workflows/release.yml) builds and smoke-tests the package, uploads it to [PyPI](https://pypi.org/project/gpx2roadbook/) with trusted publishing (no API token), then tags `vX.Y.Z` and creates the GitHub Release.
 
+It needs a clean working tree. To see what it would do without pushing or opening a PR, run `make release PUSH=true GH=true` (then delete the local `release/v…` branch).
+
 ## License
 
 Copyright © 2026 Bastien Nogaro. Released under the [GNU Affero General Public License v3.0 or later](https://github.com/bnogaro/gpx2roadbook/blob/main/LICENSE): you may use, change and share this software, including commercially, as long as you keep the copyright notice and share your changes under the same license, also when you run a modified version as a web service.
