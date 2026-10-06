@@ -1,46 +1,54 @@
-# roadbook
+# gpx2roadbook
 
-`roadbook` turns a GPX route with points of interest (water, food, toilets, …) into a compact road book you can print.
+[![PyPI](https://img.shields.io/pypi/v/gpx2roadbook)](https://pypi.org/project/gpx2roadbook/)
+[![Python](https://img.shields.io/pypi/pyversions/gpx2roadbook)](https://pypi.org/project/gpx2roadbook/)
+[![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](https://github.com/bnogaro/gpx2roadbook/blob/main/LICENSE)
+
+`gpx2roadbook` (command: `roadbook`) turns a GPX route with points of interest (water, food, toilets, …) into a compact road book you can print.
 You cut the strips out and tape them to your bike's top tube. Each one lists the stops, climbs and distances for a stretch of the ride, next to a small elevation profile.
 
-<img src="docs/img/strip-example.png" alt="A printed strip covering km 111.5 to 191.4: climb rows shaded orange with their length, grade and gain, water, toilet and food stops, and an elevation profile down the right edge" width="220">
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 111.5 to 191.4: climb rows shaded orange with their length, grade and gain, water, toilet and food stops, and an elevation profile down the right edge" width="220">
 
-*A strip from [`samples/entrainement_ubf.gpx`](samples/entrainement_ubf.gpx), shown here at about twice its printed size. On paper it is 35 mm wide.*
+*A strip from [`samples/entrainement_ubf.gpx`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/entrainement_ubf.gpx), shown here at about twice its printed size. On paper it is 35 mm wide.*
 
 ## Getting a GPX with POIs
 
-The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. Both files in [`samples/`](samples/) were made this way.
+The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. Both files in [`samples/`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/) were made this way.
 
 Any other GPX works if it has:
 
 - **a track or a route**, ideally with elevation (without elevation you get no climbs and no profile);
-- **waypoints** for the POIs, each with a `<type>` or a `<name>` that one of the categories in [`src/roadbook/default.toml`](src/roadbook/default.toml) can match. For example, a type `Boulangerie` or `bakery` becomes 🥖, and `Eau potable` or `drinking water` becomes 🚰. Matching ignores case and accents. Waypoints that match no category are dropped.
+- **waypoints** for the POIs, each with a `<type>` or a `<name>` that one of the categories in [`src/roadbook/default.toml`](https://github.com/bnogaro/gpx2roadbook/blob/main/src/roadbook/default.toml) can match. For example, a type `Boulangerie` or `bakery` becomes 🥖, and `Eau potable` or `drinking water` becomes 🚰. Matching ignores case and accents. Waypoints that match no category are dropped.
 
 ## Install
 
 You need:
 
-- [uv](https://docs.astral.sh/uv/), which installs Python and the dependencies for you;
+- [uv](https://docs.astral.sh/uv/), which installs Python and the tool for you (or [pipx](https://pipx.pypa.io/));
 - Google Chrome or Microsoft Edge, only if you want `--pdf`.
 
 Then:
 
 ```sh
-git clone https://github.com/bnogaro/gpx2roadbook.git
-cd gpx2roadbook
-uv sync
+uv tool install gpx2roadbook     # or: pipx install gpx2roadbook
+```
+
+This puts the `roadbook` command on your PATH. To update to the latest release:
+
+```sh
+uv tool upgrade gpx2roadbook     # or: pipx upgrade gpx2roadbook
 ```
 
 ## Usage
 
 ```sh
-uv run roadbook my_ride.gpx
+roadbook my_ride.gpx
 ```
 
 This writes `my_ride.roadbook.html` next to the GPX and prints a short summary: distance, climbing, and how many POIs, stops and climbs were found. To write it somewhere else, use `-o`:
 
 ```sh
-uv run roadbook my_ride.gpx -o ~/Desktop/ride.html
+roadbook my_ride.gpx -o ~/Desktop/ride.html
 ```
 
 ### Printing
@@ -50,7 +58,7 @@ Open the HTML in your browser and print it. Print at **100 % scale**, not "fit t
 Or let `roadbook` make the PDF for you. It drives Chrome or Edge in the background and writes `my_ride.roadbook.pdf` next to the HTML:
 
 ```sh
-uv run roadbook my_ride.gpx --pdf
+roadbook my_ride.gpx --pdf
 ```
 
 Either way, cut along the dashed lines.
@@ -80,12 +88,12 @@ Either way, cut along the dashed lines.
 For the full list:
 
 ```sh
-uv run roadbook --help
+roadbook --help
 ```
 
 ## Customising
 
-Every setting lives in [`src/roadbook/default.toml`](src/roadbook/default.toml). Don't edit it. Write a small TOML file with only the keys you want to change and pass it with `--config`. It is merged over the defaults, table by table.
+Every setting lives in [`src/roadbook/default.toml`](https://github.com/bnogaro/gpx2roadbook/blob/main/src/roadbook/default.toml). Don't edit it. Write a small TOML file with only the keys you want to change and pass it with `--config`. It is merged over the defaults, table by table.
 
 For example, to show hotels and campsites, snap stops onto climbs from further away, and widen the profile:
 
@@ -103,7 +111,7 @@ gutter_mm = 6     # default 4; 0 turns the profile off
 ```
 
 ```sh
-uv run roadbook my_ride.gpx --config my.toml
+roadbook my_ride.gpx --config my.toml
 ```
 
 To add a category of your own, add a table and put its name in `pois.enabled`. The order of the tables sets which emoji comes first when a row is short of space:
@@ -142,6 +150,23 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 ## Development
 
 ```sh
-uv run pytest          # run the tests
-uv run prek install    # check commit messages (Conventional Commits) before each commit
+git clone https://github.com/bnogaro/gpx2roadbook.git
+cd gpx2roadbook
+make dev                       # install everything, plus the commit hooks (Conventional Commits, ruff, …)
+uv run roadbook my_ride.gpx    # run your working copy
+make lint test                 # what CI checks
 ```
+
+### Releasing
+
+Versions come from the commit messages ([Conventional Commits](https://www.conventionalcommits.org/)): `fix:` bumps the patch, `feat:` the minor version.
+
+```sh
+make release
+```
+
+This works out the next version with [commitizen](https://commitizen-tools.github.io/commitizen/), updates `pyproject.toml`, `uv.lock` and `CHANGELOG.md`, and opens a `bump: version X.Y.Z` pull request. Merging it publishes the release: the [release workflow](https://github.com/bnogaro/gpx2roadbook/blob/main/.github/workflows/release.yml) builds and smoke-tests the package, uploads it to [PyPI](https://pypi.org/project/gpx2roadbook/) with trusted publishing (no API token), then tags `vX.Y.Z` and creates the GitHub Release.
+
+## License
+
+Copyright © 2026 Bastien Nogaro. Released under the [GNU Affero General Public License v3.0 or later](https://github.com/bnogaro/gpx2roadbook/blob/main/LICENSE): you may use, change and share this software, including commercially, as long as you keep the copyright notice and share your changes under the same license, also when you run a modified version as a web service.
