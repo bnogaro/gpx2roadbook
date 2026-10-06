@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -47,9 +48,18 @@ def _category(p: Poi) -> str:
     return p.category
 
 
-def _row(
-    it: Item, book: Roadbook, avail: float, max_emojis: int, *, sep: str = " · ", leg_elevation: bool = True
-) -> dict[str, Any]:
+@dataclass(frozen=True)
+class RowLayout:
+    """What every row of one render shares, worked out once by render_html() from cfg["render"]."""
+
+    avail: float  # mm left for emojis on a row's main line
+    max_emojis: int
+    sep: str  # between the figures of a stats or leg line
+    leg_elevation: bool  # ↗️/↘️ metres on a leg line of its own, or only a bare distance on the main line
+
+
+def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
+    avail, max_emojis, sep = layout.avail, layout.max_emojis, layout.sep
     kind = KINDS[it.kind]
     row: dict[str, Any] = {
         "kind": it.kind,
@@ -78,14 +88,14 @@ def _row(
         row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
         row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
     if it.dist_to_next is not None:
-        if leg_elevation:
+        if layout.leg_elevation:
             row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
         else:  # a bare distance needs no line of its own
             row["dist"] = f"↓{it.dist_to_next:.1f}"
     row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
     if it.dist_to_next is not None:
-        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if leg_elevation else "")
+        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if layout.leg_elevation else "")
     return row
 
 
@@ -128,10 +138,8 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
             anchors.append((book.items[first].km, height))
         # each strip gets its own scale: one shared with a 1500 m pass would flatten every other strip
-        seg = p.e[(p.x >= anchors[0][0] * 1000) & (p.x <= anchors[-1][0] * 1000)]
-        lo = float(seg.min()) if seg.size else p.ele_at(anchors[0][0])
-        hi = max(float(seg.max()) if seg.size else lo, lo + GUTTER_MIN_SPAN_M)
-        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height, (lo, hi))
+        lo, hi = p.ele_range(anchors[0][0], anchors[-1][0])
+        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height, (lo, max(hi, lo + GUTTER_MIN_SPAN_M)))
 
 
 def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
@@ -147,10 +155,13 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     avail -= gutter
     if layout == "strip" and not r["leg_elevation"]:
         avail -= DIST_W
-    sep = " " if gutter else " · "  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-    rows = [
-        _row(it, book, avail, r["max_emojis"] or 99, sep=sep, leg_elevation=r["leg_elevation"]) for it in book.items
-    ]
+    row_layout = RowLayout(
+        avail=avail,
+        max_emojis=r["max_emojis"] or 99,
+        sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
+        leg_elevation=r["leg_elevation"],
+    )
+    rows = [_row(it, book, row_layout) for it in book.items]
 
     if layout == "strip":
         pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")
