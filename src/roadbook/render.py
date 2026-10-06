@@ -33,7 +33,7 @@ def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[
     return kept, truncated, used + (MORE_W if truncated else 0)
 
 
-def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " · ") -> dict[str, Any]:
+def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " · ", leg_elevation: bool = True) -> dict[str, Any]:
     emojis, truncated, emoji_w = _fit(it.emojis, avail, max_emojis)
     row: dict[str, Any] = {
         "kind": it.kind,
@@ -66,13 +66,15 @@ def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " �
         else:
             row["label"] = f"{it.ele:.0f} m"
     if it.dist_to_next is not None:
-        row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
+        row["leg"] = f"{it.dist_to_next:.1f}"
+        if leg_elevation:
+            row["leg"] += f"{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
     row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
     if it.kind in ("start", "finish", "checkpoint"):
         emoji_w = EMOJI_W
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
     if it.dist_to_next is not None:
-        row["leg_short"] = f"{it.dist_to_next:.1f} ↗️{it.gain_to_next:.0f}"
+        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if leg_elevation else "")
     return row
 
 
@@ -132,7 +134,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     gutter = r["gutter_mm"] if layout == "strip" and book.profile is not None else 0
     avail -= gutter
     sep = " " if gutter else " · "  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-    rows = [_row(it, book, avail, r["max_emojis"] or 99, sep) for it in book.items]
+    rows = [_row(it, book, avail, r["max_emojis"] or 99, sep, r["leg_elevation"]) for it in book.items]
 
     if layout == "strip":
         pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")

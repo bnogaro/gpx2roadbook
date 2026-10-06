@@ -32,6 +32,7 @@ width_mm = 0         # short side; 0 = layout default (strip 35, line 16)
 length_mm = 200      # long side
 page = "A4"
 details = true       # append a POI-names reference sheet
+leg_elevation = false  # show ↗️/↘️ metres on each leg between rows (the gutter already shows the terrain)
 max_emojis = 0       # 0 = derived from width
 gutter_mm = 4        # strip layout: elevation profile down the right edge, aligned to the rows; 0 = off
 

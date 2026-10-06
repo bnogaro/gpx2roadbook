@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import numpy as np
@@ -81,3 +82,18 @@ def test_sample_end_to_end():
     for layout in ("strip", "line"):
         cfg["render"]["layout"] = layout
         assert "<html" in render_html(book, cfg)
+
+
+def _legs(html: str) -> list[str]:
+    return re.findall(r'<div class="leg">([^<]*)</div>', html)
+
+
+@pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
+def test_leg_elevation_is_opt_in():
+    cfg = load_config()
+    book = build(SAMPLE, cfg)
+    assert cfg["render"]["leg_elevation"] is False
+    legs = _legs(render_html(book, cfg))
+    assert legs and not any("↗" in leg for leg in legs)
+    cfg["render"]["leg_elevation"] = True
+    assert all("↗" in leg and "↘" in leg for leg in _legs(render_html(book, cfg)))
