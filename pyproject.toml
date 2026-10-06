@@ -15,7 +15,11 @@ dependencies = [
 roadbook = "roadbook.cli:app"
 
 [dependency-groups]
+audit = [
+    "pip-audit>=2.10.1",
+]
 dev = [
+    { include-group = "audit" },
     { include-group = "lint" },
     { include-group = "test" },
     "prek>=0.5.3",

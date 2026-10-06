@@ -74,6 +74,40 @@ def test_stops_snap_to_the_nearest_climb_edge_within_reach() -> None:
     assert snapped == {(0, "foot"): near_foot, (0, "summit"): near_top}
 
 
+def _stops(*kms: float) -> list[Stop]:
+    return [Stop([Poi("p", "", 0, 0, km=k)]) for k in kms]
+
+
+def test_a_stop_whose_nearest_edge_is_taken_falls_back_to_the_next_free_one() -> None:
+    # climb 0's summit at 15.0 and climb 1's foot at 15.4: both stops are nearest the summit
+    climbs = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1"), Climb(15.4, 18.0, 200, 6.0, 9.0, "3")]
+    top, between = _stops(15.05, 15.15)
+    assert _snap_to_climbs([top, between], climbs, snap_m=300) == {(0, "summit"): top, (1, "foot"): between}
+    # the closer stop wins the edge even when it comes later
+    assert _snap_to_climbs([between, top], climbs, snap_m=300) == {(0, "summit"): top, (1, "foot"): between}
+    # no other edge in reach: the second stop stays a row of its own
+    lone = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1")]
+    assert _snap_to_climbs([top, between], lone, snap_m=300) == {(0, "summit"): top}
+
+
+def test_a_stop_between_a_summit_and_the_next_foot_takes_the_free_one() -> None:
+    climbs = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1"), Climb(15.4, 18.0, 200, 6.0, 9.0, "3")]
+    at_foot, between = _stops(15.4, 15.25)
+    # between is closer to the foot (150 m) but at_foot sits right on it, so between takes the summit (250 m)
+    assert _snap_to_climbs([between, at_foot], climbs, snap_m=300) == {(1, "foot"): at_foot, (0, "summit"): between}
+
+
+def test_snapping_ties_are_deterministic() -> None:
+    # kms exact in binary, so the gaps really tie
+    climbs = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1"), Climb(15.5, 18.0, 200, 6.0, 9.0, "3")]
+    # midway between the summit and the next foot: the earlier edge wins
+    (mid,) = _stops(15.25)
+    assert _snap_to_climbs([mid], climbs, snap_m=300) == {(0, "summit"): mid}
+    # two stops equally far from one foot: the earlier stop wins, the later finds no other edge in reach
+    before, after = _stops(9.75, 10.25)
+    assert _snap_to_climbs([after, before], climbs[:1], snap_m=300) == {(0, "foot"): before}
+
+
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
 def test_sample_end_to_end() -> None:
     cfg = load_config()
