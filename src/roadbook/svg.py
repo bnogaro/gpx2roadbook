@@ -47,7 +47,7 @@ def gutter_svg(
 
     `anchors` are (km, y_mm) pairs, one per row: the stretch of road between two anchors is drawn across
     exactly the vertical space between those rows, so each row's dot sits on the curve where the rider is.
-    Elevation grows to the right, on `ele_range` so every strip of the book shares one scale.
+    Elevation grows to the right, mapped from `ele_range` (lowest, highest) onto the gutter's width.
     """
     lo, hi = ele_range
     span = max(hi - lo, 1.0)

@@ -68,7 +68,8 @@ def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " ¬
         else:
             own = ("üîù", 0)
             room = avail - EMOJI_W
-        stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max_emojis - 1)
+        # at least one stop emoji even when max_emojis is 1: a snapped stop must not vanish behind its climb
+        stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
         row["emojis"] = [own, *stop_emojis]
         emoji_w = EMOJI_W + stop_w
         if it.kind == "summit" and stop_w + LABEL_W <= room:

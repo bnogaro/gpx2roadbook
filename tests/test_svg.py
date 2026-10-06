@@ -85,3 +85,11 @@ def test_gutter_svg_puts_a_dot_on_each_row_and_stretches_legs_between_them():
     assert points[0][1] == pytest.approx(2.0) and points[-1][1] == pytest.approx(30.0)
     # km 1..2 lies inside the 10 mm between the 0.5 km and 4.0 km rows
     assert 'class="climb"' in svg
+
+
+def test_gutter_svg_maps_ele_range_onto_its_width():
+    profile = Profile(_ramp_track(), step_m=25, smooth_m=100, swing_m=3)  # 0 m -> 200 m over 5 km
+    svg = gutter_svg(profile, [], [(0.0, 0.0), (5.0, 30.0)], width_mm=4, height_mm=30, ele_range=(0, 400))
+    xs = [x for x, _ in _polyline_points(svg)]
+    assert min(xs) == pytest.approx(0, abs=0.2)
+    assert max(xs) == pytest.approx(2, abs=0.2)  # 200 m of a 400 m span fills half the gutter

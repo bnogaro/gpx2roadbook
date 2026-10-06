@@ -6,13 +6,14 @@ import pytest
 
 from roadbook.build import _snap_to_climbs, build
 from roadbook.config import load_config
-from roadbook.model import Climb, Poi, Stop, Track
+from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster
 from roadbook.profile import Profile, turning_points
-from roadbook.render import render_html
+from roadbook.render import _row, render_html
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
+HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 
 
 def _track(dist_m: np.ndarray, ele: np.ndarray) -> Track:
@@ -103,12 +104,32 @@ def test_leg_elevation_is_opt_in():
 
 
 def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji():
-    from roadbook.model import Item, Roadbook
-    from roadbook.render import _row
-
     climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "4")
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
     bare = _row(Item("climb", 10.0, 0, climb=climb), book, avail=12.5, max_emojis=99)
     loaded = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1)]), book, avail=12.5, max_emojis=99)
     assert bare["emojis"] == [("⛰️", 0)] and bare["label"] == "Cat 4"
     assert loaded["emojis"] == [("⛰️", "4"), ("🍔", 1)] and loaded["label"] == ""
+    # even when capped to one emoji, the stop riding on the climb keeps its own
+    capped = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1), ("🚰", 1)]), book, avail=30, max_emojis=1)
+    assert capped["emojis"][1:] == [("🍔", 1)] and capped["more"]
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_summit_rows_only_where_a_stop_sits_at_the_top():
+    book = build(HILLY, load_config())
+    summits = [i for i in book.items if i.kind == "summit"]
+    assert 0 < len(summits) < len(book.climbs)
+    assert all(i.stop is not None and i.km == i.climb.end_km for i in summits)
+    # a stop moved onto a summit row is not listed a second time on its own
+    assert not {id(i.stop) for i in summits} & {id(i.stop) for i in book.items if i.kind == "stop"}
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_gutter_follows_gutter_mm():
+    cfg = load_config()
+    book = build(HILLY, cfg)
+    html = render_html(book, cfg)
+    assert html.count('<svg class="gutter"') == html.count('<div class="strip">') > 0
+    cfg["render"]["gutter_mm"] = 0
+    assert 'class="gutter"' not in render_html(book, cfg)
