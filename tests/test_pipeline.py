@@ -3,9 +3,9 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from roadbook.build import build
+from roadbook.build import _snap_to_climbs, build
 from roadbook.config import load_config
-from roadbook.model import Poi, Track
+from roadbook.model import Climb, Poi, Stop, Track
 from roadbook.pois import classify, cluster
 from roadbook.profile import Profile, turning_points
 from roadbook.render import render_html
@@ -59,6 +59,13 @@ def test_cluster_chains_close_pois_but_caps_span():
     stops = cluster(pois, gap_m=300, max_span_m=1000)
     assert [len(s.pois) for s in stops] == [6, 1, 1]  # 1.0..2.0 fit in 1 km span, 2.2 starts a new stop
     assert stops[0].km == 1.0
+
+
+def test_stops_snap_to_the_nearest_climb_edge_within_reach():
+    climbs = [Climb(10.0, 15.0, 400, 8.0, 10.0, "1")]
+    near_foot, mid, near_top, far = (Stop([Poi("p", "", 0, 0, km=k)]) for k in (9.8, 12.0, 15.25, 15.5))
+    snapped = _snap_to_climbs([near_foot, mid, near_top, far], climbs, snap_m=300)
+    assert snapped == {(0, "foot"): near_foot, (0, "summit"): near_top}
 
 
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")

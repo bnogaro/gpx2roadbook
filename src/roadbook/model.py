@@ -65,7 +65,7 @@ class Climb:
 
 @dataclass
 class Item:
-    kind: str                       # start | stop | climb | checkpoint | finish
+    kind: str                       # start | stop | climb | summit | checkpoint | finish
     km: float
     ele: float
     label: str = ""

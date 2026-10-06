@@ -14,6 +14,7 @@ from .svg import gutter_svg
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD = 4.8, 3.2, 3.4, 4.4, 1.0
 KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
+LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 
 
@@ -51,13 +52,19 @@ def _row(it: Item, book: Roadbook, avail: float, max_emojis: int, sep: str = " �
         row["emojis"] = [("🚩", 0)]
         if it.label.startswith("CP"):
             row["label"] = f"{it.label} · {book.length_km - it.km:.0f} to go"
-    elif it.kind == "climb":
+    elif it.kind in ("climb", "summit"):
+        # a climb's own emoji leads; a stop snapped onto its foot or summit follows in the space left
         c = it.climb
-        row["emojis"] = [("⛰️", 0)]
-        row["label"] = f"Cat {c.label}" if c.label else ""
-        row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
-        row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
-        emoji_w = EMOJI_W
+        own = "⛰️" if it.kind == "climb" else "🔝"
+        stop_emojis, row["more"], stop_w = _fit(it.emojis, avail - EMOJI_W - LABEL_W, max_emojis - 1)
+        row["emojis"] = [(own, 0), *stop_emojis]
+        emoji_w = EMOJI_W + stop_w
+        if it.kind == "climb":
+            row["label"] = f"Cat {c.label}" if c.label else ""
+            row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
+            row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
+        else:
+            row["label"] = f"{it.ele:.0f} m"
     if it.dist_to_next is not None:
         row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
     row["h"] = MAIN_H + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)

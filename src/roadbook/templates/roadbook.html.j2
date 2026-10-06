@@ -30,6 +30,7 @@
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
+  .row.summit { background: #fbe3c4; border-bottom: 0.3mm solid #d97706; }
   .row.checkpoint, .row.start, .row.finish { background: #d9e8ff; border-top: 0.2mm solid #345; border-bottom: 0.2mm solid #345; }
   .row.climb .leg, .row.checkpoint .leg { border-left-color: #b45309; }
   .strip { position: relative; }
@@ -44,7 +45,7 @@
   .tok .km { font-size: 6pt; }
   .tok .leg { font-size: 5.5pt; color: #444; white-space: nowrap; }
   .tok .sub { font-size: 5.5pt; font-weight: 600; white-space: nowrap; }
-  .tok.climb { background: #fbe3c4; }
+  .tok.climb, .tok.summit { background: #fbe3c4; }
   .tok.checkpoint, .tok.start, .tok.finish { background: #d9e8ff; }
 
   /* ---------- reference sheet ---------- */

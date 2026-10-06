@@ -4,13 +4,14 @@ from pathlib import Path
 from typing import Any
 
 from .climbs import find_climbs
-from .model import Item, Roadbook
+from .model import Climb, Item, Roadbook, Stop
 from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
 from .snap import snap_pois
 
-_RANK = {"start": 0, "checkpoint": 1, "stop": 2, "climb": 3, "finish": 9}
+# at equal km, a summit closes its climb before anything else opens
+_RANK = {"start": 0, "summit": 1, "checkpoint": 2, "stop": 3, "climb": 4, "finish": 9}
 
 
 def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str]]:
@@ -23,6 +24,17 @@ def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str
             k += every
     cps += [(float(km), str(label)) for km, label in cfg["extra"]]
     return sorted(cps)
+
+
+def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> dict[tuple[int, str], Stop]:
+    """Attach each stop lying within `snap_m` of a climb's foot or summit to that edge, keyed by (climb index, edge)."""
+    snapped: dict[tuple[int, str], Stop] = {}
+    for s in stops:
+        edges = [(abs(km - s.km), (i, edge)) for i, c in enumerate(climbs) for edge, km in (("foot", c.start_km), ("summit", c.end_km))]
+        gap, key = min(edges, default=(float("inf"), None))
+        if gap * 1000 <= snap_m and key not in snapped:
+            snapped[key] = s
+    return snapped
 
 
 def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
@@ -42,10 +54,20 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     items = [item("start", 0.0, label="START")]
     for i, (km, label) in enumerate(_checkpoints(length, cfg["checkpoints"]), 1):
         items.append(item("checkpoint", km, label=label or f"CP{i}"))
+    snapped = _snap_to_climbs(stops, climbs, cfg["climbs"]["snap_m"])
+    absorbed = {id(s) for s in snapped.values()}
+
+    def stop_kw(s: Stop | None) -> dict[str, Any]:
+        return dict(stop=s, emojis=emoji_counts(s, cfg["categories"])) if s else {}
+
     for s in stops:
-        items.append(item("stop", s.km, stop=s, emojis=emoji_counts(s, cfg["categories"])))
-    for c in climbs:
-        items.append(item("climb", c.start_km, climb=c, label=c.label))
+        if id(s) not in absorbed:
+            items.append(item("stop", s.km, **stop_kw(s)))
+    for i, c in enumerate(climbs):
+        items.append(item("climb", c.start_km, climb=c, label=c.label, **stop_kw(snapped.get((i, "foot")))))
+        # the gutter already shows every summit; a row is only worth its space when a stop sits there
+        if top := snapped.get((i, "summit")):
+            items.append(item("summit", c.end_km, climb=c, **stop_kw(top)))
     items.append(item("finish", length, label="FINISH"))
     items.sort(key=lambda it: (it.km, _RANK[it.kind]))
 
