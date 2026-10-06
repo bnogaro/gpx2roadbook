@@ -7,10 +7,10 @@ import pytest
 from roadbook.build import _snap_to_climbs, build
 from roadbook.config import load_config
 from roadbook.kinds import KINDS
-from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
-from roadbook.pois import classify, cluster
+from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
+from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import _row, render_html
+from roadbook.render import COUNT_W, EMOJI_W, _fit, _row, render_html
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -113,14 +113,14 @@ def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji() -> None:
     climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "4")
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
     bare = _row(Item("climb", 10.0, 0, climb=climb), book, avail=12.5, max_emojis=99)
-    loaded = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1)]), book, avail=12.5, max_emojis=99)
-    assert bare["emojis"] == [("⛰️", 0)]
+    loaded = _row(Item("climb", 10.0, 0, climb=climb, emojis=[Glyph("🍔")]), book, avail=12.5, max_emojis=99)
+    assert bare["emojis"] == [Glyph("⛰️")]
     assert bare["label"] == "Cat 4"
-    assert loaded["emojis"] == [("⛰️", "4"), ("🍔", 1)]
+    assert loaded["emojis"] == [Glyph("⛰️", "4"), Glyph("🍔")]
     assert loaded["label"] == ""
     # even when capped to one emoji, the stop riding on the climb keeps its own
-    capped = _row(Item("climb", 10.0, 0, climb=climb, emojis=[("🍔", 1), ("🚰", 1)]), book, avail=30, max_emojis=1)
-    assert capped["emojis"][1:] == [("🍔", 1)]
+    capped = _row(Item("climb", 10.0, 0, climb=climb, emojis=[Glyph("🍔"), Glyph("🚰")]), book, avail=30, max_emojis=1)
+    assert capped["emojis"][1:] == [Glyph("🍔")]
     assert capped["more"]
 
 
@@ -130,17 +130,29 @@ def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() 
         _row(Item(kind, km, 0, label=label), book, avail=20, max_emojis=99)
         for kind, km, label in (("start", 0, "START"), ("checkpoint", 20, "CP1"), ("checkpoint", 30, "Lunch"))
     ]
-    assert [r["emojis"] for r in rows] == [[("🟢", 0)], [("🚩", 0)], [("🚩", 0)]]
+    assert [r["emojis"] for r in rows] == [[Glyph("🟢")], [Glyph("🚩")], [Glyph("🚩")]]
     assert [r["label"] for r in rows] == ["START", "CP1 · 30 to go", "Lunch"]
 
 
 def test_summit_elevation_gives_way_to_its_stop() -> None:
     climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "2")
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
-    top = Item("summit", 15.0, 1240.4, climb=climb, emojis=[("🍔", 1)])
+    top = Item("summit", 15.0, 1240.4, climb=climb, emojis=[Glyph("🍔")])
     assert _row(top, book, avail=30, max_emojis=99)["label"] == "1240 m"
     assert _row(top, book, avail=12, max_emojis=99)["label"] == ""
-    assert _row(top, book, avail=12, max_emojis=99)["emojis"] == [("🔝", 0), ("🍔", 1)]
+    assert _row(top, book, avail=12, max_emojis=99)["emojis"] == [Glyph("🔝"), Glyph("🍔")]
+
+
+def test_stop_glyphs_carry_a_count_only_when_pois_share_an_emoji() -> None:
+    cats = load_config()["categories"]
+    pois = [Poi("p", "", 0, 0, category=c) for c in ("bakery", "water", "bakery")]
+    assert emoji_counts(Stop(pois), cats) == [Glyph("🚰"), Glyph("🥖", "2")]
+
+
+def test_fit_pays_one_count_width_per_superscript() -> None:
+    glyphs = [Glyph("🚰", "12"), Glyph("🥖", "3"), Glyph("🚻")]
+    _, _, used = _fit(glyphs, avail=99, max_emojis=99)
+    assert used == pytest.approx(3 * EMOJI_W + 2 * COUNT_W)
 
 
 def test_kinds_sort_a_summit_before_whatever_opens_at_its_km() -> None:

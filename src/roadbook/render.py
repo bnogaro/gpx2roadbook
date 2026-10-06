@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from jinja2 import Environment, PackageLoader, select_autoescape
 
 from .kinds import KINDS, climb_of
+from .model import Glyph
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
@@ -22,16 +23,17 @@ LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a clim
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 
 
-def _fit(emojis: list[tuple[str, int]], avail: float, max_emojis: int) -> tuple[list[tuple[str, int]], bool, float]:
+def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph], bool, float]:
     """Keep as many emojis (in priority order) as fit in `avail` mm. Returns (kept, truncated, width used)."""
-    kept: list[tuple[str, int]] = []
+    kept: list[Glyph] = []
     used = 0.0
-    for e, n in emojis:
-        w = EMOJI_W + (COUNT_W if n > 1 else 0)
+    for g in emojis:
+        # one COUNT_W per superscript, whatever its length: charging per character would widen 10+ POI tokens
+        w = EMOJI_W + (COUNT_W if g.sup else 0)
         more_w = MORE_W if len(kept) + 1 < len(emojis) else 0
         if len(kept) >= max_emojis or used + w + more_w > avail:
             break
-        kept.append((e, n))
+        kept.append(g)
         used += w
     truncated = len(kept) < len(emojis)
     return kept, truncated, used + (MORE_W if truncated else 0)
@@ -65,7 +67,7 @@ def _row(
         room = avail - EMOJI_W - COUNT_W * len(sup)
         # at least one stop emoji even when max_emojis is 1: a snapped stop must not vanish behind its climb
         stop_emojis, row["more"], stop_w = _fit(it.emojis, room, max(1, max_emojis - 1))
-        row["emojis"] = [(kind.emoji, sup or 0), *stop_emojis]
+        row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
         emoji_w = EMOJI_W + stop_w
         if kind.label_if_room and stop_w + LABEL_W > room:
             row["label"] = ""
