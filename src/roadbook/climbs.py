@@ -17,9 +17,13 @@ def _label(score: float, categories: list[list]) -> str:
     return ""
 
 
+def _is_steep(e: np.ndarray, x: np.ndarray, span: tuple[int, int], cfg: dict[str, Any]) -> bool:
+    return e[span[1]] - e[span[0]] >= (x[span[1]] - x[span[0]]) * cfg["min_grade_pct"] / 100
+
+
 def _is_climb(e: np.ndarray, x: np.ndarray, span: tuple[int, int], cfg: dict[str, Any]) -> bool:
     gain, length = e[span[1]] - e[span[0]], x[span[1]] - x[span[0]]
-    return gain >= cfg["min_gain_m"] and length >= cfg["min_length_m"] and gain >= length * cfg["min_grade_pct"] / 100
+    return gain >= cfg["min_gain_m"] and length >= cfg["min_length_m"] and _is_steep(e, x, span, cfg)
 
 
 def _merge(ups: list[tuple[int, int]], e: np.ndarray, x: np.ndarray, cfg: dict[str, Any]) -> list[tuple[int, int]]:
@@ -31,10 +35,11 @@ def _merge(ups: list[tuple[int, int]], e: np.ndarray, x: np.ndarray, cfg: dict[s
             return False
         if dip <= cfg["merge_dip_m"]:
             return True
-        # the relative dip only joins two real climbs: a long false flat before a col (UBF km 60-72, 1.6%) would
-        # otherwise swallow it and turn "13.8 km at 6.4%" into "25.9 km at 4.1%"
+        # the relative dip only joins two sides steep enough to climb: a long false flat before a col (UBF km 60-72,
+        # 1.6%) would otherwise swallow it and turn "13.8 km at 6.4%" into "25.9 km at 4.1%". Steepness, not
+        # min_gain_m: a short steep ramp between two climbs is part of them even if it is no climb on its own
         smaller = min(e[a[1]] - e[a[0]], e[b[1]] - e[b[0]])
-        return dip <= cfg["merge_dip_ratio"] * smaller and _is_climb(e, x, a, cfg) and _is_climb(e, x, b, cfg)
+        return dip <= cfg["merge_dip_ratio"] * smaller and _is_steep(e, x, a, cfg) and _is_steep(e, x, b, cfg)
 
     merged: list[tuple[int, int]] = []
     for up in ups:
