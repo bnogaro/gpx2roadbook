@@ -1,4 +1,5 @@
 import subprocess
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -9,6 +10,12 @@ from roadbook.cli import _echo_lookup, app
 from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
+
+
+def test_version_prints_the_version() -> None:
+    result = CliRunner().invoke(app, ["--version"])
+    assert result.exit_code == 0
+    assert result.output.strip() == f"gpx2roadbook {version('gpx2roadbook')}"
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")

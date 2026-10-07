@@ -39,6 +39,8 @@ This puts the `roadbook` command on your PATH (`gpx2roadbook` works too, it is t
 uv tool upgrade gpx2roadbook     # or: pipx upgrade gpx2roadbook
 ```
 
+`roadbook --version` tells you which version you have.
+
 To try it once without installing anything:
 
 ```sh

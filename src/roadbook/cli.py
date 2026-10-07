@@ -4,6 +4,7 @@ import subprocess
 import sys
 from datetime import datetime, time
 from enum import StrEnum
+from importlib.metadata import version
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from typing import TYPE_CHECKING, Annotated, cast
 
@@ -63,6 +64,12 @@ def _extra_checkpoint(value: str) -> list:
     except ValueError as exc:
         msg = f"{value!r}: give the km, and a label if you like, e.g. 87.5:Lunch"
         raise typer.BadParameter(msg, param_hint="--checkpoint") from exc
+
+
+def _show_version(wanted: bool) -> None:  # noqa: FBT001  Typer's callback for a flag
+    if wanted:
+        typer.echo(f"gpx2roadbook {version('gpx2roadbook')}")
+        raise typer.Exit
 
 
 def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
@@ -157,6 +164,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         typer.Option(
             "--interactive", "-i", help="Ask for the settings step by step, starting from the ones given as options."
         ),
+    ] = False,
+    _version: Annotated[  # noqa: FBT002  a --version flag
+        bool,
+        typer.Option("--version", callback=_show_version, is_eager=True, help="Print the version and exit."),
     ] = False,
 ) -> None:
     cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
