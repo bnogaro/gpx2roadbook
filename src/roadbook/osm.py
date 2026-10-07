@@ -5,7 +5,9 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import logging
 import math
+import time
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
@@ -22,6 +24,9 @@ if TYPE_CHECKING:
 
 T = TypeVar("T")
 R = TypeVar("R")
+
+log = logging.getLogger(__name__)
+wire = logging.getLogger("roadbook.http")  # every request and answer: -vvv
 
 USER_AGENT = f"gpx2roadbook/{version('gpx2roadbook')} (+https://github.com/bnogaro/gpx2roadbook)"
 TIMEOUT_S = 60  # per request
@@ -61,8 +66,16 @@ def http(url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401  parsed 
     """GET `url`, or POST `data` as a form; raises OSError (URLError, timeouts) or ValueError (bad JSON)."""
     body = urllib.parse.urlencode(data).encode() if data is not None else None
     req = urllib.request.Request(url, data=body, headers={"User-Agent": USER_AGENT})  # noqa: S310  fixed https URLs
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310
-        return json.load(resp)
+    wire.debug("%s %s%s", "POST" if body else "GET", url, f", {len(body)} bytes" if body else "")
+    start = time.perf_counter()
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310
+            raw = resp.read()
+    except OSError as exc:
+        wire.debug("failed after %.1f s: %s", time.perf_counter() - start, exc)
+        raise
+    wire.debug("%s, %.1f kB in %.1f s", resp.status, len(raw) / 1000, time.perf_counter() - start)
+    return json.loads(raw)
 
 
 def overpass(query: str, http: Http, parse: Callable[[dict[str, Any]], T | None]) -> list[T]:
@@ -70,11 +83,13 @@ def overpass(query: str, http: Http, parse: Callable[[dict[str, Any]], T | None]
 
     The first server that answers does; raises OSError if none does, or none answers what `parse` can read.
     """
+    wire.debug("Overpass query: %s", query)
     error: Exception | None = None
     for url in OVERPASS:
         try:
             return [found for e in http(url, {"data": query})["elements"] if (found := parse(e)) is not None]
         except (OSError, *_UNREADABLE) as exc:
+            log.info("Overpass: %s did not answer: %s", urllib.parse.urlsplit(url).hostname, exc)
             error = exc
     raise OSError(error) from error
 
@@ -87,6 +102,7 @@ def nominatim(
     Waits before every request, the first too, as another lookup may just have asked. Raises OSError if Nominatim
     does not answer, or answers what `parse` can't read.
     """
+    wire.debug("waiting %g s: Nominatim takes one request a second", NOMINATIM_EVERY_S)
     sleep(NOMINATIM_EVERY_S)
     try:
         return parse(http(f"{NOMINATIM}/{endpoint}?{urllib.parse.urlencode(params)}", None))
@@ -99,8 +115,9 @@ def one_by_one(items: list[T], ask: Callable[[T], R], answer: Callable[[T, R], N
     service is down, or we are offline. Returns whether some were left unanswered."""
     failed = False
     failures = 0  # in a row
-    for item in items:
+    for n, item in enumerate(items):
         if failures >= NOMINATIM_GIVE_UP:
+            log.info("%d failures in a row: giving up on the %d left", failures, len(items) - n)
             return True
         try:
             result = ask(item)
@@ -134,6 +151,7 @@ class JsonCache:
             self.entries: dict[str, Any] = data["entries"] if data.get("version") == version else {}
         except (OSError, ValueError, KeyError):
             self.entries = {}
+        log.debug("Cache %s: %d answers", path, len(self.entries))
 
     def get(self, key: str) -> tuple[bool, Any]:
         """(known, answer): known is False when `key` was never looked up, or too long ago."""
@@ -152,5 +170,7 @@ class JsonCache:
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(json.dumps({"version": self.version, "entries": self.entries}), encoding="utf-8")
-        except OSError:
-            pass  # a cache that cannot be written only costs a slower next run
+        except OSError as exc:  # a cache that cannot be written only costs a slower next run
+            log.info("Cache %s not saved: %s", self.path, exc)
+        else:
+            log.debug("Cache %s: %d answers saved", self.path, len(self.entries))

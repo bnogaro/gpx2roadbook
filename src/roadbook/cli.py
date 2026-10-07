@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 from datetime import datetime, time
 from enum import StrEnum
 from importlib.metadata import version
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
+from time import perf_counter
 from typing import TYPE_CHECKING, Annotated, cast
 
 import typer
@@ -23,6 +25,7 @@ if TYPE_CHECKING:
     from .osm import Report
 
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
+log = logging.getLogger(__name__)
 
 
 class Layout(StrEnum):
@@ -68,6 +71,37 @@ def _show_version(wanted: bool) -> None:  # noqa: FBT001  Typer's callback for a
     if wanted:
         typer.echo(f"gpx2roadbook {version('gpx2roadbook')}")
         raise typer.Exit
+
+
+def _utf8_console() -> None:
+    """Emojis in the summary and accents in the log, on a Windows console too."""
+    for stream in (sys.stdout, sys.stderr):
+        cast("TextIOWrapper", stream).reconfigure(encoding="utf-8")
+
+
+class _Indent(logging.Formatter):
+    """A detail (-vv) indented under the step it belongs to, a request to OpenStreetMap (-vvv) twice."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        depth = 2 if record.name == "roadbook.http" else 1 if record.levelno < logging.INFO else 0
+        return "  " * depth + super().format(record)
+
+
+class _Stderr(logging.StreamHandler):
+    """The handler the log goes through, told apart from any other so that each run replaces the one before."""
+
+
+def _log_to_stderr(verbosity: int) -> None:
+    """Say what is being done on stderr, the summary staying alone on stdout: warnings only by default; -v the
+    steps, -vv the details, -vvv every request to OpenStreetMap too."""
+    roadbook = logging.getLogger("roadbook")
+    for h in [h for h in roadbook.handlers if isinstance(h, _Stderr)]:
+        roadbook.removeHandler(h)
+    handler = _Stderr(sys.stderr)
+    handler.setFormatter(_Indent("%(message)s"))
+    roadbook.addHandler(handler)
+    roadbook.setLevel({0: logging.WARNING, 1: logging.INFO}.get(verbosity, logging.DEBUG))
+    logging.getLogger("roadbook.http").setLevel(logging.DEBUG if verbosity >= 3 else logging.INFO)  # noqa: PLR2004
 
 
 def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
@@ -164,13 +198,26 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
             "--interactive", "-i", help="Ask for the settings step by step, starting from the ones given as options."
         ),
     ] = False,
+    verbose: Annotated[
+        int,
+        typer.Option(
+            "--verbose",
+            "-v",
+            count=True,
+            help="Say what it does: -v each step, -vv each stop, climb and name found, -vvv each request online.",
+        ),
+    ] = 0,
     _version: Annotated[  # noqa: FBT002  a --version flag
         bool,
         typer.Option("--version", callback=_show_version, is_eager=True, help="Print the version and exit."),
     ] = False,
 ) -> None:
-    cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
+    started = perf_counter()
+    _utf8_console()
+    _log_to_stderr(verbose)
     cfg = load_config(config)
+    if config:
+        log.info("Settings: the defaults, then %s", config)
     cfg["render"]["layout"] = layout.value
     start_date, start_time = _start(start)
     for section, key, value in (
@@ -225,6 +272,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     typer.echo(f"Wrote {out}")
     if pdf:
         _write_pdf(out)
+    log.info("Done in %.1f s", perf_counter() - started)
 
 
 def _summary(book: Roadbook) -> None:

@@ -74,3 +74,25 @@ def test_refresh_looks_every_cached_answer_up_again(
     monkeypatch.setattr(cli, "build", build)
     assert CliRunner().invoke(app, [str(FLAT), *flags]).exit_code == 0
     assert [used[s]["max_age_days"] for s in ("hours", "towns", "climb_names")] == ages
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+def test_without_v_only_warnings_join_the_summary(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, [str(FLAT), "-o", str(tmp_path / "rb.html")])
+    assert "Read " not in result.output
+    assert "Done in" not in result.output
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+def test_v_says_each_step_and_vv_each_detail(tmp_path: Path) -> None:
+    out = str(tmp_path / "rb.html")
+    steps = CliRunner().invoke(app, [str(FLAT), "-v", "-o", out]).output
+    for line in ("Read paris_le_mans.gpx: ", "POIs left out: ", "Stops: 64 from 435 POIs", "Layout: ", "Done in "):
+        assert f"\n{line}" in f"\n{steps}"
+    assert "\n  km " not in steps  # no details
+    details = CliRunner().invoke(app, [str(FLAT), "-vv", "-o", out]).output
+    assert (
+        "\nStops: 64 from 435 POIs, each within 500 m of the next, spanning 1500 m at most\n  km 30.8: water x2\n"
+        in details
+    )
+    assert details.count("Done in ") == 1  # the second run replaced the first one's log, rather than add to it

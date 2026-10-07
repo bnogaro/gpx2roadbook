@@ -11,6 +11,7 @@ climb at one per second, but steady. Answers are cached on disk for a long time,
 
 from __future__ import annotations
 
+import logging
 import math
 import time
 from dataclasses import dataclass
@@ -28,6 +29,8 @@ if TYPE_CHECKING:
     from .osm import Http
 
     Point = tuple[float, float]  # lat, lon
+
+log = logging.getLogger(__name__)
 
 # Nominatim's tag filters, in order of preference; it files a node tagged both mountain_pass and natural=saddle under
 # mountain_pass only, so each needs its own request. The peak is only asked for when no pass or saddle is near.
@@ -126,6 +129,8 @@ def lookup(
 
     Never raises for a network problem: climbs left unanswered keep no name, and the report says so.
     """
+    started = time.perf_counter()
+    log.info("Climb names: %d climbs to name", len(climbs))
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, cfg["max_age_days"], field="name")
     report = Report(asked=len(climbs))
     tops = {id(c): track.at(c.end_km) for c in climbs}
@@ -135,6 +140,7 @@ def lookup(
         if known:
             report.cached += 1
             c.name = name
+            _log_name(c, "cached")
         else:
             todo.append(c)
 
@@ -142,19 +148,27 @@ def lookup(
         top = tops[id(c)]
         c.name = choose(top, places, cfg)
         cache.put(_key(top, cfg), c.name)
+        _log_name(c, source)
         report.answered_by(source)
 
     if todo:
+        log.info("Climb names: %d cached; asking Overpass about the other %d", report.cached, len(todo))
         query = _overpass_query([tops[id(c)] for c in todo], max(cfg["pass_m"], cfg["peak_m"]))
         try:
             places = overpass(query, http, _from_overpass)
         except OSError:
+            log.info("Climb names: asking Nominatim about %d climbs, one request a second", len(todo))
             report.failed = one_by_one(
                 todo, lambda c: _nominatim(tops[id(c)], cfg, http, sleep), lambda c, ps: answer(c, ps, "Nominatim")
             )
         else:
             for c in todo:
                 answer(c, places, "Overpass")
+        log.info("Climb names: looked up in %.1f s", time.perf_counter() - started)
     cache.save()
     report.found = sum(1 for c in climbs if c.name)
     return report
+
+
+def _log_name(c: Climb, how: str) -> None:
+    log.debug("km %.1f-%.1f: %s (%s)", c.start_km, c.end_km, c.name or "no named col or peak at its top", how)

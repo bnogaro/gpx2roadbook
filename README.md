@@ -114,6 +114,7 @@ Either way, cut along the dashed lines.
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
 | `--refresh` | Look up opening hours, town names and climb names again, instead of using the answers cached from earlier runs. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
+| `-v`, `-vv`, `-vvv` | Say what it does: `-v` each step, why POIs were left out and how long the lookups took; `-vv` each stop, climb, shop, town and climb name found; `-vvv` every request to OpenStreetMap too. |
 | `--config my.toml` | Override any setting, see below. |
 
 For the full list:

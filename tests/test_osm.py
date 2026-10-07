@@ -1,9 +1,10 @@
+import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 import pytest
 
-from roadbook.osm import NOMINATIM, NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, JsonCache, nominatim, one_by_one
+from roadbook.osm import NOMINATIM, NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, JsonCache, http, nominatim, one_by_one
 
 
 def test_the_cache_file_is_only_written_with_new_answers(tmp_path: Path) -> None:
@@ -53,3 +54,42 @@ def test_nominatim_waits_before_every_request() -> None:
 def test_an_answer_that_cannot_be_read_counts_as_no_answer(answer: object) -> None:
     with pytest.raises(OSError, match=r"."):
         nominatim("reverse", {}, lambda _u, _d: answer, lambda _s: None, lambda r: r["address"]["town"])
+
+
+class _Answer:
+    """What urlopen() gives back, for the request log."""
+
+    status = 200
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *_: object) -> None:
+        pass
+
+    def read(self) -> bytes:
+        return b'{"elements": []}'
+
+
+def test_vvv_logs_each_request_and_its_answer(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    monkeypatch.setattr("urllib.request.urlopen", lambda *_args, **_kwargs: _Answer())
+    caplog.set_level(logging.DEBUG, logger="roadbook.http")
+    assert http("https://overpass.example/api", {"data": "[out:json];"}) == {"elements": []}
+    assert [r.name for r in caplog.records] == ["roadbook.http"] * 2
+    assert caplog.messages[0] == "POST https://overpass.example/api, 24 bytes"
+    assert caplog.messages[1].startswith("200, 0.0 kB in ")
+
+
+def test_a_request_that_fails_is_logged_too(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    def down(*_args: object, **_kwargs: object) -> None:
+        msg = "timed out"
+        raise OSError(msg)
+
+    monkeypatch.setattr("urllib.request.urlopen", down)
+    caplog.set_level(logging.DEBUG, logger="roadbook.http")
+    with pytest.raises(OSError, match="timed out"):
+        http("https://nominatim.example/reverse?lat=1", None)
+    assert caplog.messages[0] == "GET https://nominatim.example/reverse?lat=1"
+    assert "failed after" in caplog.messages[1]
