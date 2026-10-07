@@ -112,7 +112,7 @@ Either way, cut along the dashed lines.
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
-| `--refresh-hours` | With `--hours`: look the hours up again instead of using the cached ones. |
+| `--refresh` | Look up opening hours, town names and climb names again, instead of using the answers cached from earlier runs. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
 
@@ -196,7 +196,7 @@ km 60.0 → 61.3 · Saint-Girons
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
 - **On the reference sheet**, every busy stop has its name next to its km.
 - **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.
-- **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`). If Nominatim doesn't answer, you get a warning and a road book without the missing names.
+- **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`); `--refresh` looks them up again. If Nominatim doesn't answer, you get a warning and a road book without the missing names.
 
 ### Climb names
 
@@ -211,7 +211,7 @@ km 25.6 → 29.9 · Col de Portet d'Aspet
 - **On the reference sheet**, each named climb gets an entry of its own, at its foot's km between the stops: its name, category, length, grade and gain.
 - **Which name.** OpenStreetMap places tagged as a mountain pass (`mountain_pass=yes`), a saddle (`natural=saddle`) or a peak (`natural=peak`), with a name, near the climb's top. A pass or saddle within 300 m (`climb_names.pass_m`) wins, since the road crosses it; else a peak within 200 m (`climb_names.peak_m`), since the road only skirts one: the nearest peak is often a summit off to the side, not where the road tops out. Then the closest. Most small rises have neither, and get no name.
 - **Where it comes from.** One [Overpass](https://overpass-api.de) request for the whole route; if its servers are busy, a mirror, then [Nominatim](https://nominatim.org), up to three requests per climb, one per second.
-- **Then it's instant.** Answers are cached on your computer for a year (`climb_names.max_age_days`). If OpenStreetMap doesn't answer, or you're offline, you get a warning and a road book without the missing names.
+- **Then it's instant.** Answers are cached on your computer for a year (`climb_names.max_age_days`); `--refresh` looks them up again. If OpenStreetMap doesn't answer, or you're offline, you get a warning and a road book without the missing names.
 
 ### Opening hours
 
@@ -227,7 +227,7 @@ km 4.3
 - **Where they come from.** The GPX has no hours, so each shop is matched to the OpenStreetMap place within 80 m of it with the closest name (`hours.match_m`). onroutemap.de uses OpenStreetMap too, so the names usually line up.
 - **Coverage.** OpenStreetMap doesn't know every shop's hours: expect roughly half of them, more for supermarkets. The others say *hours unknown*.
 - **It takes a while the first time.** The hours are looked up online, through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) or, when its servers are busy, [Nominatim](https://nominatim.org), which allows one request per second. For a 200 km route, count from half a minute to a few minutes.
-- **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh-hours` to look them up again.
+- **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh` to look them up again.
 - **If the lookup fails**, you get a warning and a road book without the missing hours. Run it again later.
 - **Check the ones you rely on.** Hours change, and OpenStreetMap may be out of date.
 
