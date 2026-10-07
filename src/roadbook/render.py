@@ -301,7 +301,10 @@ def _climb_entry(c: Climb) -> dict[str, Any]:
 
 
 def _credit(book: Roadbook) -> str:
-    """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or ""."""
+    """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or "".
+
+    Only what it shows: a lookup that found nothing, such as climb names on a flat route, has nothing to credit.
+    """
     used = [
         what
         for what, done in (
@@ -309,7 +312,7 @@ def _credit(book: Roadbook) -> str:
             ("town names", book.towns),
             ("climb names", book.climb_names),
         )
-        if done is not None
+        if done is not None and done.found
     ]
     if not used:
         return ""

@@ -142,7 +142,7 @@
     {% endfor %}
   </div>
   {% endfor %}
-  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
+  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours and book.hours.found %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
   <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}

@@ -1,8 +1,19 @@
+from pathlib import Path
 from typing import Any
 
 import pytest
 
-from roadbook.osm import NOMINATIM, NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, nominatim, one_by_one
+from roadbook.osm import NOMINATIM, NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, JsonCache, nominatim, one_by_one
+
+
+def test_the_cache_file_is_only_written_with_new_answers(tmp_path: Path) -> None:
+    path = tmp_path / "sub" / "c.json"
+    JsonCache(path, 1, 30).save()  # everything came from the cache, or nothing answered
+    assert not path.exists()
+    cache = JsonCache(path, 1, 30)
+    cache.put("k", None)  # "OSM has nothing" is an answer too
+    cache.save()
+    assert JsonCache(path, 1, 30).get("k") == (True, None)
 
 
 def test_one_by_one_gives_up_after_failures_in_a_row() -> None:

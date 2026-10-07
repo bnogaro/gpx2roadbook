@@ -61,7 +61,7 @@ def _extra_checkpoint(value: str) -> list:
 
 def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
     """One line on what an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)"."""
-    if r is None:  # not asked for
+    if r is None or not r.asked:  # not asked for, or nothing to look up: a flat route has no climbs to name
         return
     where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
     typer.echo(f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else ""))

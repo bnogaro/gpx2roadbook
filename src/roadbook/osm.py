@@ -128,6 +128,7 @@ class JsonCache:
         self.version = version
         self.field = field  # the entry key the answer is stored under
         self.oldest = dt.datetime.now(dt.UTC) - dt.timedelta(days=max_age_days)
+        self.changed = False  # nothing to write back until an answer is put
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             self.entries: dict[str, Any] = data["entries"] if data.get("version") == version else {}
@@ -143,8 +144,11 @@ class JsonCache:
 
     def put(self, key: str, answer: Any) -> None:  # noqa: ANN401  any JSON value
         self.entries[key] = {"at": dt.datetime.now(dt.UTC).isoformat(), self.field: answer}
+        self.changed = True
 
     def save(self) -> None:
+        if not self.changed:
+            return  # all from the cache, or nothing answered: the file has nothing new to keep
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
             self.path.write_text(json.dumps({"version": self.version, "entries": self.entries}), encoding="utf-8")

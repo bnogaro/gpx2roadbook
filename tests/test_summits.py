@@ -296,10 +296,17 @@ def test_the_reference_sheet_lists_named_climbs_among_the_stops() -> None:
 def test_the_credit_names_what_came_from_osm() -> None:
     book = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
     assert _credit(book) == ""
-    book.climb_names = Report()
+    book.climb_names = Report(asked=3, found=1)
     assert _credit(book) == "Climb names"
-    book.hours, book.towns = Report(), Report()
+    book.hours, book.towns = Report(asked=9, found=4), Report(asked=2, found=2)
     assert _credit(book) == "Opening hours, town names and climb names"
+
+
+def test_a_lookup_that_found_nothing_is_not_credited() -> None:
+    # a flat route has no climbs to name: the sheet must not credit OSM for climb names it doesn't show
+    book = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
+    book.climb_names, book.towns = Report(), Report(asked=4, found=0)
+    assert _credit(book) == ""
 
 
 # --- end to end, on a sample, with a fake Overpass
