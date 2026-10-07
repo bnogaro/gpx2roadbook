@@ -58,7 +58,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + CLEAR
         + "50"
         + ENTER  # checkpoint every 50 km
-        + "y"  # town names
+        + "n"  # town names: on by default, turned off
         + "y"  # opening hours
         + "12/10"
         + ENTER  # not a date: the prompt stays
@@ -96,7 +96,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--layout line",
         "--page A5",
         "--checkpoint-every 50",
-        "--towns",
+        "--no-towns",
         "--hours",
         "--date 2026-10-12",
         "--start 06:00",

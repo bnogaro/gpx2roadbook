@@ -104,7 +104,7 @@ Either way, cut along the dashed lines.
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
-| `--towns` | Name the town at busy stops, on the strip and on the reference sheet, from OpenStreetMap (see [Town names](#town-names)). Needs internet the first time. |
+| `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
 | `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
@@ -161,7 +161,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
-- ***Saint-Girons*** in italics, at the right above a row, with `--towns`, is the town that stop is in (see [Town names](#town-names)).
+- ***Saint-Girons*** in italics, at the right above a row, is the town that stop is in (see [Town names](#town-names)).
 - **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Col de Portet d'Aspet** in brown, at the right above a ⛰️ row, is the col or peak that climb tops out at (see [Climb names](#climb-names)).
 - **Stops on a climb.** A stop within 300 m (`climbs.snap_m`) of a climb's foot or summit is merged into that row rather than given a row of its own. A ⛰️ row with a stop on it has no room for "Cat 4", so the category becomes a small superscript on the mountain (⛰️⁴ 🍔).
@@ -182,7 +182,7 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 
 ### Town names
 
-A stop grouping many POIs is usually a town. With `--towns`, those stops get the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons").
+A stop grouping many POIs is usually a town, so it gets the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons"). `--no-towns` leaves them out.
 
 ```text
 km 60.0 → 61.3 · Saint-Girons

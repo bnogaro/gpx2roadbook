@@ -126,7 +126,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     ] = None,
     towns: Annotated[
         bool | None,
-        typer.Option(help="Name the town at busy stops, from OpenStreetMap (needs internet the first time)."),
+        typer.Option(help="Name the town at busy stops, from OpenStreetMap (default: on)."),
     ] = None,
     climb_names: Annotated[
         bool | None,
