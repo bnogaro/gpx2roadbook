@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import itertools
+import logging
+from collections import Counter
 from typing import TYPE_CHECKING, Any
 
 from .climbs import find_climbs
 from .hours import lookup as find_hours
 from .kinds import KINDS
-from .model import Climb, Item, Roadbook, Stop
+from .model import Climb, Item, Poi, Roadbook, Stop
 from .opening import Ride, verdict
 from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
@@ -17,6 +19,8 @@ from .towns import lookup as name_towns
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 
 def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str]]:
@@ -56,6 +60,10 @@ def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> di
 
 def _judge(stops: list[Stop], ride: Ride, profile: Profile) -> None:
     """Give each stop the window when the rider may be there, and each shop with hours whether it is open then."""
+    if ride.start is None:
+        return  # no arrival times
+    climbing = f", +{ride.climb_min_per_100m:g} min per 100 m climbed" if ride.climb_min_per_100m else ""
+    log.info("Arrival times: from %s at %g km/h%s", f"{ride.start:%a %d %b %H:%M}", ride.speed_kmh, climbing)
     for s in stops:
         s.window = ride.window(s.km, s.km_end, profile.gain)
         if s.window is None:
@@ -63,20 +71,70 @@ def _judge(stops: list[Stop], ride: Ride, profile: Profile) -> None:
         for p in s.pois:
             if p.opening_hours:
                 p.verdict = verdict(p.opening_hours, p.lat, p.lon, s.window)
+            if p.verdict:
+                when = f"{s.window.early:%a %H:%M}-{s.window.late:%H:%M}"
+                v = p.verdict.state + (f" ({p.verdict.note})" if p.verdict.note else "")
+                log.debug("km %.1f %s, there %s: %s", s.km, p.name or p.type, when, v)
+
+
+def _explain_left_out(pois: list[Poi], cfg: dict[str, Any]) -> None:
+    """Why the file's POIs that are not in the road book were left out: -v counts them, -vv names each."""
+    left: list[tuple[str, str, Poi]] = []  # why, in a count of them; the detail for this one; the POI
+    for p in pois:
+        if p.category is None:
+            left.append(("match no category", f"no category for type {p.type!r}", p))
+        elif p.category not in cfg["enabled"]:
+            left.append(("are in categories not shown", f"category {p.category} not shown", p))
+        elif p.offset_m > cfg["max_offset_m"]:
+            why = f"lie over {cfg['max_offset_m']:g} m from the route"
+            left.append((why, f"{p.offset_m:.0f} m from the route", p))
+    if left:
+        counts = Counter(why for why, _, _ in left)
+        log.info("POIs left out: %s", ", ".join(f"{n} {why}" for why, n in counts.items()))
+    for _, detail, p in left:
+        log.debug("%r at km %.1f: %s", p.name, p.km, detail)
+
+
+def _log_stops(stops: list[Stop], kept: int, gap_m: float, span_m: float) -> None:
+    log.info(
+        "Stops: %d from %d POIs, each within %g m of the next, spanning %g m at most", len(stops), kept, gap_m, span_m
+    )
+    for s in stops:
+        kinds = Counter(p.category for p in s.pois)
+        what = ", ".join(f"{c} x{n}" if n > 1 else str(c) for c, n in kinds.items())
+        end = f"{s.km_end:.1f}"
+        log.debug("km %.1f%s: %s", s.km, f"-{end}" if end != f"{s.km:.1f}" else "", what)
+
+
+def _log_climbs(climbs: list[Climb], min_gain_m: float) -> None:
+    log.info("Climbs: %d gaining %g m or more", len(climbs), min_gain_m)
+    for c in climbs:
+        log.debug(
+            "km %.1f-%.1f: %.1f km at %.1f %%, steepest %.1f %%, +%.0f m%s",
+            *(c.start_km, c.end_km, c.length_km, c.avg_grade, c.max_grade, c.gain_m),
+            f", Cat {c.label}" if c.label else "",
+        )
 
 
 def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     track, pois = read_gpx(gpx_path)
+    log.info("Read %s: %d track points, %d waypoints", gpx_path.name, len(track.dist), len(pois))
     profile = Profile(track, **cfg["elevation"])
     length = track.length_km
 
     snap_pois(track, pois)
     classify(pois, cfg["categories"])
     kept = filter_pois(pois, cfg["pois"]["enabled"], cfg["pois"]["max_offset_m"])
+    _explain_left_out(pois, cfg["pois"])
     gap_m = cfg["stops"]["gap_m"]
-    stops = cluster(kept, gap_m, cfg["stops"]["max_span_m"] or 3 * gap_m)
+    span_m = cfg["stops"]["max_span_m"] or 3 * gap_m
+    stops = cluster(kept, gap_m, span_m)
+    _log_stops(stops, len(kept), gap_m, span_m)
     climbs = find_climbs(profile, cfg["climbs"])
+    _log_climbs(climbs, cfg["climbs"]["min_gain_m"])
     ride = Ride.from_cfg(cfg["ride"])
+    if ride.start is None and (cfg["ride"]["start"] or cfg["ride"]["speed_kmh"]):  # a slip that would go unnoticed
+        log.warning("No arrival times: they need a ride date, a start time and a speed (--date, --start, --speed).")
     # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
     hours = find_hours(kept, cfg["hours"]) if wanted else None

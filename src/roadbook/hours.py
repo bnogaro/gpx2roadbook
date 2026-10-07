@@ -11,6 +11,7 @@ Answers are cached on disk: a later render of the same route needs no network.
 from __future__ import annotations
 
 import difflib
+import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
@@ -27,6 +28,8 @@ if TYPE_CHECKING:
     from .osm import Http
 
     Answer = Callable[[Poi, list["Place"], str], None]  # matches a POI among places found by a source
+
+log = logging.getLogger(__name__)
 
 CHUNK = 50  # POIs per Overpass request; Overpass is told a little less than TIMEOUT_S, so it gives up before we do
 MIN_SIMILARITY = 0.6
@@ -155,8 +158,10 @@ def lookup(
 
     Never raises for a network problem: POIs left unanswered keep no hours, and the report says so.
     """
+    started = time.perf_counter()
     match_m = cfg["match_m"]
     wanted = [p for p in pois if p.category in cfg["categories"]]
+    log.info("Opening hours: %d shops to look up", len(wanted))
     cache = Cache(cache_path or default_cache_path(), cfg["max_age_days"])
     report = Report(asked=len(wanted))
 
@@ -166,6 +171,7 @@ def lookup(
         if known:
             report.cached += 1
             _apply(p, place)
+            _log_match(p, place, "cached")
         else:
             todo.append(p)
 
@@ -173,15 +179,29 @@ def lookup(
         place = match(p, places, match_m, cfg["kinds"].get(p.category or ""))
         cache.put(p, place)
         _apply(p, place)
+        _log_match(p, place, source)
         report.answered_by(source)
 
+    if todo:
+        log.info("Opening hours: %d cached; asking Overpass about the other %d", report.cached, len(todo))
     left = _by_overpass(todo, match_m, http, answer)
+    if left:
+        log.info("Opening hours: asking Nominatim about %d shops, one a second", len(left))
     report.failed = one_by_one(
         left, lambda p: _nominatim(p, match_m, http, sleep), lambda p, places: answer(p, places, "Nominatim")
     )
     cache.save()
     report.found = sum(1 for p in wanted if p.opening_hours)
+    if todo:
+        log.info("Opening hours: looked up in %.1f s", time.perf_counter() - started)
     return report
+
+
+def _log_match(p: Poi, place: Place | None, how: str) -> None:
+    if place is None:
+        log.debug("km %.1f %s: no hours found (%s)", p.km, p.name or p.type, how)
+    else:
+        log.debug("km %.1f %s: %s %r, %s (%s)", p.km, p.name or p.type, place.osm_id, place.name, place.hours, how)
 
 
 def _by_overpass(todo: list[Poi], match_m: float, http: Http, answer: Answer) -> list[Poi]:

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import logging
 import re
 import shutil
 import subprocess
+import time
 from dataclasses import dataclass
 from importlib.metadata import version
 from pathlib import Path
@@ -20,6 +22,8 @@ if TYPE_CHECKING:
 
     from .model import Climb, Item, Poi, Roadbook, Stop
     from .opening import Window
+
+log = logging.getLogger(__name__)
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
@@ -372,13 +376,27 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
 
     key, capacity = ("h", length - HDR_H - 2 * PAD) if layout == "strip" else ("w", length - 2 * PAD)
     orientation = "portrait" if layout == "strip" else "landscape"
-    strips = [
+    strips: list[dict[str, Any]] = [
         # "over": how far the last strip runs past its length to keep the finish, 0 for the others
         {"rows": p, "first": p[0]["km"], "last": p[-1]["km"], "over": max(0.0, sum(r[key] for r in p) - capacity)}
         for p in _paginate(rows, capacity, key)
     ]
     if gutter:
         _add_gutters(strips, book, gutter, capacity)
+    noun = "strip" if layout == "strip" else "ribbon"
+    log.info("Layout: %d %ss of %g x %g mm", len(strips), noun, width, length)
+    for n, s in enumerate(strips, 1):
+        used = sum(r[key] for r in s["rows"])
+        log.debug(
+            "%s %d: km %s to %s, %d rows, %.1f of %.1f mm",
+            noun,
+            n,
+            s["first"],
+            s["last"],
+            len(s["rows"]),
+            used,
+            capacity,
+        )
 
     details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
@@ -433,6 +451,8 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
     if exe is None:
         msg = "No Edge/Chrome found for PDF export; open the HTML and print it instead."
         raise RuntimeError(msg)
+    log.info("PDF: printing with %s", exe)
+    start = time.perf_counter()
     subprocess.run(  # noqa: S603  fixed argv, no shell; exe comes from PATH or a known install path
         [
             exe,
@@ -446,3 +466,4 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
         capture_output=True,
         timeout=PDF_TIMEOUT_S,
     )
+    log.info("PDF: printed in %.1f s", time.perf_counter() - start)

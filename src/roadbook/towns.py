@@ -6,6 +6,7 @@ in. One request per stop, at most one per second; answers are cached on disk for
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import TYPE_CHECKING, Any
 
@@ -18,6 +19,8 @@ if TYPE_CHECKING:
 
     from .model import Poi, Stop
     from .osm import Http
+
+log = logging.getLogger(__name__)
 
 ZOOM = 12  # town level; 10 gives the same towns on the samples, 14 a quarter or a farm instead
 # in this order; not "municipality", which in France is the arrondissement: Le Mas-d'Azil would read Saint-Girons
@@ -77,7 +80,9 @@ def lookup(
 
     Never raises for a network problem: stops left unanswered keep no name, and the report says so.
     """
+    started = time.perf_counter()
     wanted = busy(stops, cfg)
+    log.info("Towns: %d busy stops to name", len(wanted))
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, cfg["max_age_days"], field="town")
     report = Report(asked=len(wanted))
     todo: list[Stop] = []
@@ -86,15 +91,25 @@ def lookup(
         if known:
             report.cached += 1
             s.town = town
+            _log_town(s, "cached")
         else:
             todo.append(s)
 
     def answer(s: Stop, town: str | None) -> None:
         cache.put(_key(centre(s)), town)
         s.town = town
+        _log_town(s, "Nominatim")
         report.answered_by("Nominatim")
 
+    if todo:
+        log.info("Towns: %d cached; asking Nominatim about the other %d, one a second", report.cached, len(todo))
     report.failed = one_by_one(todo, lambda s: _reverse(centre(s), http, sleep), answer)
     cache.save()
     report.found = sum(1 for s in wanted if s.town)
+    if todo:
+        log.info("Towns: looked up in %.1f s", time.perf_counter() - started)
     return report
+
+
+def _log_town(s: Stop, how: str) -> None:
+    log.debug("km %.1f, %d POIs: %s (%s)", s.km, len(s.pois), s.town or "in no town", how)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,8 @@ from .model import Poi, Track
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+log = logging.getLogger(__name__)
 
 _MIN_POINTS = 2  # a route needs at least two points to have a length
 
@@ -48,7 +51,12 @@ def read_gpx(path: Path) -> tuple[Track, list[Poi]]:
 
     lat = np.array([p.latitude for p in points])
     lon = np.array([p.longitude for p in points])
-    ele = _fill_missing(np.array([np.nan if p.elevation is None else p.elevation for p in points]))
+    ele = np.array([np.nan if p.elevation is None else p.elevation for p in points])
+    if (missing := int(np.isnan(ele).sum())) == len(points):
+        log.warning("%s has no elevation: no climbs, and a flat profile.", path.name)
+    elif missing:
+        log.info("%s: %d of %d points have no elevation, filled in from their neighbours", path.name, missing, len(ele))
+    ele = _fill_missing(ele)
     name = (gpx.tracks[0].name if gpx.tracks else None) or gpx.name or path.stem
     track = Track(name=name, lat=lat, lon=lon, ele=ele, dist=_haversine_cumulative(lat, lon))
 
