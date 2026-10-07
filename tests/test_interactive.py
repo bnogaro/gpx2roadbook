@@ -33,8 +33,9 @@ def _session(
 
 
 def test_pressing_enter_throughout_keeps_the_defaults() -> None:
-    # layout, paper, checkpoints, towns, opening hours, categories, PDF, output, advanced
-    _, out, pdf, cfg, same = _session(ENTER * 5 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
+    # layout, paper, checkpoints, towns, opening hours, ride date (none: no start or speed asked), categories, PDF,
+    # output, advanced
+    _, out, pdf, cfg, same = _session(ENTER * 6 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
     assert (out, pdf) == (HILLY.with_suffix(".roadbook.html"), False)
     assert cfg == load_config()
     assert same.replace('"', "").replace("'", "") == f"roadbook {HILLY}"
@@ -70,6 +71,9 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + CLEAR
         + "06:00"
         + ENTER  # start time
+        + CLEAR
+        + "0"
+        + ENTER  # no speed, no arrival times: the prompt stays
         + CLEAR
         + "22"
         + ENTER  # average speed
@@ -112,7 +116,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
 
 def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
     # line layout: width 0 stands for 16 mm, longest stop 0 for 3 x gap; Enter on their offered values keeps them 0
-    keys = DOWN + ENTER + ENTER * 5 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
+    keys = DOWN + ENTER + ENTER * 6 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY)
     assert cfg["render"]["width_mm"] == 0
     assert cfg["stops"]["max_span_m"] == 0
@@ -120,8 +124,31 @@ def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
     assert "--max-span" not in same
 
 
+def test_arrival_times_are_asked_for_without_opening_hours() -> None:
+    keys = (
+        ENTER * 5  # layout, paper, checkpoints, towns, opening hours: left off
+        + "2026-10-17"
+        + ENTER  # ride date
+        + "07:00"
+        + ENTER  # start time
+        + CLEAR
+        + "28"
+        + ENTER  # average speed
+        + ENTER  # categories
+        + "n"  # PDF
+        + ENTER  # output
+        + ENTER  # advanced
+    )
+    _, _, _, cfg, same = _session(keys, gpx=HILLY)
+    assert not cfg["hours"]["enabled"]
+    assert (cfg["ride"]["date"], cfg["ride"]["start"], cfg["ride"]["speed_kmh"]) == ("2026-10-17", "07:00", 28)
+    for part in ("--date 2026-10-17", "--start 07:00", "--speed 28"):
+        assert part in same
+    assert "--hours" not in same
+
+
 def test_flags_given_with_i_are_the_defaults_and_stay_in_the_command() -> None:
-    keys = ENTER * 6 + "n" + ENTER + ENTER
+    keys = ENTER * 7 + "n" + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY, flags={("stops", "gap_m"): 800})
     assert cfg["stops"]["gap_m"] == 800
     assert "--gap 800" in same
