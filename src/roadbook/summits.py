@@ -13,11 +13,11 @@ from __future__ import annotations
 
 import math
 import time
-import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
-from .osm import NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, OVERPASS, TIMEOUT_S, JsonCache, cache_path
+from .osm import M_PER_DEG, TIMEOUT_S, JsonCache, Report, cache_path, distance_m, nominatim, one_by_one, overpass
 from .osm import http as _http
 
 if TYPE_CHECKING:
@@ -25,10 +25,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .model import Climb, Track
+    from .osm import Http
 
     Point = tuple[float, float]  # lat, lon
 
-SEARCH = "https://nominatim.openstreetmap.org/search"
 # Nominatim's tag filters, in order of preference; it files a node tagged both mountain_pass and natural=saddle under
 # mountain_pass only, so each needs its own request. The peak is only asked for when no pass or saddle is near.
 NOMINATIM_TAGS = (("[mountain_pass=yes]", "pass"), ("[natural=saddle]", "pass"), ("[natural=peak]", "peak"))
@@ -44,23 +44,6 @@ class Place:
     kind: str  # "pass" or "peak"
     lat: float
     lon: float
-
-
-@dataclass
-class Report:
-    """What the lookup did, for one line of output."""
-
-    asked: int = 0  # climbs
-    found: int = 0
-    cached: int = 0  # of `asked`, answered from the cache
-    sources: list[str] = field(default_factory=list)
-    failed: bool = False  # some climbs could not be looked up at all
-
-
-def _distance_m(a: Point, b: Point) -> float:
-    dy = (b[0] - a[0]) * 111_320
-    dx = (b[1] - a[1]) * 111_320 * math.cos(math.radians(a[0]))
-    return math.hypot(dx, dy)
 
 
 def _kind(tags: dict[str, str]) -> str | None:
@@ -81,7 +64,7 @@ def choose(top: Point, places: list[Place], cfg: dict[str, Any]) -> str | None:
     near = [
         (RANK[p.kind], d, p.name)
         for p in places
-        if p.kind in radius and _is_name(p.name) and (d := _distance_m(top, (p.lat, p.lon))) <= radius[p.kind]
+        if p.kind in radius and _is_name(p.name) and (d := distance_m(*top, p.lat, p.lon)) <= radius[p.kind]
     ]
     return min(near, default=(0, 0.0, None))[2]
 
@@ -102,39 +85,23 @@ def _from_overpass(element: dict[str, Any]) -> Place | None:
     return Place(tags.get("name", ""), kind, where["lat"], where["lon"]) if kind else None
 
 
-def _overpass(tops: list[Point], radius: float, http: Callable[..., Any]) -> list[Place]:
-    """Named passes and peaks around `tops`, from the first Overpass server that answers; raises OSError if none."""
-    query = _overpass_query(tops, radius)
-    error: Exception | None = None
-    for url in OVERPASS:
-        try:
-            elements = http(url, {"data": query})["elements"]
-            return [p for e in elements if (p := _from_overpass(e))]
-        except (OSError, ValueError, KeyError, TypeError) as exc:
-            error = exc
-    raise OSError(error) from error
-
-
-def _nominatim(
-    top: Point, cfg: dict[str, Any], http: Callable[..., Any], sleep: Callable[[float], None]
-) -> list[Place]:
+def _nominatim(top: Point, cfg: dict[str, Any], http: Http, sleep: Callable[[float], None]) -> list[Place]:
     """Named passes, saddles, then peaks around `top`, from Nominatim; raises OSError if it does not answer."""
     radius = max(cfg["pass_m"], cfg["peak_m"])
-    dlat = radius / 111_320
+    dlat = radius / M_PER_DEG
     dlon = dlat / max(0.1, math.cos(math.radians(top[0])))
     box = f"{top[1] - dlon},{top[0] + dlat},{top[1] + dlon},{top[0] - dlat}"  # choose() trims it to a circle
     places: list[Place] = []
     for q, kind in NOMINATIM_TAGS:
         if kind == "peak" and choose(top, places, cfg):
             break  # a pass is near: no peak could win over it
-        sleep(NOMINATIM_EVERY_S)  # before every request, the first too: the towns lookup may just have asked
         params = {"q": q, "format": "jsonv2", "bounded": "1", "limit": "10", "viewbox": box}
-        try:
-            results = http(f"{SEARCH}?{urllib.parse.urlencode(params)}", None)
-            places += [Place(r.get("name") or "", kind, float(r["lat"]), float(r["lon"])) for r in results]
-        except (ValueError, KeyError, TypeError) as exc:
-            raise OSError(exc) from exc
+        places += nominatim("search", params, http, sleep, partial(_from_nominatim, kind))
     return places
+
+
+def _from_nominatim(kind: str, results: list[dict[str, Any]]) -> list[Place]:
+    return [Place(r.get("name") or "", kind, float(r["lat"]), float(r["lon"])) for r in results]
 
 
 def default_cache_path() -> Path:
@@ -152,7 +119,7 @@ def lookup(
     cfg: dict[str, Any],
     *,
     cache_path: Path | None = None,
-    http: Callable[..., Any] = _http,
+    http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Report:
     """Set `name` on the climbs whose summit OSM puts a named col, pass or peak at.
@@ -175,42 +142,19 @@ def lookup(
         top = tops[id(c)]
         c.name = choose(top, places, cfg)
         cache.put(_key(top, cfg), c.name)
-        if source not in report.sources:
-            report.sources.append(source)
+        report.answered_by(source)
 
     if todo:
+        query = _overpass_query([tops[id(c)] for c in todo], max(cfg["pass_m"], cfg["peak_m"]))
         try:
-            places = _overpass([tops[id(c)] for c in todo], max(cfg["pass_m"], cfg["peak_m"]), http)
+            places = overpass(query, http, _from_overpass)
         except OSError:
-            report.failed = _by_nominatim(todo, tops, cfg, http, sleep, answer)
+            report.failed = one_by_one(
+                todo, lambda c: _nominatim(tops[id(c)], cfg, http, sleep), lambda c, ps: answer(c, ps, "Nominatim")
+            )
         else:
             for c in todo:
                 answer(c, places, "Overpass")
     cache.save()
     report.found = sum(1 for c in climbs if c.name)
     return report
-
-
-def _by_nominatim(
-    todo: list[Climb],
-    tops: dict[int, Point],
-    cfg: dict[str, Any],
-    http: Callable[..., Any],
-    sleep: Callable[[float], None],
-    answer: Callable[[Climb, list[Place], str], None],
-) -> bool:
-    """Answer the climbs from Nominatim, one at a time; returns whether some could not be answered."""
-    failures = 0  # in a row
-    failed = False
-    for c in todo:
-        if failures >= NOMINATIM_GIVE_UP:
-            return True
-        try:
-            places = _nominatim(tops[id(c)], cfg, http, sleep)
-        except OSError:
-            failures += 1
-            failed = True
-            continue
-        failures = 0
-        answer(c, places, "Nominatim")
-    return failed

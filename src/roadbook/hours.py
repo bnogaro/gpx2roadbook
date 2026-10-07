@@ -11,25 +11,23 @@ Answers are cached on disk: a later render of the same route needs no network.
 from __future__ import annotations
 
 import difflib
-import math
 import time
-import urllib.parse
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .osm import NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, OVERPASS, TIMEOUT_S, JsonCache, cache_path
+from .osm import M_PER_DEG, TIMEOUT_S, JsonCache, Report, cache_path, distance_m, nominatim, one_by_one, overpass
 from .osm import http as _http
-from .pois import _norm
+from .pois import norm
 
 if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
     from .model import Poi
+    from .osm import Http
 
     Answer = Callable[[Poi, list["Place"], str], None]  # matches a POI among places found by a source
 
-NOMINATIM = "https://nominatim.openstreetmap.org/search"
 CHUNK = 50  # POIs per Overpass request; Overpass is told a little less than TIMEOUT_S, so it gives up before we do
 MIN_SIMILARITY = 0.6
 CACHE_VERSION = 2  # 2: places carry their kind
@@ -53,25 +51,8 @@ def _kind(tags: dict[str, str]) -> str:
     return f"{key}={tags[key].split(';')[0].strip()}" if key else ""
 
 
-@dataclass
-class Report:
-    """What the lookup did, for one line of output."""
-
-    asked: int = 0  # POIs whose category gets hours
-    found: int = 0
-    cached: int = 0  # of `asked`, answered from the cache
-    sources: list[str] = field(default_factory=list)
-    failed: bool = False  # some POIs could not be looked up at all
-
-
-def _distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
-    dy = (lat2 - lat1) * 111_320
-    dx = (lon2 - lon1) * 111_320 * math.cos(math.radians(lat1))
-    return math.hypot(dx, dy)
-
-
 def _similarity(a: str, b: str) -> float:
-    a, b = _norm(a).strip(), _norm(b).strip()
+    a, b = norm(a).strip(), norm(b).strip()
     if not a or not b:
         return 0.0
     if a in b or b in a:  # "Intermarché" / "Intermarché Super"
@@ -87,9 +68,9 @@ def match(poi: Poi, places: list[Place], match_m: float, kinds: list[str] | None
     """
     name = poi.name or poi.type
     scored = [
-        (_similarity(name, p.name), -_distance_m(poi.lat, poi.lon, p.lat, p.lon), p)
+        (_similarity(name, p.name), -d, p)
         for p in places
-        if _distance_m(poi.lat, poi.lon, p.lat, p.lon) <= match_m and (kinds is None or p.kind in kinds)
+        if (d := distance_m(poi.lat, poi.lon, p.lat, p.lon)) <= match_m and (kinds is None or p.kind in kinds)
     ]
     best = max(scored, key=lambda s: s[:2], default=None)
     return best[2] if best and best[0] >= MIN_SIMILARITY else None
@@ -107,21 +88,9 @@ def _from_overpass(element: dict[str, Any]) -> Place:
     return Place(osm_id, tags.get("name", ""), where["lat"], where["lon"], tags["opening_hours"], _kind(tags))
 
 
-def _overpass(pois: list[Poi], match_m: float, http: Callable[..., Any]) -> list[Place]:
-    """Places with hours around `pois`, from the first Overpass server that answers; raises OSError if none does."""
-    query = _overpass_query(pois, match_m)
-    error: Exception | None = None
-    for url in OVERPASS:
-        try:
-            return [_from_overpass(e) for e in http(url, {"data": query})["elements"]]
-        except (OSError, ValueError, KeyError) as exc:
-            error = exc
-    raise OSError(error) from error
-
-
-def _nominatim(poi: Poi, match_m: float, http: Callable[..., Any]) -> list[Place]:
+def _nominatim(poi: Poi, match_m: float, http: Http, sleep: Callable[[float], None]) -> list[Place]:
     """Places with hours named like `poi` and around it, from Nominatim; raises OSError if it does not answer."""
-    d = match_m / 111_320 * 1.5  # a box a little larger than the matching circle; match() trims it
+    d = match_m / M_PER_DEG * 1.5  # a box a little larger than the matching circle; match() trims it
     params = {
         "q": poi.name or poi.type,
         "format": "jsonv2",
@@ -130,10 +99,10 @@ def _nominatim(poi: Poi, match_m: float, http: Callable[..., Any]) -> list[Place
         "limit": "5",
         "viewbox": f"{poi.lon - d},{poi.lat + d},{poi.lon + d},{poi.lat - d}",
     }
-    try:
-        results = http(f"{NOMINATIM}?{urllib.parse.urlencode(params)}", None)
-    except ValueError as exc:
-        raise OSError(exc) from exc
+    return nominatim("search", params, http, sleep, _from_nominatim)
+
+
+def _from_nominatim(results: list[dict[str, Any]]) -> list[Place]:
     return [
         Place(
             f"{r['osm_type']}/{r['osm_id']}",
@@ -156,7 +125,7 @@ class Cache:
 
     @staticmethod
     def key(poi: Poi) -> str:
-        return f"{poi.lat:.5f},{poi.lon:.5f},{_norm(poi.name or poi.type)}"
+        return f"{poi.lat:.5f},{poi.lon:.5f},{norm(poi.name or poi.type)}"
 
     def get(self, poi: Poi) -> tuple[bool, Place | None]:
         """(known, place): known is False when the POI was never looked up, or too long ago."""
@@ -179,7 +148,7 @@ def lookup(
     cfg: dict[str, Any],
     *,
     cache_path: Path | None = None,
-    http: Callable[..., Any] = _http,
+    http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Report:
     """Set `opening_hours` and `osm_id` on the POIs of the `cfg["categories"]` that OSM knows hours for.
@@ -204,48 +173,28 @@ def lookup(
         place = match(p, places, match_m, cfg["kinds"].get(p.category or ""))
         cache.put(p, place)
         _apply(p, place)
-        if source not in report.sources:
-            report.sources.append(source)
+        report.answered_by(source)
 
     left = _by_overpass(todo, match_m, http, answer)
-    report.failed = _by_nominatim(left, match_m, http, answer, sleep) > 0
+    report.failed = one_by_one(
+        left, lambda p: _nominatim(p, match_m, http, sleep), lambda p, places: answer(p, places, "Nominatim")
+    )
     cache.save()
     report.found = sum(1 for p in wanted if p.opening_hours)
     return report
 
 
-def _by_overpass(todo: list[Poi], match_m: float, http: Callable[..., Any], answer: Answer) -> list[Poi]:
+def _by_overpass(todo: list[Poi], match_m: float, http: Http, answer: Answer) -> list[Poi]:
     """Answer the POIs from Overpass, a chunk at a time; returns the ones left once it stops answering."""
     for i in range(0, len(todo), CHUNK):
         chunk = todo[i : i + CHUNK]
         try:
-            places = _overpass(chunk, match_m, http)
+            places = overpass(_overpass_query(chunk, match_m), http, _from_overpass)
         except OSError:
             return todo[i:]  # it failed on every server: don't wait for it again
         for p in chunk:
             answer(p, places, "Overpass")
     return []
-
-
-def _by_nominatim(
-    left: list[Poi], match_m: float, http: Callable[..., Any], answer: Answer, sleep: Callable[[float], None]
-) -> int:
-    """Answer the POIs from Nominatim, one per request; returns how many it could not answer."""
-    unanswered = failures = 0  # failures: in a row
-    for n, p in enumerate(left):
-        if failures >= NOMINATIM_GIVE_UP:
-            return unanswered + len(left) - n
-        if n:
-            sleep(NOMINATIM_EVERY_S)
-        try:
-            places = _nominatim(p, match_m, http)
-        except OSError:
-            failures += 1
-            unanswered += 1
-            continue
-        failures = 0
-        answer(p, places, "Nominatim")
-    return unanswered
 
 
 def _apply(poi: Poi, place: Place | None) -> None:

@@ -12,10 +12,12 @@ from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
+from roadbook.osm import NOMINATIM, Report
 from roadbook.render import HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
-from roadbook.towns import REVERSE, ZOOM, Report, busy, centre, lookup
+from roadbook.towns import ZOOM, busy, centre, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
+REVERSE = f"{NOMINATIM}/reverse"
 CFG = load_config()["towns"]
 LAT, LON = 42.9858, 1.1466  # Saint-Girons, km 60.0 of entrainement_ubf.gpx
 

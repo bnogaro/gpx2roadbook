@@ -12,15 +12,14 @@ from roadbook import render as render_module
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
-from roadbook.hours import Report as HoursReport
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
-from roadbook.osm import OVERPASS
+from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
 from roadbook.render import HEAD_H, MAIN_H, RowLayout, _add_heads, _credit, _details, _row, render_html
-from roadbook.summits import SEARCH, Place, Report, choose, lookup
-from roadbook.towns import Report as TownReport
+from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
+SEARCH = f"{NOMINATIM}/search"
 CFG = load_config()["climb_names"]
 M = 1 / 111_320  # a metre of latitude, in degrees
 
@@ -179,7 +178,7 @@ def test_the_mirror_answers_when_the_main_server_is_down(tmp_path: Path) -> None
     assert report.sources == ["Overpass"]
 
 
-NOMINATIM = {
+NOMINATIM_RESULTS = {
     "[mountain_pass=yes]": [{"name": "Col de Portel", "lat": str(PORTEL[0] + 120 * M), "lon": str(PORTEL[1])}],
     "[natural=peak]": [{"name": "Cap de Campets", "lat": str(PORTEL[0]), "lon": str(PORTEL[1])}],
 }
@@ -187,7 +186,7 @@ NOMINATIM = {
 
 def test_nominatim_answers_when_overpass_is_down(tmp_path: Path) -> None:
     portel, mente = _climb(10), _climb(20)
-    http = FakeHttp(down=OVERPASS, nominatim=NOMINATIM)
+    http = FakeHttp(down=OVERPASS, nominatim=NOMINATIM_RESULTS)
     report = _lookup([portel, mente], _track(PORTEL, MENTE), tmp_path, http)
     assert (portel.name, mente.name) == ("Col de Portel", None)  # the fake's peak is far from Menté
     assert (report.sources, report.failed) == (["Nominatim"], False)
@@ -205,7 +204,7 @@ def test_nominatim_answers_when_overpass_is_down(tmp_path: Path) -> None:
 
 def test_a_peak_names_a_climb_with_no_pass(tmp_path: Path) -> None:
     climb = _climb()
-    http = FakeHttp(down=OVERPASS, nominatim={"[natural=peak]": NOMINATIM["[natural=peak]"]})
+    http = FakeHttp(down=OVERPASS, nominatim={"[natural=peak]": NOMINATIM_RESULTS["[natural=peak]"]})
     _lookup([climb], _track(PORTEL), tmp_path, http)
     assert climb.name == "Cap de Campets"
 
@@ -299,7 +298,7 @@ def test_the_credit_names_what_came_from_osm() -> None:
     assert _credit(book) == ""
     book.climb_names = Report()
     assert _credit(book) == "Climb names"
-    book.hours, book.towns = HoursReport(), TownReport()
+    book.hours, book.towns = Report(), Report()
     assert _credit(book) == "Opening hours, town names and climb names"
 
 

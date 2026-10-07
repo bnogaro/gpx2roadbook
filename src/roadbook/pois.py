@@ -10,14 +10,15 @@ from .model import Glyph, Poi, Stop
 _SHORT_TERM = 3  # longest match term (in characters) that must match a whole word
 
 
-def _norm(s: str) -> str:
+def norm(s: str) -> str:
+    """`s` to match against: lower case, without accents ("Épicerie" -> "epicerie")."""
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
 
 
 def _compile(categories: dict[str, Any]) -> list[tuple[str, re.Pattern]]:
     out = []
     for name, spec in categories.items():
-        terms = [re.escape(_norm(m)) for m in spec["match"]]
+        terms = [re.escape(norm(m)) for m in spec["match"]]
         # short terms must match a whole word ("bar", "wc"); longer ones a word prefix ("toilet" -> "toilettes")
         parts = [rf"\b{t}\b" if len(t) <= _SHORT_TERM else rf"\b{t}" for t in terms]
         out.append((name, re.compile("|".join(parts))))
@@ -27,7 +28,7 @@ def _compile(categories: dict[str, Any]) -> list[tuple[str, re.Pattern]]:
 def classify(pois: list[Poi], categories: dict[str, Any]) -> None:
     rules = _compile(categories)
     for p in pois:
-        for text in (_norm(p.type), _norm(p.name)):
+        for text in (norm(p.type), norm(p.name)):
             hit = next((name for name, rx in rules if text and rx.search(text)), None)
             if hit:
                 p.category = hit

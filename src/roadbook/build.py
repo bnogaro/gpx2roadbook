@@ -4,7 +4,7 @@ import itertools
 from typing import TYPE_CHECKING, Any
 
 from .climbs import find_climbs
-from .hours import lookup
+from .hours import lookup as find_hours
 from .kinds import KINDS
 from .model import Climb, Item, Roadbook, Stop
 from .opening import Ride, verdict
@@ -79,14 +79,12 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     ride = Ride.from_cfg(cfg["ride"])
     # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
-    hours = lookup(kept, cfg["hours"]) if wanted else None
+    hours = find_hours(kept, cfg["hours"]) if wanted else None
     _judge(stops, ride, profile)
-    # names show on the strip's rows and on the reference sheet; a ribbon of tokens has no room for them
-    wanted = cfg["towns"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
-    towns = name_towns(stops, cfg["towns"]) if wanted else None
-    # likewise: a climb's name goes above its row on the strip, and with the climb on the reference sheet
-    wanted = cfg["climb_names"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
-    climb_names = name_climbs(climbs, track, cfg["climb_names"]) if wanted else None
+    # names go above rows on the strip, and on the reference sheet; a ribbon of tokens has no room for them
+    named = cfg["render"]["layout"] == "strip" or cfg["render"]["details"]
+    towns = name_towns(stops, cfg["towns"]) if named and cfg["towns"]["enabled"] else None
+    climb_names = name_climbs(climbs, track, cfg["climb_names"]) if named and cfg["climb_names"]["enabled"] else None
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)

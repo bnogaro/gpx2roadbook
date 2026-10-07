@@ -16,10 +16,8 @@ from .render import html_to_pdf, render_html
 if TYPE_CHECKING:
     from io import TextIOWrapper
 
-    from .hours import Report
     from .model import Roadbook
-    from .summits import Report as ClimbNameReport
-    from .towns import Report as TownReport
+    from .osm import Report
 
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
 
@@ -61,25 +59,14 @@ def _extra_checkpoint(value: str) -> list:
     return [float(km), label]
 
 
-def _echo_hours(r: Report) -> None:
+def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
+    """One line on what an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)"."""
+    if r is None:  # not asked for
+        return
     where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    typer.echo(f"Opening hours: {r.found} of {r.asked} shops" + (f" ({', '.join(where)})" if where else ""))
+    typer.echo(f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else ""))
     if r.failed:
-        typer.echo("Opening hours: OpenStreetMap services did not answer for some shops; run again later.", err=True)
-
-
-def _echo_towns(r: TownReport) -> None:
-    cached = f" ({r.cached} from cache)" if r.cached else ""
-    typer.echo(f"Towns: {r.found} of {r.asked} busy stops named{cached}")
-    if r.failed:
-        typer.echo("Towns: OpenStreetMap did not answer for some stops; run again later.", err=True)
-
-
-def _echo_climb_names(r: ClimbNameReport) -> None:
-    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    typer.echo(f"Climb names: {r.found} of {r.asked} climbs named" + (f" ({', '.join(where)})" if where else ""))
-    if r.failed:
-        typer.echo("Climb names: OpenStreetMap services did not answer for some climbs; run again later.", err=True)
+        typer.echo(f"{what}: OpenStreetMap did not answer for some {items}; run again later.", err=True)
 
 
 @app.command()
@@ -226,12 +213,9 @@ def _summary(book: Roadbook) -> None:
     typer.echo(
         f"POIs: {book.poi_total} in file -> {book.poi_kept} kept -> {len(book.stops)} stops; {len(book.climbs)} climbs"
     )
-    if book.hours:
-        _echo_hours(book.hours)
-    if book.towns:
-        _echo_towns(book.towns)
-    if book.climb_names:
-        _echo_climb_names(book.climb_names)
+    _echo_lookup("Opening hours", book.hours, "shops", "shops")
+    _echo_lookup("Towns", book.towns, "busy stops named", "stops")
+    _echo_lookup("Climb names", book.climb_names, "climbs named", "climbs")
 
 
 def _write_pdf(html: Path) -> None:

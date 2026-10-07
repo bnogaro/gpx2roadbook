@@ -8,8 +8,8 @@ from typer.testing import CliRunner
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
-from roadbook.hours import Report
 from roadbook.opening import DayHours, Ride, Verdict, Window, on_day, verdict
+from roadbook.osm import Report
 from roadbook.render import render_html
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -125,7 +125,7 @@ def fake_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
                 p.opening_hours = HOURS.get(p.name)
         return Report(asked=1, found=1)
 
-    monkeypatch.setattr("roadbook.build.lookup", lookup)
+    monkeypatch.setattr("roadbook.build.find_hours", lookup)
 
 
 @pytest.mark.usefixtures("fake_lookup")
