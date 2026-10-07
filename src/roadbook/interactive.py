@@ -60,17 +60,35 @@ def _is_date(text: str) -> bool | str:
     return True
 
 
+def _is_time(text: str) -> bool | str:
+    if not text.strip():
+        return True  # no start time
+    try:
+        dt.time.fromisoformat(text.strip())
+    except ValueError:
+        return "a time like 06:00, or empty"
+    return True
+
+
 def _hours_on(cfg: dict[str, Any]) -> bool:
     return cfg["hours"]["enabled"]
+
+
+def _dated(cfg: dict[str, Any]) -> bool:
+    return _hours_on(cfg) and bool(cfg["ride"]["date"])
+
+
+def _timed(cfg: dict[str, Any]) -> bool:
+    return _dated(cfg) and bool(cfg["ride"]["start"])
 
 
 COMMON = [
     Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
     Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
     Setting("hours", "enabled", "--hours", "Look up shops' opening hours (OpenStreetMap, needs internet)", bool),
-    Setting(
-        "hours", "date", "--date", "Ride date, YYYY-MM-DD (empty: whole week)", str, when=_hours_on, check=_is_date
-    ),
+    Setting("ride", "date", "--date", "Ride date, YYYY-MM-DD (empty: whole week)", str, when=_hours_on, check=_is_date),
+    Setting("ride", "start", "--start", "Start time, HH:MM (empty: none)", str, when=_dated, check=_is_time),
+    Setting("ride", "speed_kmh", "--speed", "Average speed, km/h, short stops included", float, when=_timed),
 ]
 ADVANCED = [
     Setting("render", "width_mm", "--width", "Strip width, mm", float, shown=_strip_width),
@@ -82,6 +100,7 @@ ADVANCED = [
     Setting("render", "emoji_lines", "--emoji-lines", "Lines of emojis a busy stop may fill", int),
     Setting("render", "leg_elevation", "--leg-elevation", "Climbing/descent on each leg", bool),
     Setting("render", "details", "--details", "Reference sheet with POI names", bool),
+    Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
 ]
 
 

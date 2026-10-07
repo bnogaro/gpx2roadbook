@@ -7,6 +7,7 @@ from .climbs import find_climbs
 from .hours import lookup
 from .kinds import KINDS
 from .model import Climb, Item, Roadbook, Stop
+from .opening import Ride, verdict
 from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
@@ -51,6 +52,17 @@ def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> di
     return snapped
 
 
+def _judge(stops: list[Stop], ride: Ride) -> None:
+    """Give each stop the window when the rider may be there, and each shop with hours whether it is open then."""
+    for s in stops:
+        s.window = ride.window(s.km, s.km_end)
+        if s.window is None:
+            continue
+        for p in s.pois:
+            if p.opening_hours:
+                p.verdict = verdict(p.opening_hours, p.lat, p.lon, s.window)
+
+
 def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     track, pois = read_gpx(gpx_path)
     profile = Profile(track, **cfg["elevation"])
@@ -62,8 +74,11 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     gap_m = cfg["stops"]["gap_m"]
     stops = cluster(kept, gap_m, cfg["stops"]["max_span_m"] or 3 * gap_m)
     climbs = find_climbs(profile, cfg["climbs"])
-    # hours only show on the reference sheet: without it, don't spend minutes looking them up
-    hours = lookup(kept, cfg["hours"]) if cfg["hours"]["enabled"] and cfg["render"]["details"] else None
+    ride = Ride.from_cfg(cfg["ride"])
+    # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
+    wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
+    hours = lookup(kept, cfg["hours"]) if wanted else None
+    _judge(stops, ride)
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -103,4 +118,5 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         poi_kept=len(kept),
         profile=profile,
         hours=hours,
+        ride=ride,
     )

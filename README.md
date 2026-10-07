@@ -65,7 +65,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to look up opening hours (and the ride date, if so), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to look up opening hours (and if so, the ride date, start time and speed), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -104,6 +104,8 @@ Either way, cut along the dashed lines.
 | `--no-details` | Leave out the reference sheet with the POI names. |
 | `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
+| `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
+| `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
 | `--refresh-hours` | With `--hours`: look the hours up again instead of using the cached ones. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
@@ -194,6 +196,29 @@ Choose which categories get hours in your `--config` file:
 [hours]
 categories = ["bakery", "grocery"]
 ```
+
+### Arrival times
+
+Give a start time and your average speed, short stops included, and the road book works out when you reach each stop:
+
+```sh
+roadbook my_ride.gpx --hours --date 2026-10-17 --start 07:00 --speed 22
+```
+
+```text
+km 123.9 ~11:47–13:30
+☕ Le Bistrot 08:00–20:00
+🛒 Proxi Super ⚠ closes 12:15 08:00–12:15, 15:00–19:15
+km 151.7 ~12:51–14:57
+🥖 De Oliveira closed 07:00–12:45, 15:30–19:15
+```
+
+- **A window, not a time.** You won't ride exactly at the planned speed, so each stop gets the earliest and latest time you may reach it: ±15 % of the time ridden so far, at least ±20 min (`--margin`). The window widens along the route, as small differences add up.
+- **closed**: closed the whole time you may be there. The shop's hours that day follow, in grey, so you can see when it opens instead.
+- **⚠ closes 12:15**, **⚠ opens 09:30**: it opens or closes while you may be there. Whether you make it depends on your pace, so check before counting on it.
+- Shops shown with just their hours are open the whole time.
+- **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
+- The estimate assumes a constant speed: it doesn't slow down on climbs or count long breaks. Raise `--margin` for a hilly route or a ride with long stops.
 
 ## Development
 
