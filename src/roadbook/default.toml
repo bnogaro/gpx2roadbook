@@ -50,6 +50,12 @@ shop_min_pois = 5    # ...or from this many, when one of them is a village shop:
 shops = ["bakery", "grocery"]
 max_age_days = 365   # look up again once a cached answer is this old
 
+[climb_names]
+enabled = false      # name the col, pass or peak at each climb's top, from OpenStreetMap (needs internet; cached)
+pass_m = 300         # a named mountain pass or saddle this close to the summit names the climb...
+peak_m = 200         # ...else a named peak this close (the road crosses a pass, but only skirts a peak)
+max_age_days = 365   # look up again once a cached answer is this old
+
 [ride]
 date = ""            # "YYYY-MM-DD": with hours, each shop's hours on that day only ("" = its whole week)
 start = ""           # "HH:MM", with date and speed_kmh: estimate when each stop is reached...

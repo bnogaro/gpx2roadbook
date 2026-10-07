@@ -3,12 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    import numpy as np
+import numpy as np
 
+if TYPE_CHECKING:
     from .hours import Report
     from .opening import Ride, Verdict, Window
     from .profile import Profile
+    from .summits import Report as ClimbNameReport
     from .towns import Report as TownReport
 
 
@@ -23,6 +24,11 @@ class Track:
     @property
     def length_km(self) -> float:
         return float(self.dist[-1]) / 1000
+
+    def at(self, km: float) -> tuple[float, float]:
+        """(lat, lon) of the route `km` from the start, between the two track points around it."""
+        d = km * 1000
+        return float(np.interp(d, self.dist, self.lat)), float(np.interp(d, self.dist, self.lon))
 
 
 @dataclass
@@ -65,6 +71,7 @@ class Climb:
     avg_grade: float  # percent
     max_grade: float  # percent over ~200 m
     label: str  # "HC", "1".."4" or "" when below category 4
+    name: str | None = None  # the col, pass or peak at its summit, when looked up and OSM has one
 
     @property
     def length_km(self) -> float:
@@ -108,4 +115,5 @@ class Roadbook:
     profile: Profile | None = None
     hours: Report | None = None  # None when opening hours were not looked up
     towns: TownReport | None = None  # None when town names were not looked up
+    climb_names: ClimbNameReport | None = None  # None when climb names were not looked up
     ride: Ride | None = None

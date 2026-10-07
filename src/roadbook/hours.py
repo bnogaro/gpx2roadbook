@@ -17,7 +17,7 @@ import urllib.parse
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from .osm import NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, TIMEOUT_S, JsonCache, cache_path
+from .osm import NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, OVERPASS, TIMEOUT_S, JsonCache, cache_path
 from .osm import http as _http
 from .pois import _norm
 
@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 
     Answer = Callable[[Poi, list["Place"], str], None]  # matches a POI among places found by a source
 
-OVERPASS = ("https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 CHUNK = 50  # POIs per Overpass request; Overpass is told a little less than TIMEOUT_S, so it gives up before we do
 MIN_SIMILARITY = 0.6
