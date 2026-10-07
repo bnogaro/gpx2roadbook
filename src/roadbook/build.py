@@ -133,6 +133,8 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     climbs = find_climbs(profile, cfg["climbs"])
     _log_climbs(climbs, cfg["climbs"]["min_gain_m"])
     ride = Ride.from_cfg(cfg["ride"])
+    if ride.start is None and (cfg["ride"]["start"] or cfg["ride"]["speed_kmh"]):  # a slip that would go unnoticed
+        log.warning("No arrival times: they need a ride date, a start time and a speed (--date, --start, --speed).")
     # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
     hours = find_hours(kept, cfg["hours"]) if wanted else None

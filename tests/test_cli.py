@@ -96,3 +96,30 @@ def test_v_says_each_step_and_vv_each_detail(tmp_path: Path) -> None:
         in details
     )
     assert details.count("Done in ") == 1  # the second run replaced the first one's log, rather than add to it
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+def test_a_start_time_without_a_date_says_why_there_are_no_arrival_times(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, [str(FLAT), "--start", "07:00", "--speed", "28", "-o", str(tmp_path / "rb.html")])
+    assert result.exit_code == 0
+    assert "No arrival times: they need a ride date" in result.output
+
+
+def _track(tmp_path: Path, *ele: str) -> Path:
+    """A GPX of a few points 1 km apart, with these <ele> values ("" for none)."""
+    points = "".join(
+        f'<trkpt lat="{45 + i / 100:.2f}" lon="5.0">{f"<ele>{e}</ele>" if e else ""}</trkpt>' for i, e in enumerate(ele)
+    )
+    path = tmp_path / "t.gpx"
+    gpx = f'<?xml version="1.0"?><gpx version="1.1" creator="t"><trk><trkseg>{points}</trkseg></trk></gpx>'
+    path.write_text(gpx, encoding="utf-8")
+    return path
+
+
+def test_a_route_without_elevation_says_so(tmp_path: Path) -> None:
+    result = CliRunner().invoke(app, [str(_track(tmp_path, "", "", "")), "-o", str(tmp_path / "rb.html")])
+    assert result.exit_code == 0, result.output
+    assert "t.gpx has no elevation: no climbs, and a flat profile." in result.output
+    some = _track(tmp_path, "100", "", "120")
+    result = CliRunner().invoke(app, [str(some), "-v", "-o", str(tmp_path / "rb.html")])
+    assert "t.gpx: 1 of 3 points have no elevation, filled in from their neighbours" in result.output
