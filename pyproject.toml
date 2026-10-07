@@ -1,6 +1,6 @@
 [project]
 name = "gpx2roadbook"
-version = "0.2.0"
+version = "0.3.0"
 description = "Turn a GPX file with POIs into a compact, printable road book for a bike top tube."
 readme = "README.md"
 requires-python = ">=3.11"
