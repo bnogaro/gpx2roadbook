@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .hours import Report
     from .opening import Ride, Verdict, Window
     from .profile import Profile
+    from .towns import Report as TownReport
 
 
 @dataclass
@@ -45,6 +46,7 @@ class Stop:
 
     pois: list[Poi]
     window: Window | None = None  # when the rider may be there, with an arrival estimate
+    town: str | None = None  # the town it is in, looked up for busy stops only
 
     @property
     def km(self) -> float:
@@ -105,4 +107,5 @@ class Roadbook:
     poi_kept: int
     profile: Profile | None = None
     hours: Report | None = None  # None when opening hours were not looked up
+    towns: TownReport | None = None  # None when town names were not looked up
     ride: Ride | None = None

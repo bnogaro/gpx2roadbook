@@ -85,6 +85,7 @@ def _timed(cfg: dict[str, Any]) -> bool:
 COMMON = [
     Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
     Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
+    Setting("towns", "enabled", "--towns", "Name the towns at busy stops (OpenStreetMap, needs internet)", bool),
     Setting("hours", "enabled", "--hours", "Look up shops' opening hours (OpenStreetMap, needs internet)", bool),
     Setting("ride", "date", "--date", "Ride date, YYYY-MM-DD (empty: whole week)", str, when=_hours_on, check=_is_date),
     Setting("ride", "start", "--start", "Start time, HH:MM (empty: none)", str, when=_dated, check=_is_time),

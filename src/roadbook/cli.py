@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from .hours import Report
     from .model import Roadbook
+    from .towns import Report as TownReport
 
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
 
@@ -52,6 +53,13 @@ def _echo_hours(r: Report) -> None:
     typer.echo(f"Opening hours: {r.found} of {r.asked} shops" + (f" ({', '.join(where)})" if where else ""))
     if r.failed:
         typer.echo("Opening hours: OpenStreetMap services did not answer for some shops; run again later.", err=True)
+
+
+def _echo_towns(r: TownReport) -> None:
+    cached = f" ({r.cached} from cache)" if r.cached else ""
+    typer.echo(f"Towns: {r.found} of {r.asked} busy stops named{cached}")
+    if r.failed:
+        typer.echo("Towns: OpenStreetMap did not answer for some stops; run again later.", err=True)
 
 
 @app.command()
@@ -96,6 +104,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         bool | None,
         typer.Option(help="Look up shops' opening hours on OpenStreetMap for the details sheet (needs internet)."),
     ] = None,
+    towns: Annotated[
+        bool | None,
+        typer.Option(help="Name the town at busy stops, from OpenStreetMap (needs internet the first time)."),
+    ] = None,
     date: Annotated[
         datetime | None,
         typer.Option(formats=["%Y-%m-%d"], help="Ride date, YYYY-MM-DD: with --hours, each shop's hours that day."),
@@ -135,6 +147,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "leg_elevation", leg_elevation),
         ("render", "emoji_lines", emoji_lines),
         ("hours", "enabled", hours),
+        ("towns", "enabled", towns),
         ("ride", "date", start_date or (date and date.date().isoformat())),
         ("ride", "start", start_time),
         ("ride", "speed_kmh", speed),
@@ -181,6 +194,8 @@ def _summary(book: Roadbook) -> None:
     )
     if book.hours:
         _echo_hours(book.hours)
+    if book.towns:
+        _echo_towns(book.towns)
 
 
 def _write_pdf(html: Path) -> None:

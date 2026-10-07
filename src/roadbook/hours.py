@@ -10,20 +10,15 @@ Answers are cached on disk: a later render of the same route needs no network.
 
 from __future__ import annotations
 
-import datetime as dt
 import difflib
-import json
 import math
 import time
-import urllib.error
 import urllib.parse
-import urllib.request
 from dataclasses import dataclass, field
-from importlib.metadata import version
 from typing import TYPE_CHECKING, Any
 
-from platformdirs import user_cache_path
-
+from .osm import NOMINATIM_EVERY_S, NOMINATIM_GIVE_UP, TIMEOUT_S, JsonCache, cache_path
+from .osm import http as _http
 from .pois import _norm
 
 if TYPE_CHECKING:
@@ -36,22 +31,10 @@ if TYPE_CHECKING:
 
 OVERPASS = ("https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
-USER_AGENT = f"gpx2roadbook/{version('gpx2roadbook')} (+https://github.com/bnogaro/gpx2roadbook)"
-CHUNK = 50  # POIs per Overpass request
-TIMEOUT_S = 60  # per request; Overpass is told a little less, so it gives up before we do
-NOMINATIM_EVERY_S = 1.1  # its usage policy: at most one request per second
-NOMINATIM_GIVE_UP = 3  # consecutive failures
+CHUNK = 50  # POIs per Overpass request; Overpass is told a little less than TIMEOUT_S, so it gives up before we do
 MIN_SIMILARITY = 0.6
 CACHE_VERSION = 2  # 2: places carry their kind
 KIND_KEYS = ("amenity", "shop", "craft")  # in this order: a petrol station is amenity=fuel, with shop=gas
-
-
-def _http(url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401  parsed JSON
-    """GET `url`, or POST `data` as a form; raises OSError (URLError, timeouts) or ValueError (bad JSON)."""
-    body = urllib.parse.urlencode(data).encode() if data is not None else None
-    req = urllib.request.Request(url, data=body, headers={"User-Agent": USER_AGENT})  # noqa: S310  fixed https URLs
-    with urllib.request.urlopen(req, timeout=TIMEOUT_S) as resp:  # noqa: S310
-        return json.load(resp)
 
 
 @dataclass(frozen=True)
@@ -170,13 +153,7 @@ class Cache:
     """Matches already looked up, keyed by POI position and name: the OSM place found, or none."""
 
     def __init__(self, path: Path, max_age_days: float) -> None:
-        self.path = path
-        self.oldest = dt.datetime.now(dt.UTC) - dt.timedelta(days=max_age_days)
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            self.entries: dict[str, Any] = data["entries"] if data.get("version") == CACHE_VERSION else {}
-        except (OSError, ValueError, KeyError):
-            self.entries = {}
+        self.store = JsonCache(path, CACHE_VERSION, max_age_days, field="place")
 
     @staticmethod
     def key(poi: Poi) -> str:
@@ -184,24 +161,18 @@ class Cache:
 
     def get(self, poi: Poi) -> tuple[bool, Place | None]:
         """(known, place): known is False when the POI was never looked up, or too long ago."""
-        entry = self.entries.get(self.key(poi))
-        if entry is None or dt.datetime.fromisoformat(entry["at"]) < self.oldest:
-            return False, None
-        return True, Place(**entry["place"]) if entry["place"] else None
+        known, place = self.store.get(self.key(poi))
+        return known, Place(**place) if place else None
 
     def put(self, poi: Poi, place: Place | None) -> None:
-        self.entries[self.key(poi)] = {"at": dt.datetime.now(dt.UTC).isoformat(), "place": place and vars(place)}
+        self.store.put(self.key(poi), place and vars(place))
 
     def save(self) -> None:
-        try:
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps({"version": CACHE_VERSION, "entries": self.entries}), encoding="utf-8")
-        except OSError:
-            pass  # a cache that cannot be written only costs a slower next run
+        self.store.save()
 
 
 def default_cache_path() -> Path:
-    return user_cache_path("gpx2roadbook", appauthor=False) / "opening_hours.json"
+    return cache_path("opening_hours.json")
 
 
 def lookup(

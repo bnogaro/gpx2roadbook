@@ -33,8 +33,8 @@ def _session(
 
 
 def test_pressing_enter_throughout_keeps_the_defaults() -> None:
-    # layout, paper, checkpoints, opening hours, categories, PDF, output, advanced
-    _, out, pdf, cfg, same = _session(ENTER * 4 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
+    # layout, paper, checkpoints, towns, opening hours, categories, PDF, output, advanced
+    _, out, pdf, cfg, same = _session(ENTER * 5 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
     assert (out, pdf) == (HILLY.with_suffix(".roadbook.html"), False)
     assert cfg == load_config()
     assert same.replace('"', "").replace("'", "") == f"roadbook {HILLY}"
@@ -58,6 +58,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + CLEAR
         + "50"
         + ENTER  # checkpoint every 50 km
+        + "y"  # town names
         + "y"  # opening hours
         + "12/10"
         + ENTER  # not a date: the prompt stays
@@ -95,6 +96,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--layout line",
         "--page A5",
         "--checkpoint-every 50",
+        "--towns",
         "--hours",
         "--date 2026-10-12",
         "--start 06:00",
@@ -110,7 +112,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
 
 def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
     # line layout: width 0 stands for 16 mm, longest stop 0 for 3 x gap; Enter on their offered values keeps them 0
-    keys = DOWN + ENTER + ENTER * 4 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
+    keys = DOWN + ENTER + ENTER * 5 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY)
     assert cfg["render"]["width_mm"] == 0
     assert cfg["stops"]["max_span_m"] == 0
@@ -119,7 +121,7 @@ def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
 
 
 def test_flags_given_with_i_are_the_defaults_and_stay_in_the_command() -> None:
-    keys = ENTER * 5 + "n" + ENTER + ENTER
+    keys = ENTER * 6 + "n" + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY, flags={("stops", "gap_m"): 800})
     assert cfg["stops"]["gap_m"] == 800
     assert "--gap 800" in same

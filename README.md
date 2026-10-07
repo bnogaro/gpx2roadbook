@@ -65,7 +65,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to look up opening hours (and if so, the ride date, start time and speed), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to name towns, whether to look up opening hours (and if so, the ride date, start time and speed), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -102,6 +102,7 @@ Either way, cut along the dashed lines.
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
+| `--towns` | Name the town at busy stops, on the strip where there is room and on the reference sheet, from OpenStreetMap (see [Town names](#town-names)). Needs internet the first time. |
 | `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
@@ -155,6 +156,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
+- ***Saint-Girons*** in italics, with `--towns`, is the town a busy stop is in (see [Town names](#town-names)).
 - **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and ↗️ total gain, e.g. `4.3km 2.6% ↗️110`. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Stops on a climb.** A stop within 300 m (`climbs.snap_m`) of a climb's foot or summit is merged into that row rather than given a row of its own. A ⛰️ row with a stop on it has no room for "Cat 4", so the category becomes a small superscript on the mountain (⛰️⁴ 🍔).
 - **🔝 rows** mark a summit. They only appear when a stop sits at the top; the profile already shows every other summit. If there is room, the row also gives the summit's elevation. A 🔝 row closes its climb with an orange line.
@@ -171,6 +173,23 @@ The narrow strip on the right edge of each strip is the elevation profile of tha
 ### The reference sheet
 
 After the strips comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`. A footer line at its end says which version of gpx2roadbook made it and where to get it.
+
+### Town names
+
+A stop grouping many POIs is usually a town. With `--towns`, those stops get the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons").
+
+```text
+km 60.0 → 61.3 · Saint-Girons
+🚰 Eau potable (124 m), Eau potable (146 m)
+🚻 Toilettes (183 m), Toilettes, Toilettes (209 m)
+🥖 Boulangerie, Le Blé Doré (234 m), Pâtisserie Boissonnot, …
+```
+
+- **Which stops.** Those with at least 8 POIs (`towns.min_pois`), counting only the categories you show: a town centre, not a fountain, a cemetery tap or a lone bakery.
+- **On the strip**, the name goes in the room the row has left, in italics: after the `→61.3` of a long stop, after the emojis, or after the ones carried on the line below. It is cut short (`Nogent-le…`) or left out rather than given a line of its own, so the strips stay the same length. When two or three busy stops in a row are in the same town (Chartres, Le Mans), only the first names it.
+- **On the reference sheet**, every busy stop has its name next to its km.
+- **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.
+- **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`). If Nominatim doesn't answer, you get a warning and a road book without the missing names.
 
 ### Opening hours
 
