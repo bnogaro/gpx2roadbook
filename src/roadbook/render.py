@@ -29,6 +29,7 @@ DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the 
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 TOWN_H = 3.2  # a busy stop's town, on its own line above the row
+OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
 # Watermark: the name on every strip; name, version and home on the reference sheet
 TOOL = "gpx2roadbook"
@@ -195,10 +196,12 @@ def _add_towns(rows: list[dict[str, Any]], book: Roadbook) -> None:
 
 
 def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[list[dict[str, Any]]]:
+    """Fill strips with rows up to `capacity` mm; only the very last row may overrun a strip, by up to OVERRUN."""
     pages: list[list[dict[str, Any]]] = [[]]
     used = 0.0
-    for r in rows:
-        if pages[-1] and used + r[key] > capacity:
+    for i, r in enumerate(rows):
+        room = capacity + (OVERRUN if i == len(rows) - 1 else 0)
+        if pages[-1] and used + r[key] > room:
             pages.append([])
             used = 0.0
         pages[-1].append(r)
@@ -296,10 +299,11 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
             y += row["h"]
         first += len(items)
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
-            anchors.append((book.items[first].km, height))
+            anchors.append((book.items[first].km, height + s["over"]))
         # each strip gets its own scale: one shared with a 1500 m pass would flatten every other strip
         lo, hi = p.ele_range(anchors[0][0], anchors[-1][0])
-        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height, (lo, max(hi, lo + GUTTER_MIN_SPAN_M)))
+        span = (lo, max(hi, lo + GUTTER_MIN_SPAN_M))
+        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height + s["over"], span)
 
 
 def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
@@ -329,15 +333,15 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     if layout == "strip":  # a token of the line layout grows sideways: no room is left over in it
         _add_towns(rows, book)
 
-    if layout == "strip":
-        pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")
-        orientation = "portrait"
-    else:
-        pages = _paginate(rows, length - 2 * PAD, "w")
-        orientation = "landscape"
-    strips = [{"rows": p, "first": p[0]["km"], "last": p[-1]["km"]} for p in pages]
+    key, capacity = ("h", length - HDR_H - 2 * PAD) if layout == "strip" else ("w", length - 2 * PAD)
+    orientation = "portrait" if layout == "strip" else "landscape"
+    strips = [
+        # "over": how far the last strip runs past its length to keep the finish, 0 for the others
+        {"rows": p, "first": p[0]["km"], "last": p[-1]["km"], "over": max(0.0, sum(r[key] for r in p) - capacity)}
+        for p in _paginate(rows, capacity, key)
+    ]
     if gutter:
-        _add_gutters(strips, book, gutter, length - HDR_H - 2 * PAD)
+        _add_gutters(strips, book, gutter, capacity)
 
     details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))

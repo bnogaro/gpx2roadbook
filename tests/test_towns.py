@@ -12,7 +12,7 @@ from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
-from roadbook.render import TOWN_H, RowLayout, _add_towns, _row, render_html
+from roadbook.render import TOWN_H, RowLayout, _add_towns, _paginate, _row, render_html
 from roadbook.towns import REVERSE, ZOOM, Report, busy, centre, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -235,3 +235,43 @@ def test_towns_are_not_looked_up_unless_asked(monkeypatch: pytest.MonkeyPatch, t
     cfg["render"]["layout"], cfg["render"]["details"] = "line", False
     assert build(HILLY, cfg).towns is None
     assert http.asked == []
+
+
+@pytest.mark.parametrize(
+    ("heights", "pages"),
+    [
+        ([40, 50, 15], [[40, 50, 15]]),  # the last row runs 5 mm over: it stays, rather than start a strip alone
+        ([40, 50, 17], [[40, 50], [17]]),  # 7 mm over is too much
+        ([40, 65, 5], [[40], [65, 5]]),  # any other row starts a new strip as soon as it doesn't fit
+    ],
+)
+def test_only_the_last_row_may_overrun_a_strip(heights: list[float], pages: list[list[float]]) -> None:
+    got = _paginate([{"h": h} for h in heights], 100, "h")
+    assert [[r["h"] for r in p] for p in got] == pages
+
+
+class OneTownEach(FakeNominatim):
+    """Answers each request with the next of `towns`."""
+
+    def __init__(self, *towns: str) -> None:
+        super().__init__()
+        self.towns = iter(towns)
+
+    def __call__(self, url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401
+        super().__call__(url, data)
+        return {"address": {"town": next(self.towns)}}
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    http = OneTownEach("Saint-Girons", "Le Mas-d'Azil", "Auterive")
+    fake = partial(lookup, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
+    monkeypatch.setattr(build_module, "name_towns", fake)
+    cfg = load_config()
+    cfg["towns"]["enabled"] = True
+    html = render_html(build(HILLY, cfg), cfg)
+    assert html.count('<div class="town">') == 3
+    headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
+    assert [n for _, n in headers] == ["1/2", "2/2"]  # the town lines take the finish past the second strip's length
+    assert headers[-1][0].endswith("206.2")
+    assert re.search(r'<div class="strip" style="height: calc\(var\(--l\) \+ \d\.\dmm\)">', html)
