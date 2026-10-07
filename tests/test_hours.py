@@ -4,8 +4,9 @@ from typing import Any
 import pytest
 
 from roadbook.config import load_config
-from roadbook.hours import NOMINATIM, OVERPASS, Place, _kind, lookup, match
+from roadbook.hours import Place, _kind, lookup, match
 from roadbook.model import Poi
+from roadbook.osm import NOMINATIM, OVERPASS
 from roadbook.render import pretty_hours
 
 LAT, LON = 42.912725, 0.6478569  # Intermarché Super, km 0.2 of entrainement_ubf.gpx

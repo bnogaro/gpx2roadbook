@@ -23,16 +23,22 @@
   .km { font-weight: 700; font-variant-numeric: tabular-nums; }
 
   /* ---------- strip layout: vertical, for the top tube ---------- */
-  .strip { width: var(--w); height: var(--l); border: 0.25mm dashed #888; overflow: hidden; font-size: 7.5pt; padding: var(--pad) 0; }
+  .strip { position: relative; width: var(--w); height: var(--l); border: 0.25mm dashed #888; overflow: hidden; font-size: 7.5pt;
+           padding: var(--pad) 0; }
   .strip .hdr { height: var(--hdr-h); margin: calc(-1 * var(--pad)) 0 var(--pad); background: #222; color: #fff; font-size: 6pt;
                 display: flex; justify-content: space-between; align-items: center; padding: 0 1.2mm; }
+  .row { margin-right: var(--gutter); }  /* the profile runs down the right edge, beside the rows */
   .row .main { height: var(--main-h); display: flex; align-items: center; gap: 1mm; padding: 0 var(--pad); }
   .row .km { width: calc(var(--km-col) - var(--pad)); text-align: right; flex: none; }
   .row .dist { margin-left: auto; flex: none; font-size: 6pt; color: #555; font-variant-numeric: tabular-nums; }
   .row .lbl { font-size: 6.5pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
   /* a crowded stop's emojis carry on below its main line, lined up under the first one */
   .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
-  .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
+  .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding: 0 var(--pad) 0 1mm; font-size: 6.5pt; font-weight: 600;
+              white-space: nowrap; overflow: hidden; display: flex; gap: 1mm; }
+  /* a climb's gain keeps its place at the right, under the "↓" distances: only its length and grade may be cut */
+  .row .sub .fig { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .row .sub .gain { flex: none; margin-left: auto; }
   /* heading lines above a row, right-aligned so the km down the left read on undisturbed; cut with "…" only if
      wider than the strip: a busy stop's town in italics, a climb's col or peak upright in the climbs' brown */
   .row .head { height: var(--head-h); padding: 0 var(--pad); display: flex; align-items: flex-end; justify-content: flex-end;
@@ -40,26 +46,19 @@
   .row .head span { overflow: hidden; text-overflow: ellipsis; }
   .row .head.town { font-style: italic; }
   .row .head.col { font-weight: 700; color: #92400e; }
-  /* a climb's gain keeps its place at the right, under the "↓" distances: only its length and grade may be cut */
-  .strip .row .sub { display: flex; gap: 1mm; padding-right: var(--pad); }
-  .strip .row .sub .fig { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .strip .row .sub .gain { flex: none; margin-left: auto; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
-              font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
+              font-size: 6pt; color: #444; white-space: nowrap; overflow: hidden; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
   .row.summit { background: #fbe3c4; border-bottom: 0.3mm solid #d97706; }
   .row.checkpoint, .row.start, .row.finish { background: #d9e8ff; border-top: 0.2mm solid #345; border-bottom: 0.2mm solid #345; }
   .row.climb .leg, .row.checkpoint .leg { border-left-color: #b45309; }
-  .strip { position: relative; }
-  .strip .row { margin-right: var(--gutter); }
-  .strip .row .sub, .strip .row .leg { overflow: hidden; }
   /* the watermark runs up the left edge, in the blank left of the right-aligned km: it takes no row height */
   .strip .wm { position: absolute; left: 0.05mm; bottom: var(--pad); writing-mode: vertical-rl; transform: rotate(180deg);
                font-size: 3.5pt; line-height: 1; color: #aaa; }
   .strip .gutter { position: absolute; right: 0; top: calc(var(--hdr-h) + var(--pad)); border-left: 0.2mm solid #bbb; }
 
   /* ---------- line layout: horizontal ribbons, one token per stop ---------- */
-  .ribbon { width: var(--l); height: var(--w); border: 0.25mm dashed #888; display: flex; overflow: hidden; }
+  .ribbon { position: relative; width: var(--l); height: var(--w); border: 0.25mm dashed #888; display: flex; overflow: hidden; }
   .tok { flex: none; display: flex; flex-direction: column; justify-content: space-between; align-items: center; text-align: center;
          padding: 0.8mm; border-right: 0.2mm dotted #999; }
   .tok .km { font-size: 6pt; }
@@ -67,7 +66,6 @@
   .tok .sub { font-size: 5.5pt; font-weight: 600; white-space: nowrap; }
   .tok.climb, .tok.summit { background: #fbe3c4; }
   .tok.checkpoint, .tok.start, .tok.finish { background: #d9e8ff; }
-  .ribbon { position: relative; }
   /* tokens fill at most the length less 2 x --pad: the watermark runs up the spare end */
   .ribbon .wm { position: absolute; right: 0.2mm; top: 0; bottom: 0; writing-mode: vertical-rl; transform: rotate(180deg);
                 text-align: center; font-size: 4pt; line-height: 1; color: #aaa; }
@@ -142,7 +140,7 @@
     {% endfor %}
   </div>
   {% endfor %}
-  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
+  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours and book.hours.found %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
   <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}

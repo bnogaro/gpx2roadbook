@@ -32,33 +32,18 @@ GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevatio
 HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
+PDF_TIMEOUT_S = 120  # a few seconds is usual; a browser stuck on a dialog would otherwise never return
+
 # Watermark: the name on every strip; name, version and home on the reference sheet
 TOOL = "gpx2roadbook"
 HOME = "github.com/bnogaro/gpx2roadbook"
-
-
-def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph], bool, float]:
-    """Keep as many emojis (in priority order) as fit in `avail` mm. Returns (kept, truncated, width used)."""
-    kept: list[Glyph] = []
-    used = 0.0
-    for g in emojis:
-        # one COUNT_W per superscript, whatever its length: charging per character would widen 10+ POI tokens
-        w = EMOJI_W + (COUNT_W if g.sup else 0)
-        more_w = MORE_W if len(kept) + 1 < len(emojis) else 0
-        if len(kept) >= max_emojis or used + w + more_w > avail:
-            break
-        kept.append(g)
-        used += w
-    truncated = len(kept) < len(emojis)
-    return kept, truncated, used + (MORE_W if truncated else 0)
 
 
 def _wrap(emojis: list[Glyph], widths: list[float], max_emojis: int) -> tuple[list[list[Glyph]], bool, float]:
     """Pour emojis (in priority order) into lines of the given widths, mm. Returns (lines, truncated, first width).
 
     Only the last line keeps room for a "+"; the ones before it overflow onto the next instead. A line may stay
-    empty when not even one emoji fits there, which lets a crowded climb row send its stop down a line. With a
-    single width this is exactly _fit.
+    empty when not even one emoji fits there, which lets a crowded climb row send its stop down a line.
     """
     lines: list[list[Glyph]] = []
     first_w = 0.0
@@ -68,7 +53,8 @@ def _wrap(emojis: list[Glyph], widths: list[float], max_emojis: int) -> tuple[li
         line: list[Glyph] = []
         used = 0.0
         while i < len(emojis) and i < max_emojis:
-            w = EMOJI_W + (COUNT_W if emojis[i].sup else 0)  # one COUNT_W per superscript, as in _fit
+            # one COUNT_W per superscript, whatever its length: charging per character would widen 10+ POI tokens
+            w = EMOJI_W + (COUNT_W if emojis[i].sup else 0)
             more_w = MORE_W if last and i + 1 < len(emojis) else 0
             if used + w + more_w > avail:
                 break
@@ -87,7 +73,7 @@ def _wrap(emojis: list[Glyph], widths: list[float], max_emojis: int) -> tuple[li
 
 
 def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, float]:
-    """For when _fit keeps nothing: the first emoji alone, shedding its count, then the "+", until it fits.
+    """For when _wrap keeps nothing: the first emoji alone, shedding its count, then the "+", until it fits.
 
     The count goes first: that more kinds are there matters more than how many of the first. If even the bare
     emoji does not fit, it is shown anyway, a hair over its room rather than gone.
@@ -317,7 +303,10 @@ def _climb_entry(c: Climb) -> dict[str, Any]:
 
 
 def _credit(book: Roadbook) -> str:
-    """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or ""."""
+    """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or "".
+
+    Only what it shows: a lookup that found nothing, such as climb names on a flat route, has nothing to credit.
+    """
     used = [
         what
         for what, done in (
@@ -325,7 +314,7 @@ def _credit(book: Roadbook) -> str:
             ("town names", book.towns),
             ("climb names", book.climb_names),
         )
-        if done is not None
+        if done is not None and done.found
     ]
     if not used:
         return ""
@@ -436,7 +425,10 @@ def _find_browser() -> str | None:
 
 
 def html_to_pdf(html: Path, pdf: Path) -> None:
-    """Print via a headless Chromium-based browser (Edge/Chrome), which renders colour emoji reliably."""
+    """Print via a headless Chromium-based browser (Edge/Chrome), which renders colour emoji reliably.
+
+    Raises RuntimeError without one, subprocess.CalledProcessError if it fails, TimeoutExpired if it hangs.
+    """
     exe = _find_browser()
     if exe is None:
         msg = "No Edge/Chrome found for PDF export; open the HTML and print it instead."
@@ -452,4 +444,5 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
         ],
         check=True,
         capture_output=True,
+        timeout=PDF_TIMEOUT_S,
     )

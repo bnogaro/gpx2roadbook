@@ -6,11 +6,9 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from .hours import Report
     from .opening import Ride, Verdict, Window
+    from .osm import Report
     from .profile import Profile
-    from .summits import Report as ClimbNameReport
-    from .towns import Report as TownReport
 
 
 @dataclass
@@ -114,6 +112,6 @@ class Roadbook:
     poi_kept: int
     profile: Profile | None = None
     hours: Report | None = None  # None when opening hours were not looked up
-    towns: TownReport | None = None  # None when town names were not looked up
-    climb_names: ClimbNameReport | None = None  # None when climb names were not looked up
+    towns: Report | None = None  # None when town names were not looked up
+    climb_names: Report | None = None  # None when climb names were not looked up
     ride: Ride | None = None

@@ -11,7 +11,7 @@ from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import COUNT_W, EMOJI_W, RowLayout, _fit, _row, _wrap, render_html
+from roadbook.render import COUNT_W, EMOJI_W, RowLayout, _row, _wrap, render_html
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -256,9 +256,9 @@ def test_stop_glyphs_carry_a_count_only_when_pois_share_an_emoji() -> None:
     assert emoji_counts(Stop(pois), cats) == [Glyph("🚰"), Glyph("🥖", "2")]
 
 
-def test_fit_pays_one_count_width_per_superscript() -> None:
+def test_wrap_pays_one_count_width_per_superscript() -> None:
     glyphs = [Glyph("🚰", "12"), Glyph("🥖", "3"), Glyph("🚻")]
-    _, _, used = _fit(glyphs, avail=99, max_emojis=99)
+    _, _, used = _wrap(glyphs, [99], max_emojis=99)
     assert used == pytest.approx(3 * EMOJI_W + 2 * COUNT_W)
 
 
@@ -298,13 +298,6 @@ def test_a_crowded_stop_on_a_climb_or_summit_keeps_its_first_emoji(kind: str, av
     row = _row(Item(kind, 10.0, 0, climb=climb, emojis=glyphs), book, _layout(avail))
     assert [g.emoji for g in row["emojis"]] + (["+"] if row["more"] else []) == shown
     assert row["emojis"][1].sup == ""  # the count gave way first
-
-
-def test_wrap_with_one_width_is_fit() -> None:
-    glyphs = [Glyph("🚰", "2"), Glyph("🚻"), Glyph("🥖"), Glyph("☕")]
-    for avail in (5.0, 12.5, 30.0):
-        lines, more, w = _wrap(glyphs, [avail], 99)
-        assert (lines[0], more, w) == _fit(glyphs, avail, 99)
 
 
 def test_wrap_carries_a_crowded_stop_onto_the_next_line() -> None:

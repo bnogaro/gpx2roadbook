@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from datetime import datetime, time
 from enum import StrEnum
+from importlib.metadata import version
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from typing import TYPE_CHECKING, Annotated, cast
 
@@ -16,10 +18,8 @@ from .render import html_to_pdf, render_html
 if TYPE_CHECKING:
     from io import TextIOWrapper
 
-    from .hours import Report
     from .model import Roadbook
-    from .summits import Report as ClimbNameReport
-    from .towns import Report as TownReport
+    from .osm import Report
 
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
 
@@ -57,29 +57,29 @@ def _break(value: str) -> list:
 
 
 def _extra_checkpoint(value: str) -> list:
+    """--checkpoint KM or KM:LABEL as a [km, label] config entry."""
     km, _, label = value.partition(":")
-    return [float(km), label]
+    try:
+        return [float(km), label]
+    except ValueError as exc:
+        msg = f"{value!r}: give the km, and a label if you like, e.g. 87.5:Lunch"
+        raise typer.BadParameter(msg, param_hint="--checkpoint") from exc
 
 
-def _echo_hours(r: Report) -> None:
+def _show_version(wanted: bool) -> None:  # noqa: FBT001  Typer's callback for a flag
+    if wanted:
+        typer.echo(f"gpx2roadbook {version('gpx2roadbook')}")
+        raise typer.Exit
+
+
+def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
+    """One line on what an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)"."""
+    if r is None or not r.asked:  # not asked for, or nothing to look up: a flat route has no climbs to name
+        return
     where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    typer.echo(f"Opening hours: {r.found} of {r.asked} shops" + (f" ({', '.join(where)})" if where else ""))
+    typer.echo(f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else ""))
     if r.failed:
-        typer.echo("Opening hours: OpenStreetMap services did not answer for some shops; run again later.", err=True)
-
-
-def _echo_towns(r: TownReport) -> None:
-    cached = f" ({r.cached} from cache)" if r.cached else ""
-    typer.echo(f"Towns: {r.found} of {r.asked} busy stops named{cached}")
-    if r.failed:
-        typer.echo("Towns: OpenStreetMap did not answer for some stops; run again later.", err=True)
-
-
-def _echo_climb_names(r: ClimbNameReport) -> None:
-    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    typer.echo(f"Climb names: {r.found} of {r.asked} climbs named" + (f" ({', '.join(where)})" if where else ""))
-    if r.failed:
-        typer.echo("Climb names: OpenStreetMap services did not answer for some climbs; run again later.", err=True)
+        typer.echo(f"{what}: OpenStreetMap did not answer for some {items}; run again later.", err=True)
 
 
 @app.command()
@@ -165,6 +165,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
             "--interactive", "-i", help="Ask for the settings step by step, starting from the ones given as options."
         ),
     ] = False,
+    _version: Annotated[  # noqa: FBT002  a --version flag
+        bool,
+        typer.Option("--version", callback=_show_version, is_eager=True, help="Print the version and exit."),
+    ] = False,
 ) -> None:
     cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
@@ -226,19 +230,16 @@ def _summary(book: Roadbook) -> None:
     typer.echo(
         f"POIs: {book.poi_total} in file -> {book.poi_kept} kept -> {len(book.stops)} stops; {len(book.climbs)} climbs"
     )
-    if book.hours:
-        _echo_hours(book.hours)
-    if book.towns:
-        _echo_towns(book.towns)
-    if book.climb_names:
-        _echo_climb_names(book.climb_names)
+    _echo_lookup("Opening hours", book.hours, "shops", "shops")
+    _echo_lookup("Towns", book.towns, "busy stops named", "stops")
+    _echo_lookup("Climb names", book.climb_names, "climbs named", "climbs")
 
 
 def _write_pdf(html: Path) -> None:
     pdf_path = html.with_suffix(".pdf")
     try:
         html_to_pdf(html, pdf_path)
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # the browser failed, or never finished
         typer.echo(f"PDF not written: {exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Wrote {pdf_path}")
