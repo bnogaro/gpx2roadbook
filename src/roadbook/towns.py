@@ -37,9 +37,18 @@ class Report:
     failed: bool = False  # some stops could not be looked up at all
 
 
-def busy(stops: list[Stop], min_pois: int) -> list[Stop]:
-    """The stops grouping at least `min_pois` POIs: a town's shops, not a fountain or a lone bakery."""
-    return [s for s in stops if len(s.pois) >= min_pois]
+def busy(stops: list[Stop], cfg: dict[str, Any]) -> list[Stop]:
+    """The stops likely in a town or village: not a fountain, a cemetery tap or a lone bakery.
+
+    That is `min_pois` POIs or more, or `shop_min_pois` when one of them is a village shop (`shops`: a bakery, a
+    grocery), as a village with a bakery and a shop has fewer POIs than a town but is a place all the same.
+    """
+    return [
+        s
+        for s in stops
+        if len(s.pois) >= cfg["min_pois"]
+        or (len(s.pois) >= cfg["shop_min_pois"] and any(p.category in cfg["shops"] for p in s.pois))
+    ]
 
 
 def centre(stop: Stop) -> Poi:
@@ -79,11 +88,11 @@ def lookup(
     http: Callable[..., Any] = _http,
     sleep: Callable[[float], None] = time.sleep,
 ) -> Report:
-    """Set `town` on the busy stops (`cfg["min_pois"]` POIs or more) that OSM places in a town.
+    """Set `town` on the busy stops (see `busy`) that OSM places in a town.
 
     Never raises for a network problem: stops left unanswered keep no name, and the report says so.
     """
-    wanted = busy(stops, cfg["min_pois"])
+    wanted = busy(stops, cfg)
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, cfg["max_age_days"], field="town")
     report = Report(asked=len(wanted))
     failures = 0  # in a row

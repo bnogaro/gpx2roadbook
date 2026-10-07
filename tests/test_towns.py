@@ -56,9 +56,25 @@ def _lookup(stops: list[Stop], tmp_path: Path, http: FakeNominatim, **cfg: Any) 
     return lookup(stops, {**CFG, **cfg}, cache_path=tmp_path / "towns.json", http=http, sleep=http.sleeps.append)
 
 
-def test_only_stops_with_enough_pois_are_busy() -> None:
-    fountain, bakery, town = _stop(1), _stop(1), _stop(CFG["min_pois"])
-    assert busy([fountain, bakery, town], CFG["min_pois"]) == [town]
+def _stop_of(*categories: str) -> Stop:
+    return Stop([Poi(f"p{i}", "", LAT, LON, km=60.0, category=c) for i, c in enumerate(categories)])
+
+
+@pytest.mark.parametrize(
+    ("categories", "is_busy"),
+    [
+        (["water"], False),  # a fountain
+        (["bakery"], False),  # a lone bakery
+        (["water"] * 7, False),  # a run of fountains and cemetery taps
+        (["water"] * 8, True),  # 8 POIs of any kind: a town
+        (["water", "water", "toilets", "toilets", "bakery"], True),  # 5 with a village shop: a village
+        (["water", "toilets", "bakery", "grocery"], False),  # too few even with shops
+        (["water", "water", "toilets", "toilets", "fastfood", "fastfood"], False),  # no village shop
+    ],
+)
+def test_busy_stops_are_towns_or_villages_with_a_shop(categories: list[str], is_busy: bool) -> None:  # noqa: FBT001
+    stop = _stop_of(*categories)
+    assert busy([stop], CFG) == ([stop] if is_busy else [])
 
 
 def test_centre_is_the_poi_nearest_the_middle() -> None:
@@ -197,16 +213,17 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     cfg["towns"]["enabled"] = True
     book = build(HILLY, cfg)
     named = {(s.km, s.km_end) for s in book.stops if s.town}
-    # Saint-Girons and Auterive (and Le Mas-d'Azil, 10 POIs); fountains, cemeteries and lone bakeries are not asked
+    # Saint-Girons, Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their village shops;
+    # fountains, cemeteries and lone bakeries are not asked
     assert {(60.0, 61.3), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
-    assert len(http.asked) == len(named) == 3
-    assert all(s.town is None for s in book.stops if len(s.pois) < CFG["min_pois"])
+    assert {4.3, 35.4} <= {round(a, 1) for a, _ in named}
+    assert len(http.asked) == len(named) == len(busy(book.stops, CFG)) == 5
     html = render_html(book, cfg)
     assert "<b>km 60.0 → 61.3 · Saint-Girons</b>" in html
-    # on a line above its row; the fake answers Saint-Girons for all three, so the strip names it once
+    # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="town"><span>Saint-Girons</span></div>') == 1
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
-    # three lines of 3.2 mm: the strips still hold the same rows
+    # one line of 3.2 mm: the strips still hold the same rows
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
     assert strips.findall(html) == strips.findall(plain)
 
@@ -217,7 +234,7 @@ def test_the_cli_says_how_many_towns_it_found(monkeypatch: pytest.MonkeyPatch, t
     out = tmp_path / "out.html"
     result = CliRunner().invoke(app, [str(HILLY), "--towns", "-o", str(out)])
     assert result.exit_code == 0, result.output
-    assert "Towns: 3 of 3 busy stops named" in result.output
+    assert "Towns: 5 of 5 busy stops named" in result.output
     _named(monkeypatch, tmp_path / "other").down = True
     result = CliRunner().invoke(app, [str(HILLY), "--towns", "--no-details", "-o", str(out)])
     assert result.exit_code == 0
@@ -268,7 +285,7 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     fake = partial(lookup, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
     monkeypatch.setattr(build_module, "name_towns", fake)
     cfg = load_config()
-    cfg["towns"]["enabled"] = True
+    cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns: lines just over the strip's room
     html = render_html(build(HILLY, cfg), cfg)
     assert html.count('<div class="town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)

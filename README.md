@@ -185,7 +185,7 @@ km 60.0 → 61.3 · Saint-Girons
 🥖 Boulangerie, Le Blé Doré (234 m), Pâtisserie Boissonnot, …
 ```
 
-- **Which stops.** Those with at least 8 POIs (`towns.min_pois`), counting only the categories you show: a town centre, not a fountain, a cemetery tap or a lone bakery.
+- **Which stops.** Those with at least 8 POIs (`towns.min_pois`), or at least 5 when one is a bakery or a grocery (`towns.shop_min_pois`, `towns.shops`), counting only the categories you show: a town centre, or a village with its shop, not a fountain, a cemetery tap or a lone bakery.
 - **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. That line takes 3.2 mm, so a strip holds a little less. When two or three busy stops in a row are in the same town (Chartres, Le Mans), only the first names it.
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
 - **On the reference sheet**, every busy stop has its name next to its km.

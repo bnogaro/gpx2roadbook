@@ -45,7 +45,9 @@ icecream = ["amenity=ice_cream", "shop=ice_cream", "amenity=cafe"]
 
 [towns]
 enabled = false      # name the town at busy stops, from OpenStreetMap (needs internet; cached afterwards)
-min_pois = 8         # a stop is busy, likely a town centre, from this many POIs (of the categories shown)
+min_pois = 8         # a stop is busy, likely a town centre, from this many POIs (of the categories shown)...
+shop_min_pois = 5    # ...or from this many, when one of them is a village shop:
+shops = ["bakery", "grocery"]
 max_age_days = 365   # look up again once a cached answer is this old
 
 [ride]
