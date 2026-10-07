@@ -361,11 +361,15 @@ def test_the_cli_says_how_many_climbs_it_named(monkeypatch: pytest.MonkeyPatch, 
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
-def test_climbs_are_not_named_unless_asked(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_climbs_are_named_by_default_unless_turned_off(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     http = _named(monkeypatch, tmp_path)
     cfg = load_config()
-    assert cfg["climb_names"]["enabled"] is False
+    assert cfg["climb_names"]["enabled"] is True
+    assert build(HILLY, cfg).climb_names is not None
+    http.urls.clear()
+    cfg["climb_names"]["enabled"] = False
     assert build(HILLY, cfg).climb_names is None
+    # nowhere to show them: a ribbon of tokens and no reference sheet
     cfg["climb_names"]["enabled"] = True
     cfg["render"]["layout"], cfg["render"]["details"] = "line", False
     assert build(HILLY, cfg).climb_names is None

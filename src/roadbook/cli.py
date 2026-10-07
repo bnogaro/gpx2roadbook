@@ -118,7 +118,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     ] = None,
     climb_names: Annotated[
         bool | None,
-        typer.Option(help="Name the col, pass or peak at each climb's top, from OpenStreetMap (needs internet)."),
+        typer.Option(help="Name the col, pass or peak at each climb's top, from OpenStreetMap (default: on)."),
     ] = None,
     date: Annotated[
         datetime | None,
