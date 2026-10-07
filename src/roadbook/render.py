@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -180,15 +181,35 @@ def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[lis
     return pages
 
 
-def _details(book: Roadbook, categories: dict[str, Any], range_m: float) -> list[dict[str, Any]]:
+_TIME_RANGE = re.compile(r"(\d\d:\d\d)-(\d\d:\d\d)")
+
+
+def pretty_hours(value: str) -> str:
+    """An OSM `opening_hours` value, easier to read on paper: one rule after another, en dashes between times."""
+    rules = [" ".join(r.split()) for r in value.split(";") if r.strip()]
+    return " · ".join(_TIME_RANGE.sub("\\1\u2013\\2", r).replace(",", ", ") for r in rules)
+
+
+def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_for: list[str]) -> list[dict[str, Any]]:
+    """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line."""
     out = []
     order = list(categories)
     for s in book.stops:
-        groups: dict[str, list[tuple[str, int]]] = {}
+        groups: list[tuple[str, list[dict[str, Any]]]] = []
+        shared: dict[str, list[dict[str, Any]]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
-            groups.setdefault(categories[_category(p)]["emoji"], []).append((p.name or p.type, round(p.offset_m)))
+            emoji = categories[_category(p)]["emoji"]
+            poi = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
+            if book.hours is not None and p.category in hours_for:
+                poi["hours"] = pretty_hours(p.opening_hours) if p.opening_hours else ""  # "" = unknown
+                groups.append((emoji, [poi]))
+            elif emoji in shared:
+                shared[emoji].append(poi)
+            else:
+                shared[emoji] = [poi]
+                groups.append((emoji, shared[emoji]))
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
-        out.append({"km": km, "groups": list(groups.items())})
+        out.append({"km": km, "groups": groups})
     return out
 
 
@@ -247,6 +268,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     if gutter:
         _add_gutters(strips, book, gutter, length - HDR_H - 2 * PAD)
 
+    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -256,7 +278,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         length=length,
         page=r["page"],
         orientation=orientation,
-        details=_details(book, cfg["categories"], r["stop_range_m"]) if r["details"] else [],
+        details=details,
         g={
             "MAIN_H": MAIN_H,
             "SUB_H": SUB_H,

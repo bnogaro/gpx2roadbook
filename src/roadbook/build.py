@@ -4,6 +4,7 @@ import itertools
 from typing import TYPE_CHECKING, Any
 
 from .climbs import find_climbs
+from .hours import lookup
 from .kinds import KINDS
 from .model import Climb, Item, Roadbook, Stop
 from .parse import read_gpx
@@ -61,6 +62,8 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     gap_m = cfg["stops"]["gap_m"]
     stops = cluster(kept, gap_m, cfg["stops"]["max_span_m"] or 3 * gap_m)
     climbs = find_climbs(profile, cfg["climbs"])
+    # hours only show on the reference sheet: without it, don't spend minutes looking them up
+    hours = lookup(kept, cfg["hours"]) if cfg["hours"]["enabled"] and cfg["render"]["details"] else None
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -99,4 +102,5 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         poi_total=len(pois),
         poi_kept=len(kept),
         profile=profile,
+        hours=hours,
     )

@@ -59,6 +59,8 @@
   .details .stop { break-inside: avoid; margin-bottom: 1.6mm; }
   .details .stop b { font-variant-numeric: tabular-nums; }
   .details .off { color: #777; }
+  .details .oh { color: #333; font-variant-numeric: tabular-nums; }
+  .details .credit { column-span: all; color: #777; font-size: 6pt; margin-top: 3mm; }
   @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; } }
 </style>
 </head>
@@ -108,10 +110,11 @@
   {% for s in details %}
   <div class="stop"><b>km {{ s.km }}</b>
     {% for emoji, pois in s.groups %}
-    <div>{{ emoji }} {% for name, off in pois %}{{ name }}{% if off > 30 %} <span class="off">({{ off }} m)</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.hours %} <span class="oh">{{ p.hours }}</span>{% elif p.hours is not none %} <span class="off">hours unknown</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endfor %}
   </div>
   {% endfor %}
+  {% if book.hours %}<p class="credit">Opening hours © OpenStreetMap contributors (ODbL). Hours change: check the ones you rely on.</p>{% endif %}
 </div>
 {% endif %}
 </body>

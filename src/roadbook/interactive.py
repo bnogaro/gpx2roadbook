@@ -50,6 +50,7 @@ def _span(cfg: dict[str, Any]) -> float:
 COMMON = [
     Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
     Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
+    Setting("hours", "enabled", "--hours", "Look up shops' opening hours (OpenStreetMap, needs internet)", bool),
 ]
 ADVANCED = [
     Setting("render", "width_mm", "--width", "Strip width, mm", float, shown=_strip_width),

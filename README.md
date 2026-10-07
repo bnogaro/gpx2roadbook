@@ -65,7 +65,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to look up opening hours, the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -102,6 +102,8 @@ Either way, cut along the dashed lines.
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
+| `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
+| `--refresh-hours` | With `--hours`: look the hours up again instead of using the cached ones. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
 
@@ -166,6 +168,30 @@ The narrow strip on the right edge of each strip is the elevation profile of tha
 ### The reference sheet
 
 After the strips comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`.
+
+### Opening hours
+
+With `--hours`, each bakery, grocery, petrol station, café, fast food and ice cream shop on the reference sheet gets its own line with its opening hours, as listed on [OpenStreetMap](https://www.openstreetmap.org):
+
+```text
+km 4.3
+🥖 Les Délices de Saint-Béat Th-Tu 08:00–13:00
+🛒 Vival Mo-Su 08:30–12:30, 15:00–19:30
+```
+
+- **Where they come from.** The GPX has no hours, so each shop is matched to the OpenStreetMap place within 80 m of it with the closest name (`hours.match_m`). onroutemap.de uses OpenStreetMap too, so the names usually line up.
+- **Coverage.** OpenStreetMap doesn't know every shop's hours: expect roughly half of them, more for supermarkets. The others say *hours unknown*.
+- **It takes a while the first time.** The hours are looked up online, through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) or, when its servers are busy, [Nominatim](https://nominatim.org), which allows one request per second. For a 200 km route, count from half a minute to a few minutes.
+- **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh-hours` to look them up again.
+- **If the lookup fails**, you get a warning and a road book without the missing hours. Run it again later.
+- **Check the ones you rely on.** Hours change, and OpenStreetMap may be out of date.
+
+Choose which categories get hours in your `--config` file:
+
+```toml
+[hours]
+categories = ["bakery", "grocery"]
+```
 
 ## Development
 

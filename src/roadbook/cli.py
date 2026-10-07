@@ -15,6 +15,9 @@ from .render import html_to_pdf, render_html
 if TYPE_CHECKING:
     from io import TextIOWrapper
 
+    from .hours import Report
+    from .model import Roadbook
+
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
 
 
@@ -26,6 +29,13 @@ class Layout(StrEnum):
 def _extra_checkpoint(value: str) -> list:
     km, _, label = value.partition(":")
     return [float(km), label]
+
+
+def _echo_hours(r: Report) -> None:
+    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
+    typer.echo(f"Opening hours: {r.found} of {r.asked} shops" + (f" ({', '.join(where)})" if where else ""))
+    if r.failed:
+        typer.echo("Opening hours: OpenStreetMap services did not answer for some shops; run again later.", err=True)
 
 
 @app.command()
@@ -66,6 +76,13 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         int | None,
         typer.Option(help="Lines a crowded stop's emojis may fill on a strip (default 2; 1 = one line, with a +)."),
     ] = None,
+    hours: Annotated[
+        bool | None,
+        typer.Option(help="Look up shops' opening hours on OpenStreetMap for the details sheet (needs internet)."),
+    ] = None,
+    refresh_hours: Annotated[  # noqa: FBT002  a --refresh-hours flag
+        bool, typer.Option(help="Look up opening hours again, instead of using the ones cached from earlier runs.")
+    ] = False,
     pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,  # noqa: FBT002  a --pdf flag
     config: Annotated[Path | None, typer.Option(help="TOML file overriding default.toml.")] = None,
     interactive: Annotated[  # noqa: FBT002  a -i flag
@@ -85,6 +102,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "details", details),
         ("render", "leg_elevation", leg_elevation),
         ("render", "emoji_lines", emoji_lines),
+        ("hours", "enabled", hours),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),
@@ -97,6 +115,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         cfg["checkpoints"]["extra"] += [_extra_checkpoint(c) for c in checkpoint]
     if categories:
         cfg["pois"]["enabled"] = [c.strip() for c in categories.split(",")]
+    if refresh_hours:
+        cfg["hours"]["max_age_days"] = 0
 
     if interactive:
         if not sys.stdin.isatty():
@@ -113,17 +133,26 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     html = render_html(book, cfg)
     out = out or gpx.with_suffix(".roadbook.html")
     out.write_text(html, encoding="utf-8")
+    _summary(book)
+    typer.echo(f"Wrote {out}")
+    if pdf:
+        _write_pdf(out)
 
+
+def _summary(book: Roadbook) -> None:
     typer.echo(f"{book.title}: {book.length_km:.1f} km, +{book.gain_m:.0f} m / -{book.loss_m:.0f} m")
     typer.echo(
         f"POIs: {book.poi_total} in file -> {book.poi_kept} kept -> {len(book.stops)} stops; {len(book.climbs)} climbs"
     )
-    typer.echo(f"Wrote {out}")
-    if pdf:
-        pdf_path = out.with_suffix(".pdf")
-        try:
-            html_to_pdf(out, pdf_path)
-        except (RuntimeError, OSError) as exc:
-            typer.echo(f"PDF not written: {exc}", err=True)
-            raise typer.Exit(1) from exc
-        typer.echo(f"Wrote {pdf_path}")
+    if book.hours:
+        _echo_hours(book.hours)
+
+
+def _write_pdf(html: Path) -> None:
+    pdf_path = html.with_suffix(".pdf")
+    try:
+        html_to_pdf(html, pdf_path)
+    except (RuntimeError, OSError) as exc:
+        typer.echo(f"PDF not written: {exc}", err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Wrote {pdf_path}")
