@@ -59,6 +59,11 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + "50"
         + ENTER  # checkpoint every 50 km
         + "y"  # opening hours
+        + "12/10"
+        + ENTER  # not a date: the prompt stays
+        + CLEAR
+        + "2026-10-12"
+        + ENTER  # ride date
         + DOWN * 3
         + (SPACE + DOWN) * 7
         + ENTER  # categories: untick cafe … icecream, keep water, toilets, bakery
@@ -83,6 +88,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--page A5",
         "--checkpoint-every 50",
         "--hours",
+        "--date 2026-10-12",
         "--min-climb 50",
         "--leg-elevation",
         "--pdf",
