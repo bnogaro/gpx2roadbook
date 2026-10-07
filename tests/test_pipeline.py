@@ -1,4 +1,5 @@
 import re
+from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
@@ -177,6 +178,25 @@ def test_leg_elevation_is_opt_in() -> None:
     legs = _legs(render_html(book, cfg))
     assert len(legs) == len(book.items) - 1
     assert all("↗" in leg and "↘" in leg for leg in legs)
+
+
+@pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
+@pytest.mark.parametrize(("layout", "box"), [("strip", "strip"), ("line", "ribbon")])
+def test_watermark_on_each_strip_and_the_reference_sheet(layout: str, box: str) -> None:
+    cfg = load_config()
+    cfg["render"]["layout"] = layout
+    book = build(SAMPLE, cfg)
+    html = render_html(book, cfg)
+    # every strip carries the name, and nothing more: no version, no link
+    strips = html.count(f'<div class="{box}">')
+    assert strips > 1
+    assert html.count('<span class="wm">gpx2roadbook</span>') == strips
+    # the reference sheet says what made it, which version and where to get it, even without the hours credit
+    home = "github.com/bnogaro/gpx2roadbook"
+    assert f'Made with gpx2roadbook {version("gpx2roadbook")} · <a href="https://{home}">{home}</a>' in html
+    assert 'class="credit"' not in html
+    cfg["render"]["details"] = False
+    assert "Made with" not in render_html(book, cfg)
 
 
 def _layout(avail: float, *, max_emojis: int = 99, leg_elevation: bool = False) -> RowLayout:

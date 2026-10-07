@@ -1,4 +1,5 @@
 import datetime as dt
+import re
 from pathlib import Path
 
 import pytest
@@ -116,6 +117,8 @@ def test_the_reference_sheet_shows_the_ride_day() -> None:
     assert f'Intermarché Super <span class="off">(265 m)</span> <span class="oh">09:00{EN}19:30</span>' in html
     assert '<span class="off">9h-19h</span>' in html  # not OSM syntax: shown as written, muted
     assert '<span class="off">hours unknown</span>' in html
+    # the watermark follows the OpenStreetMap credit
+    assert re.search(r'<p class="credit">[^<]*</p>\s*<p class="colophon">Made with gpx2roadbook ', html)
 
     cfg["ride"]["date"] = "2026-10-11"  # Sunday
     html = render_html(build(HILLY, cfg), cfg)
