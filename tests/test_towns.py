@@ -12,7 +12,7 @@ from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
-from roadbook.render import RowLayout, _add_towns, _place_town, _row, _shorten, _text_w, render_html
+from roadbook.render import TOWN_H, RowLayout, _add_towns, _row, render_html
 from roadbook.towns import REVERSE, ZOOM, Report, busy, centre, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -147,53 +147,34 @@ def _stop_row(emojis: str, *, km_end: float = 60.0, dist: float = 1.5) -> tuple[
     return it, _row(it, BOOK, STRIP)
 
 
-def test_shorten_cuts_a_name_with_an_ellipsis_or_gives_up() -> None:
-    name = "Saint-Arnoult-en-Yvelines"
-    assert _shorten(name, 99) == name
-    cut = _shorten(name, 10)
-    assert cut is not None
-    assert cut.endswith("…")
-    assert name.startswith(cut[:-1])
-    assert _text_w(cut, 6) <= 10
-    assert _shorten(name, 3) is None  # "Sai…" says too little: left to the reference sheet
-
-
-def test_a_long_stop_names_its_town_on_its_end_km_line() -> None:
-    _, row = _stop_row("🚰🚻", km_end=61.3)
-    h = row["h"]
-    assert _place_town(row, "Saint-Girons", STRIP)
-    assert (row["town"], row["town_at"], row["h"]) == ("Saint-Girons", "sub", h)
-
-
-def test_a_quiet_row_names_its_town_after_its_emojis() -> None:
-    _, row = _stop_row("🚰")
-    assert _place_town(row, "Auterive", STRIP)
-    assert (row["town"], row["town_at"]) == ("Auterive", "main")
-
-
-def test_a_wrapped_row_names_its_town_after_its_last_emojis() -> None:
-    _, row = _stop_row("🚰🚻🥖")  # two beside the km, one on the line below
-    assert row["emoji_lines"]
-    assert _place_town(row, "Maintenon", STRIP)
-    assert row["town_at"] == "emo"
-
-
-def test_a_full_row_leaves_its_town_to_the_reference_sheet() -> None:
-    _, row = _stop_row("🚰🚻🥖☕🛒⛽🍔")
-    assert not _place_town(row, "Le Mas-d'Azil", STRIP)
-    assert (row["town"], row["town_at"]) == ("", "")
-
-
-def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
+def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]]:
     items, rows = [], []
-    for town in ("Foix", "Foix", None, "Pau", "Foix"):  # short names: room is not what this is about
-        it, row = _stop_row("🚰")
+    for town in towns:
+        it, row = _stop_row(emojis)
         assert it.stop is not None
         it.stop.town = town
         items.append(it)
         rows.append(row)
-    _add_towns(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0), STRIP)
+    _add_towns(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0))
+    return rows
+
+
+def test_a_named_stop_gets_a_line_above_its_row() -> None:
+    _, plain = _stop_row("🚰")
+    [row] = _named_rows("Le Mas-d'Azil")
+    assert (row["town"], row["h"]) == ("Le Mas-d'Azil", plain["h"] + TOWN_H)
+
+
+def test_a_full_row_still_gets_its_town_in_full() -> None:
+    _, plain = _stop_row("🚰🚻🥖☕🛒⛽🍔")
+    [row] = _named_rows("Le Mas-d'Azil", emojis="🚰🚻🥖☕🛒⛽🍔")
+    assert (row["town"], row["h"]) == ("Le Mas-d'Azil", plain["h"] + TOWN_H)
+
+
+def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
+    rows = _named_rows("Foix", "Foix", None, "Pau", "Foix")
     assert [r["town"] for r in rows] == ["Foix", "", "", "Pau", "Foix"]
+    assert [r["h"] for r in rows][1:3] == [rows[2]["h"]] * 2  # no line where the town isn't named
 
 
 # --- end to end, on a sample, with a fake Nominatim
@@ -207,7 +188,7 @@ def _named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, answer: Any = None) 
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
-def test_on_the_sample_the_big_stops_are_named_and_the_rows_keep_their_height(
+def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     http = _named(monkeypatch, tmp_path)
@@ -222,9 +203,10 @@ def test_on_the_sample_the_big_stops_are_named_and_the_rows_keep_their_height(
     assert all(s.town is None for s in book.stops if len(s.pois) < CFG["min_pois"])
     html = render_html(book, cfg)
     assert "<b>km 60.0 → 61.3 · Saint-Girons</b>" in html
-    assert '<span class="town">Saint-Girons</span>' in html
+    # on a line above its row; the fake answers Saint-Girons for all three, so the strip names it once
+    assert html.count('<div class="town"><span>Saint-Girons</span></div>') == 1
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
-    # names only use room rows already had: the strips break at the same rows
+    # three lines of 3.2 mm: the strips still hold the same rows
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
     assert strips.findall(html) == strips.findall(plain)
 

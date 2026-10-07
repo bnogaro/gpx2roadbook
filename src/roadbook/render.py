@@ -28,13 +28,7 @@ LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
-PT = 0.3528  # mm per typographic point
-TOWN_PT, LABEL_PT, DIST_PT = 6.0, 6.5, 6.0  # font sizes of a town name, a label or sub line, a "↓" (as in the CSS)
-GAP = 1.0  # between the items of a row's line (CSS gap / margin)
-TOWN_MIN_CHARS = 5  # a town cut shorter than this, before its "…", is left to the reference sheet ("Main…")
-LINE_EXTRA = 1.5  # mm the lines below a main line have past wrap_avail: 3 x PAD, less their indent and borders
-# character widths, em, that differ from a lowercase letter or digit (0.5) or a capital (0.62)
-_EMS = dict.fromkeys("iIlj.,;:'!|", 0.28) | dict.fromkeys("frt-() ", 0.36) | dict.fromkeys("mwMW—…", 0.85)
+TOWN_H = 3.2  # a busy stop's town, on its own line above the row
 
 # Watermark: the name on every strip; name, version and home on the reference sheet
 TOOL = "gpx2roadbook"
@@ -90,58 +84,6 @@ def _wrap(emojis: list[Glyph], widths: list[float], max_emojis: int) -> tuple[li
     return lines, truncated, first_w + (MORE_W if truncated and len(lines) == 1 else 0)
 
 
-def _text_w(text: str, pt: float, *, bold: bool = False) -> float:
-    """Roughly how wide `text` prints, mm: a per-character estimate, a little generous, for Segoe UI and the like.
-
-    Measured on a Chrome render: "Saint-Gi…" in 6pt italic is 9.0 mm (estimate 9.3), "→179.7" in 6.5pt bold 6.0 mm
-    (6.7). The CSS cuts with a "…" too, should a name still overflow.
-    """
-    ems = sum(_EMS.get(c, 0.62 if c.isupper() else 0.5) for c in text)
-    return ems * pt * PT * (1.05 if bold else 1.0)
-
-
-def _shorten(name: str, room: float) -> str | None:
-    """`name` if it fits in `room` mm, else cut with a "…", or None if too little of it would be left."""
-    if _text_w(name, TOWN_PT) <= room:
-        return name
-    for n in range(len(name) - 1, TOWN_MIN_CHARS - 1, -1):
-        cut = name[:n].rstrip(" -'") + "…"
-        if _text_w(cut, TOWN_PT) <= room:
-            return cut
-    return None
-
-
-def _glyphs_w(glyphs: list[Glyph], *, more: bool) -> float:
-    return sum(EMOJI_W + (COUNT_W if g.sup else 0) for g in glyphs) + (MORE_W if more else 0)
-
-
-def _place_town(row: dict[str, Any], town: str, layout: RowLayout) -> bool:
-    """Put `town` in the room a strip row has left, on whichever of its lines has the most; never adds a line.
-
-    Candidates: the main line after its emojis and label, the last line of emojis wrapped below it, and a stop's
-    "→km" line. The name is cut with a "…" to fit, or left out. Returns whether it was placed.
-    """
-    lines = row["emoji_lines"]
-    more = bool(row["more"])
-    label_w = _text_w(row["label"], LABEL_PT, bold=True) + GAP if row["label"] else 0.0
-    # the main line keeps DIST_W (wrap_avail - avail) for a "↓10.6" at its end; a shorter one leaves the rest
-    dist_w = _text_w(row["dist"], DIST_PT) + GAP if row["dist"] else 0.0
-    main = layout.wrap_avail - dist_w - _glyphs_w(row["emojis"], more=more and not lines) - label_w - GAP
-    rooms = [(main, "main")]
-    # the lines below it start 1 mm past the km column, where the main line's emojis start PAD + gap further
-    below = layout.wrap_avail + LINE_EXTRA
-    if lines:
-        rooms.append((below - _glyphs_w(lines[-1], more=more) - GAP, "emo"))
-    if row["sub"].startswith("→"):  # a climb's stats line is full already
-        rooms.append((below - _text_w(row["sub"], LABEL_PT, bold=True) - GAP, "sub"))
-    room, where = max(rooms)
-    shown = _shorten(town, room)
-    if shown is None:
-        return False
-    row["town"], row["town_at"] = shown, where
-    return True
-
-
 def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, float]:
     """For when _fit keeps nothing: the first emoji alone, shedding its count, then the "+", until it fits.
 
@@ -185,8 +127,7 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "sub": "",
         "leg": None,
         "dist": None,
-        "town": "",
-        "town_at": "",  # main | emo | sub: the line it sits on
+        "town": "",  # a busy stop's town, on a line above the row
     }
     if kind.emoji:
         # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
@@ -239,16 +180,18 @@ def _spans(stop: Stop, range_m: float) -> bool:
     return (stop.km_end - stop.km) * 1000 >= range_m
 
 
-def _add_towns(rows: list[dict[str, Any]], book: Roadbook, layout: RowLayout) -> None:
-    """Name the town on the rows of named stops where it fits, but not again on the next one in the same town.
+def _add_towns(rows: list[dict[str, Any]], book: Roadbook) -> None:
+    """Name the town on a line above the rows of named stops, but not again on the next one in the same town.
 
     Chartres or Le Mans may be two or three busy stops in a row: naming it once is enough on a narrow strip.
     """
     last = None  # the last town shown
     for it, row in zip(book.items, rows, strict=True):
         town = it.stop.town if it.stop else None
-        if town and town != last and _place_town(row, town, layout):
-            last = town
+        if town and town != last:
+            row["town"] = town
+            row["h"] += TOWN_H
+        last = town or last
 
 
 def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[list[dict[str, Any]]]:
@@ -349,7 +292,7 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
         items = book.items[first : first + len(s["rows"])]
         anchors, y = [], 0.0
         for it, row in zip(items, s["rows"], strict=True):
-            anchors.append((it.km, y + MAIN_H / 2))
+            anchors.append((it.km, y + (TOWN_H if row["town"] else 0) + MAIN_H / 2))  # under its town, if any
             y += row["h"]
         first += len(items)
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
@@ -384,7 +327,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     )
     rows = [_row(it, book, row_layout) for it in book.items]
     if layout == "strip":  # a token of the line layout grows sideways: no room is left over in it
-        _add_towns(rows, book, row_layout)
+        _add_towns(rows, book)
 
     if layout == "strip":
         pages = _paginate(rows, length - HDR_H - 2 * PAD, "h")
@@ -413,6 +356,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         home=HOME,
         g={
             "MAIN_H": MAIN_H,
+            "TOWN_H": TOWN_H,
             "SUB_H": SUB_H,
             "LEG_H": LEG_H,
             "HDR_H": HDR_H,

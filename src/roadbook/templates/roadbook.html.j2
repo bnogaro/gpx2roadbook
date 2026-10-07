@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --town-h: {{ g.TOWN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -33,10 +33,10 @@
   /* a crowded stop's emojis carry on below its main line, lined up under the first one */
   .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
-  /* a busy stop's town, only in room the row has left: cut with "…" rather than wrapped or pushed onto a line */
-  .row .town { font-size: 6pt; font-weight: 400; font-style: italic; color: #333; white-space: nowrap;
-               min-width: 0; overflow: hidden; text-overflow: ellipsis; }
-  .row .emo-line .town { margin-left: 1mm; }
+  /* a busy stop's town, on a line above it: cut with "…" only if wider than the strip */
+  .row .town { height: var(--town-h); padding: 0 var(--pad); display: flex; align-items: flex-end; font-size: 6.5pt;
+               font-style: italic; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; }
+  .row .town span { overflow: hidden; text-overflow: ellipsis; }
   .strip .row .sub { text-overflow: ellipsis; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
@@ -89,17 +89,17 @@
     <div class="hdr"><span>km {{ s.first }} → {{ s.last }}</span><span>{{ loop.index }}/{{ loop.length }}</span></div>
     {% for r in s.rows %}
     <div class="row {{ r.kind }}">
+      {% if r.town %}<div class="town"><span>{{ r.town }}</span></div>{% endif %}
       <div class="main">
         <span class="km">{{ r.km }}</span>
         {{ emo(r.emojis, r.more and not r.emoji_lines) }}
         {% if r.label %}<span class="lbl">{{ r.label }}</span>{% endif %}
-        {% if r.town_at == 'main' %}<span class="town">{{ r.town }}</span>{% endif %}
         {% if r.dist %}<span class="dist">{{ r.dist }}</span>{% endif %}
       </div>
       {%- for line in r.emoji_lines %}
-      <div class="emo-line">{{ emo(line, r.more and loop.last) }}{% if loop.last and r.town_at == 'emo' %}<span class="town">{{ r.town }}</span>{% endif %}</div>
+      <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
       {%- endfor %}
-      {% if r.sub %}<div class="sub">{{ r.sub }}{% if r.town_at == 'sub' %} <span class="town">{{ r.town }}</span>{% endif %}</div>{% endif %}
+      {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
     {% endfor %}
