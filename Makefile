@@ -7,7 +7,7 @@ dev:
 lint:
 	uv run ruff format --check .
 	uv run ruff check .
-	uv run ty check src/
+	uv run ty check src/ tests/
 
 format:
 	uv run ruff check --fix .
