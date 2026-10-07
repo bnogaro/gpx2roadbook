@@ -40,7 +40,10 @@
   .row .head span { overflow: hidden; text-overflow: ellipsis; }
   .row .head.town { font-style: italic; }
   .row .head.col { font-weight: 700; color: #92400e; }
-  .strip .row .sub { text-overflow: ellipsis; }
+  /* a climb's gain keeps its place at the right, under the "↓" distances: only its length and grade may be cut */
+  .strip .row .sub { display: flex; gap: 1mm; padding-right: var(--pad); }
+  .strip .row .sub .fig { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .strip .row .sub .gain { flex: none; margin-left: auto; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
@@ -103,7 +106,7 @@
       {%- for line in r.emoji_lines %}
       <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
       {%- endfor %}
-      {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
+      {% if r.sub %}<div class="sub"><span class="fig">{{ r.sub }}</span>{% if r.gain %}<span class="gain">{{ r.gain }}</span>{% endif %}</div>{% endif %}
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
     {% endfor %}
@@ -119,6 +122,7 @@
       <span class="km">{{ r.km }}</span>
       {{ emo(r.emojis, r.more) }}
       {% if r.sub_short %}<span class="sub">{{ r.sub_short }}</span>{% endif %}
+      {% if r.gain %}<span class="sub gain">{{ r.gain }}</span>{% endif %}
       {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
     </div>
     {% endfor %}

@@ -346,3 +346,14 @@ def test_the_ubf_300_finds_its_big_climbs_and_fits_two_strips() -> None:
     assert (round(lure.start_km, 1), round(lure.length_km)) == (106.7, 22)
     html = render_html(book, cfg)
     assert re.findall(r"<span>(\d+/\d+)</span></div>", html) == ["1/2", "2/2"]
+
+
+@pytest.mark.parametrize("layout", ["strip", "line"])
+def test_a_climb_always_shows_its_gain(layout: str) -> None:
+    cfg = load_config()
+    cfg["render"]["layout"] = layout
+    html = render_html(build(PROVENCE, cfg), cfg)
+    # Mont Ventoux from Bedoin: the gain has a place of its own, which a narrow strip can't cut ("↗1…")
+    assert 'class="gain">↗︎1552</span>' in html.replace('class="sub gain"', 'class="gain"')
+    if layout == "strip":
+        assert '<span class="fig">21km 7.4%</span>' in html

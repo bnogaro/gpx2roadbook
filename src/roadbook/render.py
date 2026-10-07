@@ -25,6 +25,7 @@ if TYPE_CHECKING:
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
 KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
+WHOLE_KM = 10.0  # a climb this long shows its length in whole km ("21km"): the decimal is noise
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
@@ -126,6 +127,7 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "km": f"{it.km:.1f}",
         "label": kind.label(it, book),
         "sub": "",
+        "gain": "",  # a climb's ↗ metres, at the end of its sub line
         "leg": None,
         "dist": None,
         "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
@@ -150,8 +152,11 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         row["emojis"], row["emoji_lines"], row["more"], emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
     if kind.stats:
         c = climb_of(it)
-        row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
-        row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
+        length = f"{c.length_km:.0f}" if c.length_km >= WHOLE_KM else f"{c.length_km:.1f}"
+        row["sub"] = f"{length}km{sep}{c.avg_grade:.1f}%"
+        # the climb's gain is what a rider plans by: never cut, while length and grade may be, should the line be short
+        row["gain"] = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
+        row["sub_short"] = f"{length}km {c.avg_grade:.0f}%"
     elif it.stop and _spans(it.stop, layout.range_m):
         # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
         row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
