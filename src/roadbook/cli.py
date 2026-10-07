@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from datetime import datetime  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from enum import StrEnum
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from typing import TYPE_CHECKING, Annotated, cast
@@ -80,6 +81,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         bool | None,
         typer.Option(help="Look up shops' opening hours on OpenStreetMap for the details sheet (needs internet)."),
     ] = None,
+    date: Annotated[
+        datetime | None,
+        typer.Option(formats=["%Y-%m-%d"], help="Ride date, YYYY-MM-DD: with --hours, each shop's hours that day."),
+    ] = None,
     refresh_hours: Annotated[  # noqa: FBT002  a --refresh-hours flag
         bool, typer.Option(help="Look up opening hours again, instead of using the ones cached from earlier runs.")
     ] = False,
@@ -103,6 +108,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "leg_elevation", leg_elevation),
         ("render", "emoji_lines", emoji_lines),
         ("hours", "enabled", hours),
+        ("hours", "date", date and date.date().isoformat()),
+        ("hours", "max_age_days", 0 if refresh_hours else None),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),
@@ -115,8 +122,6 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         cfg["checkpoints"]["extra"] += [_extra_checkpoint(c) for c in checkpoint]
     if categories:
         cfg["pois"]["enabled"] = [c.strip() for c in categories.split(",")]
-    if refresh_hours:
-        cfg["hours"]["max_age_days"] = 0
 
     if interactive:
         if not sys.stdin.isatty():
