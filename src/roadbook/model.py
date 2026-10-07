@@ -7,6 +7,7 @@ if TYPE_CHECKING:
     import numpy as np
 
     from .hours import Report
+    from .opening import Ride, Verdict, Window
     from .profile import Profile
 
 
@@ -35,6 +36,7 @@ class Poi:
     category: str | None = None
     opening_hours: str | None = None  # OSM `opening_hours` value, when looked up and known
     osm_id: str | None = None  # the OSM element it came from, "node/123"
+    verdict: Verdict | None = None  # open or not while the rider may pass; needs hours and an arrival estimate
 
 
 @dataclass
@@ -42,6 +44,7 @@ class Stop:
     """A cluster of nearby POIs, shown as one row/token."""
 
     pois: list[Poi]
+    window: Window | None = None  # when the rider may be there, with an arrival estimate
 
     @property
     def km(self) -> float:
@@ -72,6 +75,7 @@ class Glyph:
 
     emoji: str
     sup: str = ""
+    dim: bool = False  # every shop it stands for is known to be closed when the rider passes
 
 
 @dataclass
@@ -101,3 +105,4 @@ class Roadbook:
     poi_kept: int
     profile: Profile | None = None
     hours: Report | None = None  # None when opening hours were not looked up
+    ride: Ride | None = None

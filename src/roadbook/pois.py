@@ -76,13 +76,19 @@ def cluster(pois: list[Poi], gap_m: float, max_span_m: float) -> list[Stop]:
 
 
 def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[Glyph]:
-    """Distinct emojis of a stop in category priority order, topped by how many POIs share each, if several."""
+    """Distinct emojis of a stop in category priority order, topped by how many POIs share each, if several.
+
+    An emoji is dimmed when every POI it stands for is a shop known to be closed while the rider may pass.
+    """
     counts: dict[str, int] = {}
+    closed: dict[str, int] = {}
     for p in stop.pois:
         if p.category is not None:  # stops only hold classified POIs; this narrows the type
             counts[p.category] = counts.get(p.category, 0) + 1
+            if p.verdict is not None and p.verdict.state == "closed":
+                closed[p.category] = closed.get(p.category, 0) + 1
     return [
-        Glyph(categories[name]["emoji"], str(n) if (n := counts[name]) > 1 else "")
+        Glyph(categories[name]["emoji"], str(n) if (n := counts[name]) > 1 else "", dim=closed.get(name) == n)
         for name in categories
         if name in counts
     ]

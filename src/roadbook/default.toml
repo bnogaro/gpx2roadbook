@@ -29,7 +29,6 @@ enabled = false      # look up opening hours on OpenStreetMap (needs internet; c
 categories = ["bakery", "grocery", "fuel", "cafe", "fastfood", "icecream"]
 match_m = 80         # an OSM place counts as the POI when this close to it and named alike
 max_age_days = 30    # look up again once a cached answer is this old
-date = ""            # ride date, "YYYY-MM-DD": show each shop's hours on that day only ("" = its whole week)
 
 [hours.kinds]        # the OSM main tags (amenity, else shop, else craft) a place may have to be the POI of a category
 bakery = ["shop=bakery", "shop=pastry", "craft=bakery", "craft=confectionery"]
@@ -43,6 +42,13 @@ food = ["amenity=restaurant", "amenity=fast_food", "amenity=cafe", "amenity=pub"
 fastfood = ["amenity=fast_food", "amenity=restaurant", "amenity=cafe"]
 icecream = ["amenity=ice_cream", "shop=ice_cream", "amenity=cafe"]
 # a category with no list here matches places of any kind
+
+[ride]
+date = ""            # "YYYY-MM-DD": with hours, each shop's hours on that day only ("" = its whole week)
+start = ""           # "HH:MM", with date and speed_kmh: estimate when each stop is reached...
+speed_kmh = 0        # ...at this average speed, short stops included (0 = no estimate)
+margin_pct = 15      # the estimate may be off by this share of the time ridden...
+margin_min = 20      # ...and by at least this many minutes
 
 [checkpoints]
 every_km = 0        # 0 disables automatic checkpoints

@@ -64,6 +64,14 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + CLEAR
         + "2026-10-12"
         + ENTER  # ride date
+        + "6h"
+        + ENTER  # not a time: the prompt stays
+        + CLEAR
+        + "06:00"
+        + ENTER  # start time
+        + CLEAR
+        + "22"
+        + ENTER  # average speed
         + DOWN * 3
         + (SPACE + DOWN) * 7
         + ENTER  # categories: untick cafe … icecream, keep water, toilets, bakery
@@ -89,6 +97,8 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--checkpoint-every 50",
         "--hours",
         "--date 2026-10-12",
+        "--start 06:00",
+        "--speed 22",
         "--min-climb 50",
         "--leg-elevation",
         "--pdf",

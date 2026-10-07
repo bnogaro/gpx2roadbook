@@ -1,4 +1,4 @@
-"""What a shop's OSM `opening_hours` mean on a given day: when it is open, or that it is closed.
+"""What a shop's OSM `opening_hours` mean for the ride: its hours on the ride day, or whether it is open on arrival.
 
 The value is evaluated where the shop is, so public holidays (`PH`) follow its country's calendar. Times are the
 shop's local times, as written in OSM: the ride's date and times are local too, so no time zone is involved.
@@ -7,7 +7,9 @@ shop's local times, as written in OSM: the ride's date and times are local too, 
 from __future__ import annotations
 
 import datetime as dt
+import itertools
 from dataclasses import dataclass
+from typing import Any
 
 import opening_hours
 from opening_hours import OpeningHours, State
@@ -27,12 +29,67 @@ class DayHours:
     closed: bool = False  # closed all day
 
 
-def ride_date(cfg: dict[str, object]) -> dt.date | None:
-    """`hours.date` from the config: "YYYY-MM-DD", a TOML date, or empty for none."""
-    value = cfg.get("date")
+def _date(value: object) -> dt.date | None:
+    """ "YYYY-MM-DD", a bare TOML date (from a --config file), or empty for none."""
     if isinstance(value, dt.date):
         return value
     return dt.date.fromisoformat(value) if isinstance(value, str) and value else None
+
+
+def _time(value: object) -> dt.time | None:
+    """ "HH:MM", a bare TOML time, or empty for none."""
+    if isinstance(value, dt.time):
+        return value
+    return dt.time.fromisoformat(value) if isinstance(value, str) and value else None
+
+
+@dataclass(frozen=True)
+class Window:
+    """When the rider may reach a stop: from its first POI at the earliest to its last at the latest."""
+
+    early: dt.datetime
+    late: dt.datetime
+
+
+@dataclass(frozen=True)
+class Ride:
+    """The `[ride]` settings: the ride's date and, given a start time and a speed, when it reaches each km."""
+
+    date: dt.date | None = None
+    start: dt.datetime | None = None  # set only when the date, start time and speed are all known
+    speed_kmh: float = 0.0
+    margin_pct: float = 15.0
+    margin_min: float = 20.0
+
+    @classmethod
+    def from_cfg(cls, cfg: dict[str, Any]) -> Ride:
+        date, time, speed = _date(cfg.get("date")), _time(cfg.get("start")), float(cfg.get("speed_kmh") or 0)
+        start = dt.datetime.combine(date, time) if date and time and speed > 0 else None
+        return cls(date, start, speed, float(cfg["margin_pct"]), float(cfg["margin_min"]))
+
+    def _at(self, start: dt.datetime, km: float, sign: int) -> dt.datetime:
+        """The estimate for `km`, moved by its margin: earlier (sign -1) or later (+1)."""
+        hours = km / self.speed_kmh
+        # the error grows with the time ridden: a little faster or slower adds up over a long day
+        spread = max(hours * self.margin_pct / 100, self.margin_min / 60)
+        at = start + dt.timedelta(hours=hours + sign * spread)
+        # to the minute, rounding outwards: a window shown as "06:00-06:21" never ends before what it says
+        minute = at.replace(second=0, microsecond=0)
+        return minute + dt.timedelta(minutes=1) if sign > 0 and at > minute else minute
+
+    def window(self, km_from: float, km_to: float) -> Window | None:
+        """When the rider may be between `km_from` and `km_to`; None without a start time and speed."""
+        if self.start is None:
+            return None
+        return Window(max(self.start, self._at(self.start, km_from, -1)), self._at(self.start, km_to, +1))
+
+
+@dataclass(frozen=True)
+class Verdict:
+    """Is a shop open while the rider may pass?"""
+
+    state: str  # "open" or "closed" (all along the window), "tight" (it changes within it), "unknown"
+    note: str = ""  # for "tight": what changes and when, "closes 12:30", "opens 07:00"
 
 
 def parse(value: str, lat: float, lon: float) -> OpeningHours | None:
@@ -65,3 +122,26 @@ def on_day(value: str, lat: float, lon: float, day: dt.date) -> DayHours | None:
         note = f' "{comment}"' if comment else ""
         parts.append(f"{when}{maybe}{note}")
     return DayHours(", ".join(parts))
+
+
+_CHANGE = {
+    (State.OPEN, State.CLOSED): "closes",
+    (State.CLOSED, State.OPEN): "opens",
+    (State.UNKNOWN, State.CLOSED): "closes",
+    (State.UNKNOWN, State.OPEN): "opens",
+    (State.OPEN, State.UNKNOWN): "may close",
+    (State.CLOSED, State.UNKNOWN): "may open",
+}
+
+
+def verdict(value: str, lat: float, lon: float, window: Window) -> Verdict | None:
+    """Whether the shop is open all along `window`, closed all along, or changes within it; None if unreadable."""
+    oh = parse(value, lat, lon)
+    if oh is None:
+        return None
+    spans = list(oh.intervals(window.early, window.late))
+    states = {s for _, _, s, _ in spans}
+    if len(states) == 1:
+        return Verdict({State.OPEN: "open", State.CLOSED: "closed"}.get(states.pop(), "unknown"))
+    notes = [f"{_CHANGE[a[2], b[2]]} {b[0]:%H:%M}" for a, b in itertools.pairwise(spans) if a[2] != b[2]]
+    return Verdict("tight", ", ".join(notes))

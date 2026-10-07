@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import sys
-from datetime import datetime  # noqa: TC003  Typer resolves the annotations of main() at runtime
+from datetime import datetime, time
 from enum import StrEnum
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from typing import TYPE_CHECKING, Annotated, cast
@@ -25,6 +25,21 @@ app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a c
 class Layout(StrEnum):
     strip = "strip"
     line = "line"
+
+
+def _start(value: str | None) -> tuple[str | None, str | None]:
+    """--start as (date, time) config values: "HH:MM" gives a time; "YYYY-MM-DD HH:MM" the date too."""
+    if not value:
+        return None, None
+    text = value.strip()
+    try:
+        if len(text) > len("HH:MM"):
+            when = datetime.fromisoformat(text)
+            return when.date().isoformat(), f"{when:%H:%M}"
+        return None, f"{time.fromisoformat(text):%H:%M}"
+    except ValueError as exc:
+        msg = f'{value!r}: give a time, 06:00, or a date and time, "2026-10-12 06:00"'
+        raise typer.BadParameter(msg, param_hint="--start") from exc
 
 
 def _extra_checkpoint(value: str) -> list:
@@ -85,6 +100,17 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         datetime | None,
         typer.Option(formats=["%Y-%m-%d"], help="Ride date, YYYY-MM-DD: with --hours, each shop's hours that day."),
     ] = None,
+    start: Annotated[
+        str | None,
+        typer.Option(help='Start time, HH:MM (or "YYYY-MM-DD HH:MM"): with --speed, when you reach each stop.'),
+    ] = None,
+    speed: Annotated[
+        float | None, typer.Option(help="Average speed, km/h, short stops included: with --start, arrival times.")
+    ] = None,
+    margin: Annotated[
+        float | None,
+        typer.Option(help="How far off arrival times may be, % of the time ridden (default 15; at least 20 min)."),
+    ] = None,
     refresh_hours: Annotated[  # noqa: FBT002  a --refresh-hours flag
         bool, typer.Option(help="Look up opening hours again, instead of using the ones cached from earlier runs.")
     ] = False,
@@ -100,6 +126,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     cast("TextIOWrapper", sys.stdout).reconfigure(encoding="utf-8")  # emoji-safe on Windows consoles
     cfg = load_config(config)
     cfg["render"]["layout"] = layout.value
+    start_date, start_time = _start(start)
     for section, key, value in (
         ("render", "width_mm", width),
         ("render", "length_mm", length),
@@ -108,7 +135,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "leg_elevation", leg_elevation),
         ("render", "emoji_lines", emoji_lines),
         ("hours", "enabled", hours),
-        ("hours", "date", date and date.date().isoformat()),
+        ("ride", "date", start_date or (date and date.date().isoformat())),
+        ("ride", "start", start_time),
+        ("ride", "speed_kmh", speed),
+        ("ride", "margin_pct", margin),
         ("hours", "max_age_days", 0 if refresh_hours else None),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),

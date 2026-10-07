@@ -11,13 +11,14 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from .kinds import KINDS, climb_of
 from .model import Glyph
-from .opening import on_day, ride_date
+from .opening import Ride, on_day
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
     import datetime as dt
 
     from .model import Item, Poi, Roadbook, Stop
+    from .opening import Window
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
@@ -83,7 +84,7 @@ def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, f
     The count goes first: that more kinds are there matters more than how many of the first. If even the bare
     emoji does not fit, it is shown anyway, a hair over its room rather than gone.
     """
-    bare = Glyph(emojis[0].emoji)
+    bare = Glyph(emojis[0].emoji, dim=emojis[0].dim)
     if len(emojis) > 1 and avail >= EMOJI_W + MORE_W:
         return [bare], True, EMOJI_W + MORE_W
     return [bare], False, EMOJI_W
@@ -193,32 +194,61 @@ def pretty_hours(value: str) -> str:
     return " · ".join(_TIME_RANGE.sub("\\1\u2013\\2", r).replace(",", ", ") for r in rules)
 
 
-def _shop_hours(p: Poi, day: dt.date | None) -> tuple[str, str]:
-    """(text, CSS class) for a shop's hours: on `day` if given and readable, else as OSM gives them."""
+_VERDICT = {"closed": "closed", "unknown": "open?"}  # "open" needs no word; "tight" says what changes
+
+
+def _shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
+    """How the reference sheet shows a shop's hours: a verdict word if judged, then its hours, and their CSS class.
+
+    Its hours are those of `day` if given and readable, else the value as OSM gives it.
+    """
     if not p.opening_hours:
-        return "hours unknown", "off"
-    if day is not None:
-        if found := on_day(p.opening_hours, p.lat, p.lon, day):
-            return found.text, "closed" if found.closed else "oh"
-        return pretty_hours(p.opening_hours), "off"  # unreadable: as written, muted
-    return pretty_hours(p.opening_hours), "oh"
+        return {"verdict": "", "hours": "hours unknown", "hours_class": "off"}
+    v = p.verdict
+    word = (f"⚠ {v.note}" if v.state == "tight" else _VERDICT.get(v.state, "")) if v else ""
+    found = on_day(p.opening_hours, p.lat, p.lon, day) if day else None
+    if found is None:  # no day asked, or a value that isn't OSM syntax (then shown as written, muted)
+        return {"verdict": word, "hours": pretty_hours(p.opening_hours), "hours_class": "off" if day else "oh"}
+    if found.closed:  # closed all day: the verdict, if any, says it already
+        return {"verdict": "", "hours": found.text, "hours_class": "closed"}
+    # judged closed or tight: the day's hours are only there to say when instead, so they step back
+    return {"verdict": word, "hours": found.text, "hours_class": "off" if word else "oh"}
 
 
-def _details(
-    book: Roadbook, categories: dict[str, Any], range_m: float, hours_cfg: dict[str, Any]
-) -> list[dict[str, Any]]:
+def _ride_title(book: Roadbook) -> str:
+    """What the reference sheet's title says about the ride: its day, and the arrival estimate's assumptions."""
+    ride = book.ride
+    if ride is None or ride.date is None:
+        return ""
+    if ride.start is None:
+        return f"opening hours on {ride.date:%a %d %b %Y}" if book.hours is not None else ""
+    margin = f"±{ride.margin_pct:g} %, ≥{ride.margin_min:g} min"
+    return f"start {ride.start:%a %d %b %Y %H:%M} at {ride.speed_kmh:g} km/h ({margin})"
+
+
+def _eta(w: Window, ride_day: dt.date | None) -> str:
+    """ "~09:40-10:50" (en dash), with the weekday when the rider gets there on another day than the start."""
+
+    def at(t: dt.datetime) -> str:
+        return f"{t:%a %H:%M}" if t.date() != ride_day else f"{t:%H:%M}"
+
+    return f"~{at(w.early)}\u2013{at(w.late)}"
+
+
+def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_for: list[str]) -> list[dict[str, Any]]:
     """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line."""
-    day = ride_date(hours_cfg)
+    ride = book.ride or Ride()
     out = []
     order = list(categories)
     for s in book.stops:
+        day = s.window.early.date() if s.window else ride.date  # the day the rider gets there
         groups: list[tuple[str, list[dict[str, Any]]]] = []
         shared: dict[str, list[dict[str, Any]]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
             emoji = categories[_category(p)]["emoji"]
             poi: dict[str, Any] = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
-            if book.hours is not None and p.category in hours_cfg["categories"]:
-                poi["hours"], poi["hours_class"] = _shop_hours(p, day)
+            if book.hours is not None and p.category in hours_for:
+                poi |= _shop_hours(p, day)
                 groups.append((emoji, [poi]))
             elif emoji in shared:
                 shared[emoji].append(poi)
@@ -226,7 +256,7 @@ def _details(
                 shared[emoji] = [poi]
                 groups.append((emoji, shared[emoji]))
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
-        out.append({"km": km, "groups": groups})
+        out.append({"km": km, "eta": _eta(s.window, ride.date) if s.window else "", "groups": groups})
     return out
 
 
@@ -285,8 +315,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     if gutter:
         _add_gutters(strips, book, gutter, length - HDR_H - 2 * PAD)
 
-    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]) if r["details"] else []
-    day = ride_date(cfg["hours"]) if book.hours is not None else None
+    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -297,7 +326,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         page=r["page"],
         orientation=orientation,
         details=details,
-        hours_day=f"{day:%a %d %b %Y}" if day else "",
+        ride=_ride_title(book),
         g={
             "MAIN_H": MAIN_H,
             "SUB_H": SUB_H,
