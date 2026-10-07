@@ -102,6 +102,7 @@ ADVANCED = [
     Setting("render", "leg_elevation", "--leg-elevation", "Climbing/descent on each leg", bool),
     Setting("render", "details", "--details", "Reference sheet with POI names", bool),
     Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
+    Setting("climb_names", "enabled", "--climb-names", "Name the cols and peaks (OpenStreetMap, needs internet)", bool),
 ]
 
 

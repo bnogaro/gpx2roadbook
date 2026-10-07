@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --town-h: {{ g.TOWN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --head-h: {{ g.HEAD_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -33,13 +33,17 @@
   /* a crowded stop's emojis carry on below its main line, lined up under the first one */
   .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
-  /* a busy stop's town, on a line above it, right-aligned so the km down the left read on undisturbed;
-     cut with "…" only if wider than the strip */
-  .row .town { height: var(--town-h); padding: 0 var(--pad); display: flex; align-items: flex-end; justify-content: flex-end;
-               font-size: 6.5pt;
-               font-style: italic; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; }
-  .row .town span { overflow: hidden; text-overflow: ellipsis; }
-  .strip .row .sub { text-overflow: ellipsis; }
+  /* heading lines above a row, right-aligned so the km down the left read on undisturbed; cut with "…" only if
+     wider than the strip: a busy stop's town in italics, a climb's col or peak upright in the climbs' brown */
+  .row .head { height: var(--head-h); padding: 0 var(--pad); display: flex; align-items: flex-end; justify-content: flex-end;
+               font-size: 6.5pt; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; }
+  .row .head span { overflow: hidden; text-overflow: ellipsis; }
+  .row .head.town { font-style: italic; }
+  .row .head.col { font-weight: 700; color: #92400e; }
+  /* a climb's gain keeps its place at the right, under the "↓" distances: only its length and grade may be cut */
+  .strip .row .sub { display: flex; gap: 1mm; padding-right: var(--pad); }
+  .strip .row .sub .fig { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .strip .row .sub .gain { flex: none; margin-left: auto; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
@@ -76,6 +80,7 @@
   .details .off { color: #777; }
   .details .oh { color: #333; font-variant-numeric: tabular-nums; }
   .details .closed, .details .verdict { font-weight: 700; }
+  .details .col { color: #92400e; }
   .details .eta { font-variant-numeric: tabular-nums; color: #333; }
   .details .credit, .details .colophon { column-span: all; color: #777; font-size: 6pt; margin: 3mm 0 0; }
   .details .credit + .colophon { margin-top: 0.8mm; }
@@ -91,7 +96,7 @@
     <div class="hdr"><span>km {{ s.first }} → {{ s.last }}</span><span>{{ loop.index }}/{{ loop.length }}</span></div>
     {% for r in s.rows %}
     <div class="row {{ r.kind }}">
-      {% if r.town %}<div class="town"><span>{{ r.town }}</span></div>{% endif %}
+      {% for h in r.heads %}<div class="head {{ h.cls }}"><span>{{ h.text }}</span></div>{% endfor %}
       <div class="main">
         <span class="km">{{ r.km }}</span>
         {{ emo(r.emojis, r.more and not r.emoji_lines) }}
@@ -101,7 +106,7 @@
       {%- for line in r.emoji_lines %}
       <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
       {%- endfor %}
-      {% if r.sub %}<div class="sub">{{ r.sub }}</div>{% endif %}
+      {% if r.sub %}<div class="sub"><span class="fig">{{ r.sub }}</span>{% if r.gain %}<span class="gain">{{ r.gain }}</span>{% endif %}</div>{% endif %}
       {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
     {% endfor %}
@@ -117,6 +122,7 @@
       <span class="km">{{ r.km }}</span>
       {{ emo(r.emojis, r.more) }}
       {% if r.sub_short %}<span class="sub">{{ r.sub_short }}</span>{% endif %}
+      {% if r.gain %}<span class="sub gain">{{ r.gain }}</span>{% endif %}
       {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
     </div>
     {% endfor %}
@@ -130,13 +136,13 @@
 <div class="details">
   <h1>{{ book.title }} — {{ '%.0f' % book.length_km }} km · ↗️{{ '%.0f' % book.gain_m }} m ↘️{{ '%.0f' % book.loss_m }} m{% if ride %} · {{ ride }}{% endif %}</h1>
   {% for s in details %}
-  <div class="stop"><b>km {{ s.km }}{% if s.town %} · {{ s.town }}{% endif %}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
+  <div class="stop"><b>km {{ s.km }}{% if s.town %} · {{ s.town }}{% endif %}{% if s.col %} · <span class="col">{{ s.col }}</span>{% endif %}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
     {% for emoji, pois in s.groups %}
     <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endfor %}
   </div>
   {% endfor %}
-  {% if book.hours or book.towns %}<p class="credit">{{ 'Opening hours' if book.hours else 'Town names' }}{{ ' and town names' if book.hours and book.towns }} © OpenStreetMap contributors (ODbL).{% if book.hours %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
+  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
   <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}

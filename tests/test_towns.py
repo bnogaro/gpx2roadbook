@@ -12,7 +12,7 @@ from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
-from roadbook.render import TOWN_H, RowLayout, _add_towns, _paginate, _row, render_html
+from roadbook.render import HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
 from roadbook.towns import REVERSE, ZOOM, Report, busy, centre, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -163,6 +163,11 @@ def _stop_row(emojis: str, *, km_end: float = 60.0, dist: float = 1.5) -> tuple[
     return it, _row(it, BOOK, STRIP)
 
 
+def _town(row: dict[str, Any]) -> str:
+    """The town a row's heading lines name, or ""."""
+    return next((h["text"] for h in row["heads"] if h["cls"] == "town"), "")
+
+
 def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]]:
     items, rows = [], []
     for town in towns:
@@ -171,25 +176,25 @@ def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]
         it.stop.town = town
         items.append(it)
         rows.append(row)
-    _add_towns(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0))
+    _add_heads(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0))
     return rows
 
 
 def test_a_named_stop_gets_a_line_above_its_row() -> None:
     _, plain = _stop_row("🚰")
     [row] = _named_rows("Le Mas-d'Azil")
-    assert (row["town"], row["h"]) == ("Le Mas-d'Azil", plain["h"] + TOWN_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
 
 
 def test_a_full_row_still_gets_its_town_in_full() -> None:
     _, plain = _stop_row("🚰🚻🥖☕🛒⛽🍔")
     [row] = _named_rows("Le Mas-d'Azil", emojis="🚰🚻🥖☕🛒⛽🍔")
-    assert (row["town"], row["h"]) == ("Le Mas-d'Azil", plain["h"] + TOWN_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
 
 
 def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
     rows = _named_rows("Foix", "Foix", None, "Pau", "Foix")
-    assert [r["town"] for r in rows] == ["Foix", "", "", "Pau", "Foix"]
+    assert [_town(r) for r in rows] == ["Foix", "", "", "Pau", "Foix"]
     assert [r["h"] for r in rows][1:3] == [rows[2]["h"]] * 2  # no line where the town isn't named
 
 
@@ -221,7 +226,7 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     html = render_html(book, cfg)
     assert "<b>km 60.0 → 61.3 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
-    assert html.count('<div class="town"><span>Saint-Girons</span></div>') == 1
+    assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
     # one line of 3.2 mm: the strips still hold the same rows
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
@@ -287,7 +292,7 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     cfg = load_config()
     cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns: lines just over the strip's room
     html = render_html(build(HILLY, cfg), cfg)
-    assert html.count('<div class="town">') == 3
+    assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
     assert [n for _, n in headers] == ["1/2", "2/2"]  # the town lines take the finish past the second strip's length
     assert headers[-1][0].endswith("206.2")

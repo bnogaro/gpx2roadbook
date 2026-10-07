@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from .hours import Report
     from .model import Roadbook
+    from .summits import Report as ClimbNameReport
     from .towns import Report as TownReport
 
 app = typer.Typer(add_completion=False, help="Turn a GPX file with POIs into a compact printable road book.")
@@ -60,6 +61,13 @@ def _echo_towns(r: TownReport) -> None:
     typer.echo(f"Towns: {r.found} of {r.asked} busy stops named{cached}")
     if r.failed:
         typer.echo("Towns: OpenStreetMap did not answer for some stops; run again later.", err=True)
+
+
+def _echo_climb_names(r: ClimbNameReport) -> None:
+    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
+    typer.echo(f"Climb names: {r.found} of {r.asked} climbs named" + (f" ({', '.join(where)})" if where else ""))
+    if r.failed:
+        typer.echo("Climb names: OpenStreetMap services did not answer for some climbs; run again later.", err=True)
 
 
 @app.command()
@@ -108,6 +116,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         bool | None,
         typer.Option(help="Name the town at busy stops, from OpenStreetMap (needs internet the first time)."),
     ] = None,
+    climb_names: Annotated[
+        bool | None,
+        typer.Option(help="Name the col, pass or peak at each climb's top, from OpenStreetMap (default: on)."),
+    ] = None,
     date: Annotated[
         datetime | None,
         typer.Option(formats=["%Y-%m-%d"], help="Ride date, YYYY-MM-DD: with --hours, each shop's hours that day."),
@@ -148,6 +160,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "emoji_lines", emoji_lines),
         ("hours", "enabled", hours),
         ("towns", "enabled", towns),
+        ("climb_names", "enabled", climb_names),
         ("ride", "date", start_date or (date and date.date().isoformat())),
         ("ride", "start", start_time),
         ("ride", "speed_kmh", speed),
@@ -196,6 +209,8 @@ def _summary(book: Roadbook) -> None:
         _echo_hours(book.hours)
     if book.towns:
         _echo_towns(book.towns)
+    if book.climb_names:
+        _echo_climb_names(book.climb_names)
 
 
 def _write_pdf(html: Path) -> None:

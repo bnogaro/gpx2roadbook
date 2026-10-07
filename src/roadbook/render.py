@@ -18,17 +18,18 @@ from .svg import gutter_svg
 if TYPE_CHECKING:
     import datetime as dt
 
-    from .model import Item, Poi, Roadbook, Stop
+    from .model import Climb, Item, Poi, Roadbook, Stop
     from .opening import Window
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
 KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
+WHOLE_KM = 10.0  # a climb this long shows its length in whole km ("21km"): the decimal is noise
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
-TOWN_H = 3.2  # a busy stop's town, on its own line above the row
+HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
 # Watermark: the name on every strip; name, version and home on the reference sheet
@@ -126,9 +127,10 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "km": f"{it.km:.1f}",
         "label": kind.label(it, book),
         "sub": "",
+        "gain": "",  # a climb's ↗ metres, at the end of its sub line
         "leg": None,
         "dist": None,
-        "town": "",  # a busy stop's town, on a line above the row
+        "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
     }
     if kind.emoji:
         # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
@@ -150,8 +152,11 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         row["emojis"], row["emoji_lines"], row["more"], emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
     if kind.stats:
         c = climb_of(it)
-        row["sub"] = f"{c.length_km:.1f}km{sep}{c.avg_grade:.1f}%{sep}↗️{c.gain_m:.0f}"
-        row["sub_short"] = f"{c.length_km:.1f}km {c.avg_grade:.0f}%"
+        length = f"{c.length_km:.0f}" if c.length_km >= WHOLE_KM else f"{c.length_km:.1f}"
+        row["sub"] = f"{length}km{sep}{c.avg_grade:.1f}%"
+        # the climb's gain is what a rider plans by: never cut, while length and grade may be, should the line be short
+        row["gain"] = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
+        row["sub_short"] = f"{length}km {c.avg_grade:.0f}%"
     elif it.stop and _spans(it.stop, layout.range_m):
         # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
         row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
@@ -181,18 +186,24 @@ def _spans(stop: Stop, range_m: float) -> bool:
     return (stop.km_end - stop.km) * 1000 >= range_m
 
 
-def _add_towns(rows: list[dict[str, Any]], book: Roadbook) -> None:
-    """Name the town on a line above the rows of named stops, but not again on the next one in the same town.
+def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
+    """Give rows their heading lines, each HEAD_H mm tall: the town of a named stop, then the name of a named climb.
 
-    Chartres or Le Mans may be two or three busy stops in a row: naming it once is enough on a narrow strip.
+    A town is not named again on the next row in the same town: Chartres or Le Mans may be two or three busy stops
+    in a row, and naming it once is enough on a narrow strip. A climb's name goes above its foot's row, the one that
+    always shows (its summit only gets a row when a stop is there), so it announces the climb before it starts and
+    sits right above the length and grade it goes with. A climb row whose foot is in a named town gets both lines:
+    where you are, then what comes.
     """
     last = None  # the last town shown
     for it, row in zip(book.items, rows, strict=True):
         town = it.stop.town if it.stop else None
         if town and town != last:
-            row["town"] = town
-            row["h"] += TOWN_H
+            row["heads"].append({"cls": "town", "text": town})
         last = town or last
+        if it.kind == "climb" and it.climb and it.climb.name:
+            row["heads"].append({"cls": "col", "text": it.climb.name})
+        row["h"] += HEAD_H * len(row["heads"])
 
 
 def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[list[dict[str, Any]]]:
@@ -260,7 +271,10 @@ def _eta(w: Window, ride_day: dt.date | None) -> str:
 
 
 def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_for: list[str]) -> list[dict[str, Any]]:
-    """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line."""
+    """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line.
+
+    A named climb gets an entry too, at its foot, between the stops: its name, category, length and grade.
+    """
     ride = book.ride or Ride()
     out = []
     order = list(categories)
@@ -281,8 +295,38 @@ def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_f
                 groups.append((emoji, shared[emoji]))
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
         eta = _eta(s.window, ride.date) if s.window else ""
-        out.append({"km": km, "town": s.town or "", "eta": eta, "groups": groups})
-    return out
+        out.append({"at": s.km, "km": km, "town": s.town or "", "eta": eta, "groups": groups})
+    out += [_climb_entry(c) for c in book.climbs if c.name]
+    return sorted(out, key=lambda e: e["at"])  # stable: a stop at a climb's foot comes first, as on the strip
+
+
+def _climb_entry(c: Climb) -> dict[str, Any]:
+    cat = f"Cat {c.label} · " if c.label else ""
+    stats = {"name": f"{cat}{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗️{c.gain_m:.0f} m", "off": 0, "hours": None}
+    return {
+        "at": c.start_km,
+        "km": f"{c.start_km:.1f} → {c.end_km:.1f}",
+        "col": c.name,
+        "eta": "",
+        "groups": [("⛰️", [stats])],
+    }
+
+
+def _credit(book: Roadbook) -> str:
+    """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or ""."""
+    used = [
+        what
+        for what, done in (
+            ("opening hours", book.hours),
+            ("town names", book.towns),
+            ("climb names", book.climb_names),
+        )
+        if done is not None
+    ]
+    if not used:
+        return ""
+    listed = used[0] if len(used) == 1 else f"{', '.join(used[:-1])} and {used[-1]}"
+    return listed[0].upper() + listed[1:]
 
 
 def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, height: float) -> None:
@@ -295,7 +339,7 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
         items = book.items[first : first + len(s["rows"])]
         anchors, y = [], 0.0
         for it, row in zip(items, s["rows"], strict=True):
-            anchors.append((it.km, y + (TOWN_H if row["town"] else 0) + MAIN_H / 2))  # under its town, if any
+            anchors.append((it.km, y + HEAD_H * len(row["heads"]) + MAIN_H / 2))  # under its heading lines
             y += row["h"]
         first += len(items)
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
@@ -331,7 +375,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     )
     rows = [_row(it, book, row_layout) for it in book.items]
     if layout == "strip":  # a token of the line layout grows sideways: no room is left over in it
-        _add_towns(rows, book)
+        _add_heads(rows, book)
 
     key, capacity = ("h", length - HDR_H - 2 * PAD) if layout == "strip" else ("w", length - 2 * PAD)
     orientation = "portrait" if layout == "strip" else "landscape"
@@ -355,12 +399,13 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         orientation=orientation,
         details=details,
         ride=_ride_title(book),
+        credit=_credit(book),
         tool=TOOL,
         version=version(TOOL),
         home=HOME,
         g={
             "MAIN_H": MAIN_H,
-            "TOWN_H": TOWN_H,
+            "HEAD_H": HEAD_H,
             "SUB_H": SUB_H,
             "LEG_H": LEG_H,
             "HDR_H": HDR_H,

@@ -16,6 +16,7 @@ from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
+PROVENCE = Path(__file__).parent.parent / "samples" / "ubf_300_poi.gpx"  # the UBF 300: Ventoux, Lure
 
 
 def _track(dist_m: np.ndarray, ele: np.ndarray) -> Track:
@@ -332,3 +333,27 @@ def test_a_crowded_row_grows_a_line_and_a_quiet_one_does_not() -> None:
     assert len(wrapped["emojis"]) + sum(map(len, wrapped["emoji_lines"])) == 4
     assert not wrapped["more"]
     assert wrapped["h"] > _row(quiet, book, two)["h"] == _row(quiet, book, one)["h"]
+
+
+def test_the_ubf_300_finds_its_big_climbs_and_fits_two_strips() -> None:
+    cfg = load_config()
+    book = build(PROVENCE, cfg)
+    assert round(book.length_km) == 306
+    assert len(book.climbs) == 10
+    # Mont Ventoux from Bedoin and the Montagne de Lure: the two Cat HC climbs
+    ventoux, lure = (c for c in book.climbs if c.label == "HC")
+    assert (round(ventoux.start_km, 1), round(ventoux.length_km), round(ventoux.gain_m, -2)) == (17.8, 21, 1600)
+    assert (round(lure.start_km, 1), round(lure.length_km)) == (106.7, 22)
+    html = render_html(book, cfg)
+    assert re.findall(r"<span>(\d+/\d+)</span></div>", html) == ["1/2", "2/2"]
+
+
+@pytest.mark.parametrize("layout", ["strip", "line"])
+def test_a_climb_always_shows_its_gain(layout: str) -> None:
+    cfg = load_config()
+    cfg["render"]["layout"] = layout
+    html = render_html(build(PROVENCE, cfg), cfg)
+    # Mont Ventoux from Bedoin: the gain has a place of its own, which a narrow strip can't cut ("↗1…")
+    assert 'class="gain">↗︎1552</span>' in html.replace('class="sub gain"', 'class="gain"')
+    if layout == "strip":
+        assert '<span class="fig">21km 7.4%</span>' in html

@@ -12,6 +12,7 @@ from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
 from .snap import snap_pois
+from .summits import lookup as name_climbs
 from .towns import lookup as name_towns
 
 if TYPE_CHECKING:
@@ -83,6 +84,9 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     # names show on the strip's rows and on the reference sheet; a ribbon of tokens has no room for them
     wanted = cfg["towns"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
     towns = name_towns(stops, cfg["towns"]) if wanted else None
+    # likewise: a climb's name goes above its row on the strip, and with the climb on the reference sheet
+    wanted = cfg["climb_names"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
+    climb_names = name_climbs(climbs, track, cfg["climb_names"]) if wanted else None
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -123,5 +127,6 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         profile=profile,
         hours=hours,
         towns=towns,
+        climb_names=climb_names,
         ride=ride,
     )

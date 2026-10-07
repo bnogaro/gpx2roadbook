@@ -18,6 +18,8 @@ USER_AGENT = f"gpx2roadbook/{version('gpx2roadbook')} (+https://github.com/bnoga
 TIMEOUT_S = 60  # per request
 NOMINATIM_EVERY_S = 1.1  # its usage policy: at most one request per second
 NOMINATIM_GIVE_UP = 3  # consecutive failures
+# the main Overpass server, then a mirror: the public servers are often overloaded
+OVERPASS = ("https://overpass-api.de/api/interpreter", "https://maps.mail.ru/osm/tools/overpass/api/interpreter")
 
 
 def http(url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401  parsed JSON
