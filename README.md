@@ -108,6 +108,8 @@ Either way, cut along the dashed lines.
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
+| `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
+| `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
 | `--refresh-hours` | With `--hours`: look the hours up again instead of using the cached ones. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
@@ -236,18 +238,19 @@ categories = ["bakery", "grocery"]
 
 ### Arrival times
 
-Give a start time and your average speed, short stops included, and the road book works out when you reach each stop:
+Give a start time and your speed on the flat, short stops included, and the road book works out when you reach each stop:
 
 ```sh
-roadbook my_ride.gpx --hours --date 2026-10-17 --start 07:00 --speed 22
+roadbook my_ride.gpx --hours --date 2026-10-17 --start 07:00 --speed 28 --break 95:45
 ```
 
 ```text
-km 123.9 ~11:47–13:30
+km 123.9 ~13:39–15:46
 ☕ Le Bistrot 08:00–20:00
-🛒 Proxi Super ⚠ closes 12:15 08:00–12:15, 15:00–19:15
-km 151.7 ~12:51–14:57
-🥖 De Oliveira closed 07:00–12:45, 15:30–19:15
+🛒 Proxi Super ⚠ opens 15:00 08:00–12:15, 15:00–19:15
+km 151.7 ~14:45–17:15
+🥖 De Oliveira ⚠ opens 15:30 07:00–12:45, 15:30–19:15
+🛒 Carrefour Express 08:00–20:00
 ```
 
 - **A window, not a time.** You won't ride exactly at the planned speed, so each stop gets the earliest and latest time you may reach it: ±15 % of the time ridden so far, at least ±20 min (`--margin`). The window widens along the route, as small differences add up.
@@ -255,7 +258,9 @@ km 151.7 ~12:51–14:57
 - **⚠ closes 12:15**, **⚠ opens 09:30**: it opens or closes while you may be there. Whether you make it depends on your pace, so check before counting on it.
 - Shops shown with just their hours are open the whole time.
 - **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
-- The estimate assumes a constant speed: it doesn't slow down on climbs or count long breaks. Raise `--margin` for a hilly route or a ride with long stops.
+- **Climbing slows you down.** Each 100 m climbed adds 5 minutes (`--climb`), on top of the distance at your flat speed. So the stop after a big climb comes later than at a constant speed, and the flat stretches after it go quicker. Fitted on real 100–250 km rides with 800–4,100 m of climbing, this got the ride time within about half an hour. Descents are not counted separately: the 5 minutes are what a climb costs once the descent after it has given some time back.
+- **Planned breaks**, such as `--break 95:45` for a 45-minute lunch at km 95, delay every stop after them. They don't widen the margin, since you plan them.
+- The sheet's title sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (±15 %, ≥20 min) · breaks: km 95 (45 min)*.
 
 ## Development
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as dt
 import itertools
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -43,6 +44,13 @@ def _time(value: object) -> dt.time | None:
     return dt.time.fromisoformat(value) if isinstance(value, str) and value else None
 
 
+Gain = Callable[[float, float], float]  # metres climbed between two km
+
+
+def _flat(_a: float, _b: float) -> float:
+    return 0.0
+
+
 @dataclass(frozen=True)
 class Window:
     """When the rider may reach a stop: from its first POI at the earliest to its last at the latest."""
@@ -53,35 +61,48 @@ class Window:
 
 @dataclass(frozen=True)
 class Ride:
-    """The `[ride]` settings: the ride's date and, given a start time and a speed, when it reaches each km."""
+    """The `[ride]` settings: the ride's date and, given a start time and a speed, when it reaches each km.
+
+    The time to a km is its distance at `speed_kmh`, plus `climb_min_per_100m` for every 100 m climbed on the way,
+    plus the planned breaks before it.
+    """
 
     date: dt.date | None = None
     start: dt.datetime | None = None  # set only when the date, start time and speed are all known
-    speed_kmh: float = 0.0
+    speed_kmh: float = 0.0  # on the flat, short stops included
     margin_pct: float = 15.0
     margin_min: float = 20.0
+    climb_min_per_100m: float = 0.0
+    breaks: tuple[tuple[float, float], ...] = ()  # (km, minutes): a break there delays every stop after it
 
     @classmethod
     def from_cfg(cls, cfg: dict[str, Any]) -> Ride:
         date, time, speed = _date(cfg.get("date")), _time(cfg.get("start")), float(cfg.get("speed_kmh") or 0)
         start = dt.datetime.combine(date, time) if date and time and speed > 0 else None
-        return cls(date, start, speed, float(cfg["margin_pct"]), float(cfg["margin_min"]))
+        breaks = tuple(sorted((float(km), float(minutes)) for km, minutes in cfg.get("breaks", [])))
+        margins = float(cfg["margin_pct"]), float(cfg["margin_min"])
+        return cls(date, start, speed, *margins, float(cfg.get("climb_min_per_100m") or 0), breaks)
 
-    def _at(self, start: dt.datetime, km: float, sign: int) -> dt.datetime:
+    def _at(self, start: dt.datetime, km: float, sign: int, gain: Gain) -> dt.datetime:
         """The estimate for `km`, moved by its margin: earlier (sign -1) or later (+1)."""
-        hours = km / self.speed_kmh
-        # the error grows with the time ridden: a little faster or slower adds up over a long day
-        spread = max(hours * self.margin_pct / 100, self.margin_min / 60)
-        at = start + dt.timedelta(hours=hours + sign * spread)
+        riding = km / self.speed_kmh + gain(0.0, km) / 100 * self.climb_min_per_100m / 60
+        resting = sum(minutes for at_km, minutes in self.breaks if at_km < km) / 60
+        # the error grows with the time ridden: a little faster or slower adds up over a long day; breaks are planned
+        spread = max(riding * self.margin_pct / 100, self.margin_min / 60)
+        at = start + dt.timedelta(hours=riding + resting + sign * spread)
         # to the minute, rounding outwards: a window shown as "06:00-06:21" never ends before what it says
         minute = at.replace(second=0, microsecond=0)
         return minute + dt.timedelta(minutes=1) if sign > 0 and at > minute else minute
 
-    def window(self, km_from: float, km_to: float) -> Window | None:
-        """When the rider may be between `km_from` and `km_to`; None without a start time and speed."""
+    def window(self, km_from: float, km_to: float, gain: Gain = _flat) -> Window | None:
+        """When the rider may be between `km_from` and `km_to`; None without a start time and speed.
+
+        `gain(a, b)` is the climbing, in metres, from km a to km b: the route's profile.
+        """
         if self.start is None:
             return None
-        return Window(max(self.start, self._at(self.start, km_from, -1)), self._at(self.start, km_to, +1))
+        early, late = self._at(self.start, km_from, -1, gain), self._at(self.start, km_to, +1, gain)
+        return Window(max(self.start, early), late)
 
 
 @dataclass(frozen=True)
