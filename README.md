@@ -13,7 +13,7 @@ You cut the strips out and tape them to your bike's top tube. Each one lists the
 
 ## Getting a GPX with POIs
 
-The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. Both files in [`samples/`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/) were made this way.
+The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. The routes in [`samples/`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/) were made this way.
 
 Any other GPX works if it has:
 
