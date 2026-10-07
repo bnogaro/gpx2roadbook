@@ -42,6 +42,9 @@
   .strip { position: relative; }
   .strip .row { margin-right: var(--gutter); }
   .strip .row .sub, .strip .row .leg { overflow: hidden; }
+  /* the watermark runs up the left edge, in the blank left of the right-aligned km: it takes no row height */
+  .strip .wm { position: absolute; left: 0.05mm; bottom: var(--pad); writing-mode: vertical-rl; transform: rotate(180deg);
+               font-size: 3.5pt; line-height: 1; color: #aaa; }
   .strip .gutter { position: absolute; right: 0; top: calc(var(--hdr-h) + var(--pad)); border-left: 0.2mm solid #bbb; }
 
   /* ---------- line layout: horizontal ribbons, one token per stop ---------- */
@@ -53,6 +56,10 @@
   .tok .sub { font-size: 5.5pt; font-weight: 600; white-space: nowrap; }
   .tok.climb, .tok.summit { background: #fbe3c4; }
   .tok.checkpoint, .tok.start, .tok.finish { background: #d9e8ff; }
+  .ribbon { position: relative; }
+  /* tokens fill at most the length less 2 x --pad: the watermark runs up the spare end */
+  .ribbon .wm { position: absolute; right: 0.2mm; top: 0; bottom: 0; writing-mode: vertical-rl; transform: rotate(180deg);
+                text-align: center; font-size: 4pt; line-height: 1; color: #aaa; }
 
   /* ---------- reference sheet ---------- */
   .details { break-before: page; font-size: 7pt; columns: 2; column-gap: 8mm; }
@@ -63,7 +70,9 @@
   .details .oh { color: #333; font-variant-numeric: tabular-nums; }
   .details .closed, .details .verdict { font-weight: 700; }
   .details .eta { font-variant-numeric: tabular-nums; color: #333; }
-  .details .credit { column-span: all; color: #777; font-size: 6pt; margin-top: 3mm; }
+  .details .credit, .details .colophon { column-span: all; color: #777; font-size: 6pt; margin: 3mm 0 0; }
+  .details .credit + .colophon { margin-top: 0.8mm; }
+  .details .colophon a { color: inherit; text-decoration: none; }
   @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; } }
 </style>
 </head>
@@ -89,6 +98,7 @@
     </div>
     {% endfor %}
     {% if s.gutter %}{{ s.gutter | safe }}{% endif %}
+    <span class="wm">{{ tool }}</span>
   </div>
   {% endfor %}
 {% else %}
@@ -102,6 +112,7 @@
       {% if r.leg_short %}<span class="leg">{{ r.leg_short }}</span>{% endif %}
     </div>
     {% endfor %}
+    <span class="wm">{{ tool }}</span>
   </div>
   {% endfor %}
 {% endif %}
@@ -118,6 +129,7 @@
   </div>
   {% endfor %}
   {% if book.hours %}<p class="credit">Opening hours © OpenStreetMap contributors (ODbL). Hours change: check the ones you rely on.</p>{% endif %}
+  <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}
 </body>

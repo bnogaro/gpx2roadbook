@@ -149,7 +149,7 @@ match = ["bicycle", "velo", "cycle shop"]
 
 ## How to read the road book
 
-Each strip has a dark header with its km range and its number (`2/3`). Below that, one row per point on the road:
+Each strip has a dark header with its km range and its number (`2/3`). The tool's name runs in small grey letters up its bottom-left edge (up the right end of a `line` ribbon), in space no row uses. Below the header, one row per point on the road:
 
 - **The bold number** is the km where the row sits. **`↓4.3`** at the right is the distance to the next row. With `--leg-elevation`, that distance moves to a line under the row, along with the climbing and descent to the next row.
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
@@ -170,7 +170,7 @@ The narrow strip on the right edge of each strip is the elevation profile of tha
 
 ### The reference sheet
 
-After the strips comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`.
+After the strips comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`. A footer line at its end says which version of gpx2roadbook made it and where to get it.
 
 ### Opening hours
 

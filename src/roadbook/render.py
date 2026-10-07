@@ -4,6 +4,7 @@ import re
 import shutil
 import subprocess
 from dataclasses import dataclass
+from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,10 @@ LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
+
+# Watermark: the name on every strip; name, version and home on the reference sheet
+TOOL = "gpx2roadbook"
+HOME = "github.com/bnogaro/gpx2roadbook"
 
 
 def _fit(emojis: list[Glyph], avail: float, max_emojis: int) -> tuple[list[Glyph], bool, float]:
@@ -327,6 +332,9 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         orientation=orientation,
         details=details,
         ride=_ride_title(book),
+        tool=TOOL,
+        version=version(TOOL),
+        home=HOME,
         g={
             "MAIN_H": MAIN_H,
             "SUB_H": SUB_H,
