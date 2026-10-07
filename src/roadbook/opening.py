@@ -59,6 +59,15 @@ class Window:
     late: dt.datetime
 
 
+def parse_break(text: str) -> list[float]:
+    """A planned break as typed, "KM:MINUTES" ("95:45"), as a `[ride] breaks` entry; raises ValueError if it isn't."""
+    km, sep, minutes = text.partition(":")
+    if not sep:
+        msg = f"{text!r} has no ':'"
+        raise ValueError(msg)
+    return [float(km), float(minutes)]
+
+
 @dataclass(frozen=True)
 class Ride:
     """The `[ride]` settings: the ride's date and, given a start time and a speed, when it reaches each km.

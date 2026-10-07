@@ -13,6 +13,7 @@ import typer
 from .build import build
 from .config import load_config
 from .interactive import ask, command
+from .opening import parse_break
 from .render import html_to_pdf, render_html
 
 if TYPE_CHECKING:
@@ -46,11 +47,8 @@ def _start(value: str | None) -> tuple[str | None, str | None]:
 
 def _break(value: str) -> list:
     """--break KM:MINUTES as a [km, minutes] config entry."""
-    km, sep, minutes = value.partition(":")
     try:
-        if not sep:
-            raise ValueError(value)  # noqa: TRY301  same message as a bad number
-        return [float(km), float(minutes)]
+        return parse_break(value)
     except ValueError as exc:
         msg = f"{value!r}: give the km and the minutes, e.g. 95:45"
         raise typer.BadParameter(msg, param_hint="--break") from exc

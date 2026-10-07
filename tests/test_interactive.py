@@ -77,6 +77,11 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + CLEAR
         + "22"
         + ENTER  # average speed
+        + "lunch"
+        + ENTER  # not KM:MINUTES: the prompt stays
+        + CLEAR
+        + "95:45 180:30"
+        + ENTER  # planned breaks
         + DOWN * 3
         + (SPACE + DOWN) * 7
         + ENTER  # categories: untick cafe … icecream, keep water, toilets, bakery
@@ -96,6 +101,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
     assert gpx == HILLY
     assert pdf
     assert cfg["pois"]["enabled"] == ["water", "toilets", "bakery"]
+    assert cfg["ride"]["breaks"] == [[95, 45], [180, 30]]
     parts = (
         "--layout line",
         "--page A5",
@@ -105,6 +111,8 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--date 2026-10-12",
         "--start 06:00",
         "--speed 22",
+        "--break 95:45",
+        "--break 180:30",
         "--min-climb 50",
         "--leg-elevation",
         "--pdf",
@@ -134,6 +142,7 @@ def test_arrival_times_are_asked_for_without_opening_hours() -> None:
         + CLEAR
         + "28"
         + ENTER  # average speed
+        + ENTER  # no planned breaks
         + ENTER  # categories
         + "n"  # PDF
         + ENTER  # output
@@ -142,9 +151,18 @@ def test_arrival_times_are_asked_for_without_opening_hours() -> None:
     _, _, _, cfg, same = _session(keys, gpx=HILLY)
     assert not cfg["hours"]["enabled"]
     assert (cfg["ride"]["date"], cfg["ride"]["start"], cfg["ride"]["speed_kmh"]) == ("2026-10-17", "07:00", 28)
+    assert cfg["ride"]["breaks"] == []
     for part in ("--date 2026-10-17", "--start 07:00", "--speed 28"):
         assert part in same
     assert "--hours" not in same
+    assert "--break" not in same
+
+
+def test_a_break_from_the_command_line_is_offered_and_kept() -> None:
+    keys = ENTER * 5 + "2026-10-17" + ENTER + "07:00" + ENTER + CLEAR + "28" + ENTER + ENTER + ENTER + "n" + ENTER * 2
+    _, _, _, cfg, same = _session(keys, gpx=HILLY, flags={("ride", "breaks"): [[95.0, 45.0]]})
+    assert cfg["ride"]["breaks"] == [[95, 45]]  # offered as "95:45", and Enter keeps it
+    assert "--break 95:45" in same
 
 
 def test_flags_given_with_i_are_the_defaults_and_stay_in_the_command() -> None:

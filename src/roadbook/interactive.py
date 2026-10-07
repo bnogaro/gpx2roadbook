@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 import questionary
 
+from .opening import parse_break
 from .render import LAYOUT_WIDTH
 
 if TYPE_CHECKING:
@@ -113,7 +114,7 @@ COMMON = [
         when=_timed,
         check=_is_speed,
     ),
-]
+]  # then the planned breaks, once there is a start time: see _breaks()
 ADVANCED = [
     Setting("render", "width_mm", "--width", "Strip width, mm", float, shown=_strip_width),
     Setting("render", "length_mm", "--length", "Strip length, mm", float),
@@ -239,6 +240,26 @@ def _categories(cfg: dict[str, Any], ask: _Prompts) -> None:
     )
 
 
+def _parse_breaks(text: str) -> list[list[float]]:
+    return [parse_break(b) for b in text.split()]
+
+
+def _are_breaks(text: str) -> bool | str:
+    try:
+        _parse_breaks(text)
+    except ValueError:
+        return "KM:MINUTES, e.g. 95:45, separated by spaces"
+    return True
+
+
+def _breaks(cfg: dict[str, Any], ask: _Prompts) -> None:
+    """The planned breaks, each delaying every arrival time after it: a list, so not a Setting."""
+    current = " ".join(f"{_plain(km)}:{_plain(minutes)}" for km, minutes in cfg["ride"]["breaks"])
+    question = "Planned breaks, KM:MINUTES separated by spaces (empty: none)"
+    answer = ask(questionary.text(question, default=current, validate=_are_breaks, **ask.io))
+    cfg["ride"]["breaks"] = _parse_breaks(answer)
+
+
 def _advanced(cfg: dict[str, Any], ask: _Prompts) -> None:
     choices = [questionary.Choice(f"{s.text(cfg)} ({_shown(s, cfg)})", value=s) for s in ADVANCED]
     for s in ask(questionary.checkbox("Advanced options to change (Enter = none)", choices=choices, **ask.io)):
@@ -261,6 +282,8 @@ def ask(
     for s in COMMON:
         if s.when is None or s.when(cfg):
             _ask(s, cfg, prompts)
+    if _timed(cfg):
+        _breaks(cfg, prompts)
     _categories(cfg, prompts)
     pdf = prompts(questionary.confirm("Also export a PDF?", default=pdf, **prompts.io))
     default_out = str(out or gpx.with_suffix(".roadbook.html"))
@@ -270,10 +293,14 @@ def ask(
 
 
 def _added(cfg: dict[str, Any], base: dict[str, Any]) -> list[str]:
-    """The repeatable options: one per break or checkpoint added on top of `base`'s."""
+    """The repeatable options: one per break or checkpoint that `base` doesn't have.
+
+    A break can also be taken out at the prompt, which no option can say for one that a --config file plans.
+    """
     args = []
-    for km, minutes in cfg["ride"]["breaks"][len(base["ride"]["breaks"]) :]:
-        args += ["--break", f"{_plain(km)}:{_plain(minutes)}"]
+    for km, minutes in cfg["ride"]["breaks"]:
+        if [km, minutes] not in base["ride"]["breaks"]:
+            args += ["--break", f"{_plain(km)}:{_plain(minutes)}"]
     for km, label in cfg["checkpoints"]["extra"][len(base["checkpoints"]["extra"]) :]:
         args += ["--checkpoint", f"{_plain(km)}:{label}" if label else str(_plain(km))]
     return args
