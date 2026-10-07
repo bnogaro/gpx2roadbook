@@ -104,7 +104,7 @@ Either way, cut along the dashed lines.
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
-| `--towns` | Name the town at busy stops, on the strip and on the reference sheet, from OpenStreetMap (see [Town names](#town-names)). Needs internet the first time. |
+| `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
 | `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
@@ -112,7 +112,7 @@ Either way, cut along the dashed lines.
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
-| `--refresh-hours` | With `--hours`: look the hours up again instead of using the cached ones. |
+| `--refresh` | Look up opening hours, town names and climb names again, instead of using the answers cached from earlier runs. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `--config my.toml` | Override any setting, see below. |
 
@@ -161,7 +161,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
-- ***Saint-Girons*** in italics, at the right above a row, with `--towns`, is the town that stop is in (see [Town names](#town-names)).
+- ***Saint-Girons*** in italics, at the right above a row, is the town that stop is in (see [Town names](#town-names)).
 - **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Col de Portet d'Aspet** in brown, at the right above a ⛰️ row, is the col or peak that climb tops out at (see [Climb names](#climb-names)).
 - **Stops on a climb.** A stop within 300 m (`climbs.snap_m`) of a climb's foot or summit is merged into that row rather than given a row of its own. A ⛰️ row with a stop on it has no room for "Cat 4", so the category becomes a small superscript on the mountain (⛰️⁴ 🍔).
@@ -182,7 +182,7 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 
 ### Town names
 
-A stop grouping many POIs is usually a town. With `--towns`, those stops get the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons").
+A stop grouping many POIs is usually a town, so it gets the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons"). `--no-towns` leaves them out.
 
 ```text
 km 60.0 → 61.3 · Saint-Girons
@@ -196,7 +196,7 @@ km 60.0 → 61.3 · Saint-Girons
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
 - **On the reference sheet**, every busy stop has its name next to its km.
 - **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.
-- **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`). If Nominatim doesn't answer, you get a warning and a road book without the missing names.
+- **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`); `--refresh` looks them up again. If Nominatim doesn't answer, you get a warning and a road book without the missing names.
 
 ### Climb names
 
@@ -211,7 +211,7 @@ km 25.6 → 29.9 · Col de Portet d'Aspet
 - **On the reference sheet**, each named climb gets an entry of its own, at its foot's km between the stops: its name, category, length, grade and gain.
 - **Which name.** OpenStreetMap places tagged as a mountain pass (`mountain_pass=yes`), a saddle (`natural=saddle`) or a peak (`natural=peak`), with a name, near the climb's top. A pass or saddle within 300 m (`climb_names.pass_m`) wins, since the road crosses it; else a peak within 200 m (`climb_names.peak_m`), since the road only skirts one: the nearest peak is often a summit off to the side, not where the road tops out. Then the closest. Most small rises have neither, and get no name.
 - **Where it comes from.** One [Overpass](https://overpass-api.de) request for the whole route; if its servers are busy, a mirror, then [Nominatim](https://nominatim.org), up to three requests per climb, one per second.
-- **Then it's instant.** Answers are cached on your computer for a year (`climb_names.max_age_days`). If OpenStreetMap doesn't answer, or you're offline, you get a warning and a road book without the missing names.
+- **Then it's instant.** Answers are cached on your computer for a year (`climb_names.max_age_days`); `--refresh` looks them up again. If OpenStreetMap doesn't answer, or you're offline, you get a warning and a road book without the missing names.
 
 ### Opening hours
 
@@ -227,7 +227,7 @@ km 4.3
 - **Where they come from.** The GPX has no hours, so each shop is matched to the OpenStreetMap place within 80 m of it with the closest name (`hours.match_m`). onroutemap.de uses OpenStreetMap too, so the names usually line up.
 - **Coverage.** OpenStreetMap doesn't know every shop's hours: expect roughly half of them, more for supermarkets. The others say *hours unknown*.
 - **It takes a while the first time.** The hours are looked up online, through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) or, when its servers are busy, [Nominatim](https://nominatim.org), which allows one request per second. For a 200 km route, count from half a minute to a few minutes.
-- **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh-hours` to look them up again.
+- **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh` to look them up again.
 - **If the lookup fails**, you get a warning and a road book without the missing hours. Run it again later.
 - **Check the ones you rely on.** Hours change, and OpenStreetMap may be out of date.
 

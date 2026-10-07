@@ -124,7 +124,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     ] = None,
     towns: Annotated[
         bool | None,
-        typer.Option(help="Name the town at busy stops, from OpenStreetMap (needs internet the first time)."),
+        typer.Option(help="Name the town at busy stops, from OpenStreetMap (default: on)."),
     ] = None,
     climb_names: Annotated[
         bool | None,
@@ -152,8 +152,9 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         list[str] | None,
         typer.Option("--break", help="Planned break, KM:MINUTES, delaying every later stop. Repeatable."),
     ] = None,
-    refresh_hours: Annotated[  # noqa: FBT002  a --refresh-hours flag
-        bool, typer.Option(help="Look up opening hours again, instead of using the ones cached from earlier runs.")
+    refresh: Annotated[  # noqa: FBT002  a --refresh flag
+        bool,
+        typer.Option(help="Look up opening hours, towns and climb names again, instead of using the cached answers."),
     ] = False,
     pdf: Annotated[bool, typer.Option(help="Also export a PDF via headless Edge/Chrome.")] = False,  # noqa: FBT002  a --pdf flag
     config: Annotated[Path | None, typer.Option(help="TOML file overriding default.toml.")] = None,
@@ -188,7 +189,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("ride", "margin_pct", margin),
         ("ride", "climb_min_per_100m", climb),
         ("ride", "breaks", [*cfg["ride"]["breaks"], *map(_break, break_ or [])] or None),
-        ("hours", "max_age_days", 0 if refresh_hours else None),
+        # --refresh: every answer cached from earlier runs counts as too old, so all are looked up again
+        ("hours", "max_age_days", 0 if refresh else None),
+        ("towns", "max_age_days", 0 if refresh else None),
+        ("climb_names", "max_age_days", 0 if refresh else None),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),

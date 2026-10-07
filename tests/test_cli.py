@@ -1,8 +1,10 @@
 import subprocess
 from importlib.metadata import version
 from pathlib import Path
+from typing import Any
 
 import pytest
+import typer
 from typer.testing import CliRunner
 
 from roadbook import cli
@@ -56,3 +58,19 @@ def test_a_lookup_with_nothing_to_look_up_says_nothing(capsys: pytest.CaptureFix
     _echo_lookup("Climb names", Report(), "climbs named", "climbs")  # a flat route: no climbs to name
     _echo_lookup("Towns", None, "busy stops named", "stops")  # not asked for
     assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+@pytest.mark.parametrize(("flags", "ages"), [([], [30, 365, 365]), (["--refresh"], [0, 0, 0])])
+def test_refresh_looks_every_cached_answer_up_again(
+    flags: list[str], ages: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    used: dict[str, Any] = {}
+
+    def build(_gpx: Path, cfg: dict[str, Any]) -> None:
+        used.update(cfg)
+        raise typer.Exit  # the settings are all this test needs
+
+    monkeypatch.setattr(cli, "build", build)
+    assert CliRunner().invoke(app, [str(FLAT), *flags]).exit_code == 0
+    assert [used[s]["max_age_days"] for s in ("hours", "towns", "climb_names")] == ages
