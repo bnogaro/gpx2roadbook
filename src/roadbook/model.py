@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     import numpy as np
 
+    from .hours import Report
     from .profile import Profile
 
 
@@ -32,6 +33,8 @@ class Poi:
     km: float = 0.0  # route km after snapping onto our own track
     offset_m: float = 0.0  # distance from the route
     category: str | None = None
+    opening_hours: str | None = None  # OSM `opening_hours` value, when looked up and known
+    osm_id: str | None = None  # the OSM element it came from, "node/123"
 
 
 @dataclass
@@ -97,3 +100,4 @@ class Roadbook:
     poi_total: int
     poi_kept: int
     profile: Profile | None = None
+    hours: Report | None = None  # None when opening hours were not looked up

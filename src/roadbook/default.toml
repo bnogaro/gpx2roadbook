@@ -24,6 +24,12 @@ enabled = ["water", "toilets", "bakery", "cafe", "food", "fastfood", "grocery", 
 gap_m = 500          # POIs closer than this are merged into one stop...
 max_span_m = 0       # ...as long as the stop does not stretch beyond this; 0 = 3 x gap_m
 
+[hours]
+enabled = false      # look up opening hours on OpenStreetMap (needs internet; cached afterwards)
+categories = ["bakery", "grocery", "fuel", "cafe", "fastfood", "icecream"]
+match_m = 80         # an OSM place counts as the POI when this close to it and named alike
+max_age_days = 30    # look up again once a cached answer is this old
+
 [checkpoints]
 every_km = 0        # 0 disables automatic checkpoints
 extra = []           # [[km, "label"], ...]
