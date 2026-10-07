@@ -257,8 +257,12 @@ def _ride_title(book: Roadbook) -> str:
         return ""
     if ride.start is None:
         return f"opening hours on {ride.date:%a %d %b %Y}" if book.hours is not None else ""
+    pace = f"{ride.speed_kmh:g} km/h"
+    if ride.climb_min_per_100m:
+        pace += f" + {ride.climb_min_per_100m:g} min/100 m climbed"
     margin = f"±{ride.margin_pct:g} %, ≥{ride.margin_min:g} min"
-    return f"start {ride.start:%a %d %b %Y %H:%M} at {ride.speed_kmh:g} km/h ({margin})"
+    breaks = ", ".join(f"km {km:g} ({minutes:g} min)" for km, minutes in ride.breaks)
+    return f"start {ride.start:%a %d %b %Y %H:%M} at {pace} ({margin})" + (f" · breaks: {breaks}" if breaks else "")
 
 
 def _eta(w: Window, ride_day: dt.date | None) -> str:

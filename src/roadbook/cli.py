@@ -44,6 +44,18 @@ def _start(value: str | None) -> tuple[str | None, str | None]:
         raise typer.BadParameter(msg, param_hint="--start") from exc
 
 
+def _break(value: str) -> list:
+    """--break KM:MINUTES as a [km, minutes] config entry."""
+    km, sep, minutes = value.partition(":")
+    try:
+        if not sep:
+            raise ValueError(value)  # noqa: TRY301  same message as a bad number
+        return [float(km), float(minutes)]
+    except ValueError as exc:
+        msg = f"{value!r}: give the km and the minutes, e.g. 95:45"
+        raise typer.BadParameter(msg, param_hint="--break") from exc
+
+
 def _extra_checkpoint(value: str) -> list:
     km, _, label = value.partition(":")
     return [float(km), label]
@@ -135,6 +147,13 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         float | None,
         typer.Option(help="How far off arrival times may be, % of the time ridden (default 15; at least 20 min)."),
     ] = None,
+    climb: Annotated[
+        float | None, typer.Option(help="Minutes added to arrival times per 100 m climbed (default 5).")
+    ] = None,
+    break_: Annotated[
+        list[str] | None,
+        typer.Option("--break", help="Planned break, KM:MINUTES, delaying every later stop. Repeatable."),
+    ] = None,
     refresh_hours: Annotated[  # noqa: FBT002  a --refresh-hours flag
         bool, typer.Option(help="Look up opening hours again, instead of using the ones cached from earlier runs.")
     ] = False,
@@ -165,6 +184,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("ride", "start", start_time),
         ("ride", "speed_kmh", speed),
         ("ride", "margin_pct", margin),
+        ("ride", "climb_min_per_100m", climb),
+        ("ride", "breaks", [*cfg["ride"]["breaks"], *map(_break, break_ or [])] or None),
         ("hours", "max_age_days", 0 if refresh_hours else None),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),

@@ -102,6 +102,7 @@ ADVANCED = [
     Setting("render", "leg_elevation", "--leg-elevation", "Climbing/descent on each leg", bool),
     Setting("render", "details", "--details", "Reference sheet with POI names", bool),
     Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
+    Setting("ride", "climb_min_per_100m", "--climb", "Arrival times: minutes added per 100 m climbed", float),
     Setting("climb_names", "enabled", "--climb-names", "Name the cols and peaks (OpenStreetMap, needs internet)", bool),
 ]
 
@@ -243,6 +244,16 @@ def ask(
     return gpx, out, pdf
 
 
+def _added(cfg: dict[str, Any], base: dict[str, Any]) -> list[str]:
+    """The repeatable options: one per break or checkpoint added on top of `base`'s."""
+    args = []
+    for km, minutes in cfg["ride"]["breaks"][len(base["ride"]["breaks"]) :]:
+        args += ["--break", f"{_plain(km)}:{_plain(minutes)}"]
+    for km, label in cfg["checkpoints"]["extra"][len(base["checkpoints"]["extra"]) :]:
+        args += ["--checkpoint", f"{_plain(km)}:{label}" if label else str(_plain(km))]
+    return args
+
+
 def command(gpx: Path, out: Path, *, pdf: bool, cfg: dict[str, Any], base: dict[str, Any], config: Path | None) -> str:
     """The plain `roadbook …` command that does what the prompts were answered with: only what differs from `base`."""
     args = ["roadbook", str(gpx)]
@@ -260,8 +271,7 @@ def command(gpx: Path, out: Path, *, pdf: bool, cfg: dict[str, Any], base: dict[
             args.append(s.flag if value else s.flag.replace("--", "--no-", 1))
         else:
             args += [s.flag, str(_plain(value))]
-    for km, label in cfg["checkpoints"]["extra"][len(base["checkpoints"]["extra"]) :]:
-        args += ["--checkpoint", f"{_plain(km)}:{label}" if label else str(_plain(km))]
+    args += _added(cfg, base)
     if cfg["pois"]["enabled"] != base["pois"]["enabled"]:
         args += ["--categories", ",".join(cfg["pois"]["enabled"])]
     if pdf:

@@ -54,10 +54,10 @@ def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> di
     return snapped
 
 
-def _judge(stops: list[Stop], ride: Ride) -> None:
+def _judge(stops: list[Stop], ride: Ride, profile: Profile) -> None:
     """Give each stop the window when the rider may be there, and each shop with hours whether it is open then."""
     for s in stops:
-        s.window = ride.window(s.km, s.km_end)
+        s.window = ride.window(s.km, s.km_end, profile.gain)
         if s.window is None:
             continue
         for p in s.pois:
@@ -80,7 +80,7 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
     hours = lookup(kept, cfg["hours"]) if wanted else None
-    _judge(stops, ride)
+    _judge(stops, ride, profile)
     # names show on the strip's rows and on the reference sheet; a ribbon of tokens has no room for them
     wanted = cfg["towns"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
     towns = name_towns(stops, cfg["towns"]) if wanted else None
