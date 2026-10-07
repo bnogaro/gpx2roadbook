@@ -1,3 +1,39 @@
+## v0.3.0 (2026-10-07)
+
+### Feat
+
+- warn when a route has no elevation, or arrival times have no date
+- **cli**: say what it does with -v, -vv and -vvv
+- **cli**: look up opening hours, towns and climb names again with --refresh
+- **towns**: name the towns at busy stops by default
+- **interactive**: ask for planned breaks along with the arrival times
+- **cli**: print the version with --version
+- **ride**: slow the arrival estimate down on climbs and add planned breaks
+- **climbs**: name climbs by default
+- **climbs**: name cols, passes and peaks at climb summits
+- **towns**: also name villages: 5 POIs or more when one is a bakery or grocery
+- **towns**: right-align town lines; let the finish overrun the last strip
+- **towns**: name the town on a line of its own above the stop's row
+- **towns**: name the town at busy stops
+- **render**: watermark the strips and the reference sheet
+- **hours**: estimate arrival at each stop and judge shops open, closed or tight
+- **hours**: show each shop's hours on the ride day with --date
+- **hours**: add shops' opening hours from OpenStreetMap to the reference sheet
+
+### Fix
+
+- **interactive**: ask for arrival times without opening hours
+- **cli**: report a bad --checkpoint or a failed PDF export instead of crashing
+- say nothing about OSM lookups that had nothing to find
+- **render**: never cut a climb's gain on its stats line
+- **hours**: only match a shop to an OSM place of a fitting kind
+
+### Refactor
+
+- **render**: merge the strip and ribbon CSS rules split across features
+- drop profile_svg and _fit, which only their tests still used
+- **osm**: share the lookups' report, Overpass and Nominatim calls
+
 ## v0.2.0 (2026-10-06)
 
 ### Feat
