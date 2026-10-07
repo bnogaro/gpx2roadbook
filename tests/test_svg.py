@@ -23,7 +23,8 @@ def _ramp_track(length_m: float = 5000.0, grade: float = 0.04) -> Track:
 def _polyline_points(svg: str) -> list[tuple[float, float]]:
     m = re.search(r'<polyline[^>]*\bpoints="([^"]+)"', svg)
     assert m, f"no <polyline points=...> found in:\n{svg}"
-    return [tuple(map(float, pair.split(","))) for pair in m.group(1).split()]
+    pairs = (pair.split(",") for pair in m.group(1).split())
+    return [(float(x), float(y)) for x, y in pairs]
 
 
 def _climb_rects(svg: str) -> list[tuple[float, float]]:
