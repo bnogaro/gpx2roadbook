@@ -11,9 +11,12 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from .kinds import KINDS, climb_of
 from .model import Glyph
+from .opening import on_day, ride_date
 from .svg import gutter_svg
 
 if TYPE_CHECKING:
+    import datetime as dt
+
     from .model import Item, Poi, Roadbook, Stop
 
 # Row geometry (mm). Must match the CSS variables in the template.
@@ -190,8 +193,22 @@ def pretty_hours(value: str) -> str:
     return " · ".join(_TIME_RANGE.sub("\\1\u2013\\2", r).replace(",", ", ") for r in rules)
 
 
-def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_for: list[str]) -> list[dict[str, Any]]:
+def _shop_hours(p: Poi, day: dt.date | None) -> tuple[str, str]:
+    """(text, CSS class) for a shop's hours: on `day` if given and readable, else as OSM gives them."""
+    if not p.opening_hours:
+        return "hours unknown", "off"
+    if day is not None:
+        if found := on_day(p.opening_hours, p.lat, p.lon, day):
+            return found.text, "closed" if found.closed else "oh"
+        return pretty_hours(p.opening_hours), "off"  # unreadable: as written, muted
+    return pretty_hours(p.opening_hours), "oh"
+
+
+def _details(
+    book: Roadbook, categories: dict[str, Any], range_m: float, hours_cfg: dict[str, Any]
+) -> list[dict[str, Any]]:
     """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line."""
+    day = ride_date(hours_cfg)
     out = []
     order = list(categories)
     for s in book.stops:
@@ -199,9 +216,9 @@ def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_f
         shared: dict[str, list[dict[str, Any]]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
             emoji = categories[_category(p)]["emoji"]
-            poi = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
-            if book.hours is not None and p.category in hours_for:
-                poi["hours"] = pretty_hours(p.opening_hours) if p.opening_hours else ""  # "" = unknown
+            poi: dict[str, Any] = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
+            if book.hours is not None and p.category in hours_cfg["categories"]:
+                poi["hours"], poi["hours_class"] = _shop_hours(p, day)
                 groups.append((emoji, [poi]))
             elif emoji in shared:
                 shared[emoji].append(poi)
@@ -268,7 +285,8 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     if gutter:
         _add_gutters(strips, book, gutter, length - HDR_H - 2 * PAD)
 
-    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
+    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]) if r["details"] else []
+    day = ride_date(cfg["hours"]) if book.hours is not None else None
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -279,6 +297,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         page=r["page"],
         orientation=orientation,
         details=details,
+        hours_day=f"{day:%a %d %b %Y}" if day else "",
         g={
             "MAIN_H": MAIN_H,
             "SUB_H": SUB_H,

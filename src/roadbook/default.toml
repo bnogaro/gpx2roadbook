@@ -29,6 +29,7 @@ enabled = false      # look up opening hours on OpenStreetMap (needs internet; c
 categories = ["bakery", "grocery", "fuel", "cafe", "fastfood", "icecream"]
 match_m = 80         # an OSM place counts as the POI when this close to it and named alike
 max_age_days = 30    # look up again once a cached answer is this old
+date = ""            # ride date, "YYYY-MM-DD": show each shop's hours on that day only ("" = its whole week)
 
 [checkpoints]
 every_km = 0        # 0 disables automatic checkpoints

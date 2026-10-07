@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import shlex
 import subprocess
 import sys
@@ -31,6 +32,8 @@ class Setting:
     kind: type  # float, int, bool or str
     shown: Callable[[dict[str, Any]], Any] | None = None  # the value 0 stands for, when 0 means "automatic"
     choices: tuple[str, ...] = ()  # offered as a menu, with "Other…" for anything else
+    when: Callable[[dict[str, Any]], bool] | None = None  # asked only if this holds, given the answers so far
+    check: Callable[[str], bool | str] | None = None  # validates a text answer: True, or why it is refused
 
     def get(self, cfg: dict[str, Any]) -> Any:  # noqa: ANN401  cfg values are plain TOML scalars
         return cfg[self.section][self.key]
@@ -47,10 +50,27 @@ def _span(cfg: dict[str, Any]) -> float:
     return 3 * cfg["stops"]["gap_m"]
 
 
+def _is_date(text: str) -> bool | str:
+    if not text.strip():
+        return True  # no date
+    try:
+        dt.date.fromisoformat(text.strip())
+    except ValueError:
+        return "a date like 2026-10-12, or empty"
+    return True
+
+
+def _hours_on(cfg: dict[str, Any]) -> bool:
+    return cfg["hours"]["enabled"]
+
+
 COMMON = [
     Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
     Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
     Setting("hours", "enabled", "--hours", "Look up shops' opening hours (OpenStreetMap, needs internet)", bool),
+    Setting(
+        "hours", "date", "--date", "Ride date, YYYY-MM-DD (empty: whole week)", str, when=_hours_on, check=_is_date
+    ),
 ]
 ADVANCED = [
     Setting("render", "width_mm", "--width", "Strip width, mm", float, shown=_strip_width),
@@ -120,7 +140,8 @@ def _ask(s: Setting, cfg: dict[str, Any], ask: _Prompts) -> None:
             answer = ask(questionary.text(s.question, validate=lambda t: bool(t.strip()) or "required", **ask.io))
         s.set(cfg, answer.strip())
     elif s.kind is str:
-        s.set(cfg, ask(questionary.text(s.question, default=current, **ask.io)).strip())
+        validate = s.check or (lambda _: True)
+        s.set(cfg, ask(questionary.text(s.question, default=str(current), validate=validate, **ask.io)).strip())
     else:
         # a 0 that means "automatic" is offered as the value it stands for, and kept as 0 if accepted unchanged
         auto = s.shown(cfg) if s.shown and not current else None
@@ -191,7 +212,8 @@ def ask(
     gpx = _gpx(gpx, prompts)
     _layout(cfg, prompts)
     for s in COMMON:
-        _ask(s, cfg, prompts)
+        if s.when is None or s.when(cfg):
+            _ask(s, cfg, prompts)
     _categories(cfg, prompts)
     pdf = prompts(questionary.confirm("Also export a PDF?", default=pdf, **prompts.io))
     default_out = str(out or gpx.with_suffix(".roadbook.html"))
