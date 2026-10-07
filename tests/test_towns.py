@@ -216,6 +216,7 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
 ) -> None:
     http = _named(monkeypatch, tmp_path)
     cfg = load_config()
+    cfg["towns"]["enabled"] = False
     plain = render_html(build(HILLY, cfg), cfg)
     cfg["towns"]["enabled"] = True
     book = build(HILLY, cfg)
@@ -239,20 +240,26 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
 def test_the_cli_says_how_many_towns_it_found(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     _named(monkeypatch, tmp_path)
     out = tmp_path / "out.html"
-    result = CliRunner().invoke(app, [str(HILLY), "--towns", "-o", str(out)])
+    result = CliRunner().invoke(app, [str(HILLY), "-o", str(out)])
     assert result.exit_code == 0, result.output
     assert "Towns: 5 of 5 busy stops named" in result.output
     _named(monkeypatch, tmp_path / "other").down = True
-    result = CliRunner().invoke(app, [str(HILLY), "--towns", "--no-details", "-o", str(out)])
+    result = CliRunner().invoke(app, [str(HILLY), "--no-details", "-o", str(out)])
     assert result.exit_code == 0
     assert "did not answer" in result.output
+    result = CliRunner().invoke(app, [str(HILLY), "--no-towns", "-o", str(out)])
+    assert result.exit_code == 0
+    assert "Towns" not in result.output
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
-def test_towns_are_not_looked_up_unless_asked(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    http = _named(monkeypatch, tmp_path)
+def test_towns_are_named_by_default_unless_turned_off(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    http = _named(monkeypatch, tmp_path / "on")
     cfg = load_config()
-    assert cfg["towns"]["enabled"] is False
+    assert build(HILLY, cfg).towns is not None
+    assert len(http.asked) == 5
+    http = _named(monkeypatch, tmp_path / "off")
+    cfg["towns"]["enabled"] = False
     assert build(HILLY, cfg).towns is None
     # a ribbon of tokens has no room for them, and without the reference sheet they would show nowhere
     cfg["towns"]["enabled"] = True
