@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --town-h: {{ g.TOWN_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -33,6 +33,13 @@
   /* a crowded stop's emojis carry on below its main line, lined up under the first one */
   .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding-left: 1mm; font-size: 6.5pt; font-weight: 600; white-space: nowrap; }
+  /* a busy stop's town, on a line above it, right-aligned so the km down the left read on undisturbed;
+     cut with "…" only if wider than the strip */
+  .row .town { height: var(--town-h); padding: 0 var(--pad); display: flex; align-items: flex-end; justify-content: flex-end;
+               font-size: 6.5pt;
+               font-style: italic; font-weight: 600; color: #333; white-space: nowrap; overflow: hidden; }
+  .row .town span { overflow: hidden; text-overflow: ellipsis; }
+  .strip .row .sub { text-overflow: ellipsis; }
   .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
               font-size: 6pt; color: #444; white-space: nowrap; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
@@ -80,10 +87,11 @@
 <div class="sheet">
 {% if layout == 'strip' %}
   {% for s in strips %}
-  <div class="strip">
+  <div class="strip"{% if s.over %} style="height: calc(var(--l) + {{ '%.1f' % s.over }}mm)"{% endif %}>
     <div class="hdr"><span>km {{ s.first }} → {{ s.last }}</span><span>{{ loop.index }}/{{ loop.length }}</span></div>
     {% for r in s.rows %}
     <div class="row {{ r.kind }}">
+      {% if r.town %}<div class="town"><span>{{ r.town }}</span></div>{% endif %}
       <div class="main">
         <span class="km">{{ r.km }}</span>
         {{ emo(r.emojis, r.more and not r.emoji_lines) }}
@@ -103,7 +111,7 @@
   {% endfor %}
 {% else %}
   {% for s in strips %}
-  <div class="ribbon">
+  <div class="ribbon"{% if s.over %} style="width: calc(var(--l) + {{ '%.1f' % s.over }}mm)"{% endif %}>
     {% for r in s.rows %}
     <div class="tok {{ r.kind }}" style="width: {{ r.w }}mm">
       <span class="km">{{ r.km }}</span>
@@ -122,13 +130,13 @@
 <div class="details">
   <h1>{{ book.title }} — {{ '%.0f' % book.length_km }} km · ↗️{{ '%.0f' % book.gain_m }} m ↘️{{ '%.0f' % book.loss_m }} m{% if ride %} · {{ ride }}{% endif %}</h1>
   {% for s in details %}
-  <div class="stop"><b>km {{ s.km }}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
+  <div class="stop"><b>km {{ s.km }}{% if s.town %} · {{ s.town }}{% endif %}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
     {% for emoji, pois in s.groups %}
     <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endfor %}
   </div>
   {% endfor %}
-  {% if book.hours %}<p class="credit">Opening hours © OpenStreetMap contributors (ODbL). Hours change: check the ones you rely on.</p>{% endif %}
+  {% if book.hours or book.towns %}<p class="credit">{{ 'Opening hours' if book.hours else 'Town names' }}{{ ' and town names' if book.hours and book.towns }} © OpenStreetMap contributors (ODbL).{% if book.hours %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
   <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}

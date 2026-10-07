@@ -12,6 +12,7 @@ from .parse import read_gpx
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
 from .snap import snap_pois
+from .towns import lookup as name_towns
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -79,6 +80,9 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
     hours = lookup(kept, cfg["hours"]) if wanted else None
     _judge(stops, ride)
+    # names show on the strip's rows and on the reference sheet; a ribbon of tokens has no room for them
+    wanted = cfg["towns"]["enabled"] and (cfg["render"]["layout"] == "strip" or cfg["render"]["details"])
+    towns = name_towns(stops, cfg["towns"]) if wanted else None
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -118,5 +122,6 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
         poi_kept=len(kept),
         profile=profile,
         hours=hours,
+        towns=towns,
         ride=ride,
     )
