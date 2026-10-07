@@ -152,8 +152,9 @@ def test_sample_end_to_end() -> None:
     assert book.items[-1].kind == "finish"
     kms = [i.km for i in book.items]
     assert kms == sorted(kms)
-    assert all(i.dist_to_next is not None for i in book.items[:-1])
-    assert sum(i.dist_to_next for i in book.items[:-1]) == pytest.approx(book.length_km, abs=1e-6)
+    legs = [i.dist_to_next for i in book.items[:-1] if i.dist_to_next is not None]
+    assert len(legs) == len(book.items) - 1  # every row but the finish has a leg
+    assert sum(legs) == pytest.approx(book.length_km, abs=1e-6)
     for layout in ("strip", "line"):
         cfg["render"]["layout"] = layout
         assert "<html" in render_html(book, cfg)
@@ -250,7 +251,7 @@ def test_summit_rows_only_where_a_stop_sits_at_the_top() -> None:
     book = build(HILLY, load_config())
     summits = [i for i in book.items if i.kind == "summit"]
     assert 0 < len(summits) < len(book.climbs)
-    assert all(i.stop is not None and i.km == i.climb.end_km for i in summits)
+    assert all(i.stop is not None and i.climb is not None and i.km == i.climb.end_km for i in summits)
     # a stop moved onto a summit row is not listed a second time on its own
     assert not {id(i.stop) for i in summits} & {id(i.stop) for i in book.items if i.kind == "stop"}
 
