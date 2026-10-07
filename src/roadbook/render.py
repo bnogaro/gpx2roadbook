@@ -32,6 +32,8 @@ GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevatio
 HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
+PDF_TIMEOUT_S = 120  # a few seconds is usual; a browser stuck on a dialog would otherwise never return
+
 # Watermark: the name on every strip; name, version and home on the reference sheet
 TOOL = "gpx2roadbook"
 HOME = "github.com/bnogaro/gpx2roadbook"
@@ -423,7 +425,10 @@ def _find_browser() -> str | None:
 
 
 def html_to_pdf(html: Path, pdf: Path) -> None:
-    """Print via a headless Chromium-based browser (Edge/Chrome), which renders colour emoji reliably."""
+    """Print via a headless Chromium-based browser (Edge/Chrome), which renders colour emoji reliably.
+
+    Raises RuntimeError without one, subprocess.CalledProcessError if it fails, TimeoutExpired if it hangs.
+    """
     exe = _find_browser()
     if exe is None:
         msg = "No Edge/Chrome found for PDF export; open the HTML and print it instead."
@@ -439,4 +444,5 @@ def html_to_pdf(html: Path, pdf: Path) -> None:
         ],
         check=True,
         capture_output=True,
+        timeout=PDF_TIMEOUT_S,
     )

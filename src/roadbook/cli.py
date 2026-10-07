@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 import sys
 from datetime import datetime, time
 from enum import StrEnum
@@ -55,8 +56,13 @@ def _break(value: str) -> list:
 
 
 def _extra_checkpoint(value: str) -> list:
+    """--checkpoint KM or KM:LABEL as a [km, label] config entry."""
     km, _, label = value.partition(":")
-    return [float(km), label]
+    try:
+        return [float(km), label]
+    except ValueError as exc:
+        msg = f"{value!r}: give the km, and a label if you like, e.g. 87.5:Lunch"
+        raise typer.BadParameter(msg, param_hint="--checkpoint") from exc
 
 
 def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
@@ -222,7 +228,7 @@ def _write_pdf(html: Path) -> None:
     pdf_path = html.with_suffix(".pdf")
     try:
         html_to_pdf(html, pdf_path)
-    except (RuntimeError, OSError) as exc:
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # the browser failed, or never finished
         typer.echo(f"PDF not written: {exc}", err=True)
         raise typer.Exit(1) from exc
     typer.echo(f"Wrote {pdf_path}")
