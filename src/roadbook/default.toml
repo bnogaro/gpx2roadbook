@@ -31,6 +31,19 @@ match_m = 80         # an OSM place counts as the POI when this close to it and 
 max_age_days = 30    # look up again once a cached answer is this old
 date = ""            # ride date, "YYYY-MM-DD": show each shop's hours on that day only ("" = its whole week)
 
+[hours.kinds]        # the OSM main tags (amenity, else shop, else craft) a place may have to be the POI of a category
+bakery = ["shop=bakery", "shop=pastry", "craft=bakery", "craft=confectionery"]
+grocery = [
+  "shop=supermarket", "shop=convenience", "shop=general", "shop=greengrocer", "shop=deli",
+  "shop=farm", "shop=organic", "shop=health_food", "shop=food",
+]
+fuel = ["amenity=fuel"]
+cafe = ["amenity=cafe", "amenity=bar", "amenity=pub", "amenity=restaurant"]
+food = ["amenity=restaurant", "amenity=fast_food", "amenity=cafe", "amenity=pub"]
+fastfood = ["amenity=fast_food", "amenity=restaurant", "amenity=cafe"]
+icecream = ["amenity=ice_cream", "shop=ice_cream", "amenity=cafe"]
+# a category with no list here matches places of any kind
+
 [checkpoints]
 every_km = 0        # 0 disables automatic checkpoints
 extra = []           # [[km, "label"], ...]

@@ -4,7 +4,7 @@ from typing import Any
 import pytest
 
 from roadbook.config import load_config
-from roadbook.hours import NOMINATIM, OVERPASS, Place, lookup, match
+from roadbook.hours import NOMINATIM, OVERPASS, Place, _kind, lookup, match
 from roadbook.model import Poi
 from roadbook.render import pretty_hours
 
@@ -36,6 +36,8 @@ NOMINATIM_ANSWER = [
         "lat": str(LAT),
         "lon": str(LON),
         "name": "Intermarché Super",
+        "category": "shop",
+        "type": "supermarket",
         "extratags": {"opening_hours": "Mo-Sa 09:00-19:30"},
     }
 ]
@@ -76,6 +78,29 @@ def test_match_picks_the_closest_name_within_reach() -> None:
     assert match(_poi(), places, 80) == places[1]  # "Intermarché" is part of its name
     assert match(_poi(), places, 20) is None  # too far; the optician nearby is not it
     assert match(_poi("Boulangerie Dupont"), places, 80) is None
+
+
+def test_match_skips_a_place_of_another_kind() -> None:
+    # Netto at km 178.4 of entrainement_ubf.gpx: OSM has hours for its petrol station, not for the supermarket
+    station = Place("way/153000714", "Netto", LAT, LON, "24/7", "amenity=fuel")
+    kinds = CFG["kinds"]
+    assert match(_poi("Netto"), [station], 80, kinds["grocery"]) is None
+    assert match(_poi("Netto", "fuel"), [station], 80, kinds["fuel"]) == station
+    assert match(_poi("Netto"), [station], 80) == station  # a category without kinds takes any place
+
+
+@pytest.mark.parametrize(
+    ("tags", "kind"),
+    [
+        ({"shop": "supermarket"}, "shop=supermarket"),
+        ({"amenity": "fuel", "shop": "convenience;gas"}, "amenity=fuel"),  # a station's kiosk is still a station
+        ({"craft": "bakery"}, "craft=bakery"),
+        ({"shop": "bakery;pastry"}, "shop=bakery"),
+        ({"name": "Chez Paul"}, ""),
+    ],
+)
+def test_kind(tags: dict[str, str], kind: str) -> None:
+    assert _kind(tags) == kind
 
 
 def test_hours_come_from_overpass_for_shop_categories_only(tmp_path: Path) -> None:

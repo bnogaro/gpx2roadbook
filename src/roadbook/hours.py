@@ -42,7 +42,8 @@ TIMEOUT_S = 60  # per request; Overpass is told a little less, so it gives up be
 NOMINATIM_EVERY_S = 1.1  # its usage policy: at most one request per second
 NOMINATIM_GIVE_UP = 3  # consecutive failures
 MIN_SIMILARITY = 0.6
-CACHE_VERSION = 1
+CACHE_VERSION = 2  # 2: places carry their kind
+KIND_KEYS = ("amenity", "shop", "craft")  # in this order: a petrol station is amenity=fuel, with shop=gas
 
 
 def _http(url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401  parsed JSON
@@ -62,6 +63,12 @@ class Place:
     lat: float
     lon: float
     hours: str
+    kind: str = ""  # its main tag, "shop=supermarket", "amenity=fuel"; "" if it has none of KIND_KEYS
+
+
+def _kind(tags: dict[str, str]) -> str:
+    key = next((k for k in KIND_KEYS if tags.get(k)), None)
+    return f"{key}={tags[key].split(';')[0].strip()}" if key else ""
 
 
 @dataclass
@@ -90,13 +97,17 @@ def _similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def match(poi: Poi, places: list[Place], match_m: float) -> Place | None:
-    """The place within `match_m` of `poi` whose name is closest to the POI's (its type, if unnamed)."""
+def match(poi: Poi, places: list[Place], match_m: float, kinds: list[str] | None = None) -> Place | None:
+    """The place within `match_m` of `poi` whose name is closest to the POI's (its type, if unnamed).
+
+    With `kinds`, only a place of one of those kinds counts: a supermarket is not the petrol station of the same
+    name next to it.
+    """
     name = poi.name or poi.type
     scored = [
         (_similarity(name, p.name), -_distance_m(poi.lat, poi.lon, p.lat, p.lon), p)
         for p in places
-        if _distance_m(poi.lat, poi.lon, p.lat, p.lon) <= match_m
+        if _distance_m(poi.lat, poi.lon, p.lat, p.lon) <= match_m and (kinds is None or p.kind in kinds)
     ]
     best = max(scored, key=lambda s: s[:2], default=None)
     return best[2] if best and best[0] >= MIN_SIMILARITY else None
@@ -111,7 +122,7 @@ def _from_overpass(element: dict[str, Any]) -> Place:
     where = element.get("center", element)
     tags = element["tags"]
     osm_id = f"{element['type']}/{element['id']}"
-    return Place(osm_id, tags.get("name", ""), where["lat"], where["lon"], tags["opening_hours"])
+    return Place(osm_id, tags.get("name", ""), where["lat"], where["lon"], tags["opening_hours"], _kind(tags))
 
 
 def _overpass(pois: list[Poi], match_m: float, http: Callable[..., Any]) -> list[Place]:
@@ -142,7 +153,14 @@ def _nominatim(poi: Poi, match_m: float, http: Callable[..., Any]) -> list[Place
     except ValueError as exc:
         raise OSError(exc) from exc
     return [
-        Place(f"{r['osm_type']}/{r['osm_id']}", r.get("name", ""), float(r["lat"]), float(r["lon"]), hours)
+        Place(
+            f"{r['osm_type']}/{r['osm_id']}",
+            r.get("name", ""),
+            float(r["lat"]),
+            float(r["lon"]),
+            hours,
+            f"{r['category']}={r['type']}" if r.get("category") in KIND_KEYS else "",  # Nominatim's main tag
+        )
         for r in results
         if (hours := (r.get("extratags") or {}).get("opening_hours"))
     ]
@@ -213,7 +231,7 @@ def lookup(
             todo.append(p)
 
     def answer(p: Poi, places: list[Place], source: str) -> None:
-        place = match(p, places, match_m)
+        place = match(p, places, match_m, cfg["kinds"].get(p.category or ""))
         cache.put(p, place)
         _apply(p, place)
         if source not in report.sources:
