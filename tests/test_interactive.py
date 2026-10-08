@@ -91,11 +91,11 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + SPACE
         + DOWN * 2
         + SPACE
-        + ENTER  # advanced: smallest climb, leg climbing
+        + ENTER  # advanced: smallest climb, reference sheet
         + CLEAR
         + "50"
         + ENTER
-        + "y"
+        + "n"  # no reference sheet
     )
     gpx, _, pdf, cfg, same = _session(keys)
     assert gpx == HILLY
@@ -114,7 +114,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         "--break 95:45",
         "--break 180:30",
         "--min-climb 50",
-        "--leg-elevation",
+        "--no-details",
         "--pdf",
     )
     for part in parts:

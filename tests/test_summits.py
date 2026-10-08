@@ -242,7 +242,7 @@ def test_no_climbs_no_request(tmp_path: Path) -> None:
 # --- strip rows: a line of its own above the climb's row
 
 
-STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", leg_elevation=False, range_m=1000, emoji_lines=2, wrap_avail=18.5)
+STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
 
 
 def _heads(*items: Item) -> list[dict[str, Any]]:

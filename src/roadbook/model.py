@@ -95,8 +95,6 @@ class Item:
     climb: Climb | None = None
     stop: Stop | None = None
     dist_to_next: float | None = None  # km
-    gain_to_next: float | None = None  # m
-    loss_to_next: float | None = None  # m
 
 
 @dataclass

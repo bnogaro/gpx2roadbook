@@ -155,7 +155,7 @@ def test_nominatim_down_gives_up_quickly_and_caches_nothing(tmp_path: Path) -> N
 # --- strip rows: a name only goes where the row has room left, and never adds a line
 
 
-STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", leg_elevation=False, range_m=1000, emoji_lines=2, wrap_avail=18.5)
+STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
 BOOK = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
 
 

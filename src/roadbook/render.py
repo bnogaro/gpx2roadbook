@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 # Row geometry (mm). Must match the CSS variables in the template.
-MAIN_H, SUB_H, LEG_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 3.4, 4.4, 1.0, 4.4
+MAIN_H, SUB_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 4.4, 1.0, 4.4
 KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
 WHOLE_KM = 10.0  # a climb this long shows its length in whole km ("21km"): the decimal is noise
@@ -103,8 +103,7 @@ class RowLayout:
 
     avail: float  # mm left for emojis on a row's main line
     max_emojis: int
-    sep: str  # between the figures of a stats or leg line
-    leg_elevation: bool  # ↗️/↘️ metres on a leg line of its own, or only a bare distance on the main line
+    sep: str  # between the figures of a climb's stats line
     range_m: float  # a stop stretching at least this far shows where it ends
     emoji_lines: int = 1  # lines a row's emojis may fill; more than 1 wraps a crowded stop below its main line
     wrap_avail: float = 0.0  # mm for emojis on those extra lines, which carry no ↓ distance
@@ -120,7 +119,6 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "label": kind.label(it, book),
         "sub": "",
         "gain": "",  # a climb's ↗ metres, at the end of its sub line
-        "leg": None,
         "dist": None,
         "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
         "grade": "",  # a climb or summit row's colour, by the climb's average grade
@@ -155,15 +153,11 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
     elif it.stop and _spans(it.stop, layout.range_m):
         # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
         row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
-    if it.dist_to_next is not None:
-        if layout.leg_elevation:
-            row["leg"] = f"{it.dist_to_next:.1f}{sep}↗️{it.gain_to_next:.0f} ↘️{it.loss_to_next:.0f}"
-        else:  # a bare distance needs no line of its own
-            row["dist"] = f"↓{it.dist_to_next:.1f}"
-    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0) + (LEG_H if row["leg"] else 0)
+    if it.dist_to_next is not None:  # at the end of the main line on a strip, at the foot of a ribbon's token
+        row["dist"] = f"↓{it.dist_to_next:.1f}"
+        row["leg_short"] = f"{it.dist_to_next:.1f}"
+    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0)
     row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
-    if it.dist_to_next is not None:
-        row["leg_short"] = f"{it.dist_to_next:.1f}" + (f" ↗️{it.gain_to_next:.0f}" if layout.leg_elevation else "")
     return row
 
 
@@ -382,17 +376,16 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     avail = width - KM_COL - 3 * PAD if layout == "strip" else 40.0
     gutter = r["gutter_mm"] if layout == "strip" and book.profile is not None else 0
     avail -= gutter
-    if layout == "strip" and not r["leg_elevation"]:
+    if layout == "strip":  # the ↓ distance to the next row takes the end of the main line
         avail -= DIST_W
     row_layout = RowLayout(
         avail=avail,
         max_emojis=r["max_emojis"] or 99,
         sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-        leg_elevation=r["leg_elevation"],
         range_m=r["stop_range_m"],
         # tokens of the line layout grow sideways instead
         emoji_lines=r["emoji_lines"] if layout == "strip" else 1,
-        wrap_avail=avail + (DIST_W if layout == "strip" and not r["leg_elevation"] else 0),
+        wrap_avail=avail + (DIST_W if layout == "strip" else 0),
         grades=grades,
     )
     rows = [_row(it, book, row_layout) for it in book.items]
@@ -446,7 +439,6 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
             "MAIN_H": MAIN_H,
             "HEAD_H": HEAD_H,
             "SUB_H": SUB_H,
-            "LEG_H": LEG_H,
             "HDR_H": HDR_H,
             "KM_COL": KM_COL,
             "PAD": PAD,

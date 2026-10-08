@@ -164,8 +164,6 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
 
     for a, b in itertools.pairwise(items):
         a.dist_to_next = b.km - a.km
-        a.gain_to_next = profile.gain(a.km, b.km)
-        a.loss_to_next = profile.loss(a.km, b.km)
 
     return Roadbook(
         title=track.name,

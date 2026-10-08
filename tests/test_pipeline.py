@@ -11,7 +11,7 @@ from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import COUNT_W, EMOJI_W, RowLayout, _row, _wrap, render_html
+from roadbook.render import COUNT_W, EMOJI_W, MAIN_H, RowLayout, _row, _wrap, render_html
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -162,23 +162,12 @@ def test_sample_end_to_end() -> None:
         assert "<html" in render_html(book, cfg)
 
 
-def _legs(html: str) -> list[str]:
-    return re.findall(r'<div class="leg">([^<]*)</div>', html)
-
-
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
-def test_leg_elevation_is_opt_in() -> None:
+def test_each_row_but_the_finish_gives_the_distance_to_the_next() -> None:
     cfg = load_config()
     book = build(SAMPLE, cfg)
-    assert cfg["render"]["leg_elevation"] is False
     html = render_html(book, cfg)
-    # by default the bare distance rides on each row's main line instead of a leg line of its own
-    assert not _legs(html)
     assert len(re.findall(r'<span class="dist">↓[\d.]+</span>', html)) == len(book.items) - 1
-    cfg["render"]["leg_elevation"] = True
-    legs = _legs(render_html(book, cfg))
-    assert len(legs) == len(book.items) - 1
-    assert all("↗" in leg and "↘" in leg for leg in legs)
 
 
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
@@ -200,18 +189,14 @@ def test_watermark_on_each_strip_and_the_reference_sheet(layout: str, box: str) 
     assert "Made with" not in render_html(book, cfg)
 
 
-def _layout(avail: float, *, max_emojis: int = 99, leg_elevation: bool = False) -> RowLayout:
-    return RowLayout(avail=avail, max_emojis=max_emojis, sep=" · ", leg_elevation=leg_elevation, range_m=1000)
+def _layout(avail: float, *, max_emojis: int = 99) -> RowLayout:
+    return RowLayout(avail=avail, max_emojis=max_emojis, sep=" · ", range_m=1000)
 
 
-def test_row_layout_picks_a_leg_line_or_a_bare_distance() -> None:
+def test_a_row_gives_the_bare_distance_to_the_next() -> None:
     book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
-    it = Item("stop", 10.0, 0, dist_to_next=4.3, gain_to_next=60, loss_to_next=12)
-    bare = _row(it, book, _layout(20))
-    assert (bare["leg"], bare["dist"], bare["leg_short"]) == (None, "↓4.3", "4.3")
-    legged = _row(it, book, _layout(20, leg_elevation=True))
-    assert (legged["leg"], legged["dist"], legged["leg_short"]) == ("4.3 · ↗️60 ↘️12", None, "4.3 ↗️60")
-    assert legged["h"] > bare["h"]
+    row = _row(Item("stop", 10.0, 0, dist_to_next=4.3), book, _layout(20))
+    assert (row["dist"], row["leg_short"], row["h"]) == ("↓4.3", "4.3", MAIN_H)
 
 
 def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji() -> None:
@@ -316,9 +301,7 @@ def test_a_crowded_row_grows_a_line_and_a_quiet_one_does_not() -> None:
     crowded = Item("stop", 10.0, 0, emojis=[Glyph(e) for e in "🚰🚻🥖☕"])
     quiet = Item("stop", 10.0, 0, emojis=[Glyph("🚰")])
     one = _layout(12.5)
-    two = RowLayout(
-        avail=12.5, max_emojis=99, sep=" ", leg_elevation=False, range_m=1000, emoji_lines=2, wrap_avail=18.5
-    )
+    two = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
     cut = _row(crowded, book, one)
     assert cut["more"]
     assert not cut["emoji_lines"]
