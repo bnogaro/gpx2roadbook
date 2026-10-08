@@ -138,9 +138,6 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     max_span: Annotated[
         float | None, typer.Option(help="Longest a stop may stretch, metres; longer runs split (default 3 x gap).")
     ] = None,
-    max_offset: Annotated[
-        float | None, typer.Option(help="Ignore POIs further than this from the route, metres.")
-    ] = None,
     categories: Annotated[
         str | None, typer.Option(help="Comma-separated POI categories to keep, e.g. water,bakery,lodging.")
     ] = None,
@@ -244,7 +241,6 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("climbs", "min_gain_m", min_climb),
         ("stops", "gap_m", gap),
         ("stops", "max_span_m", max_span),
-        ("pois", "max_offset_m", max_offset),
     ):
         if value is not None:
             cfg[section][key] = value

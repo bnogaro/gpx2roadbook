@@ -20,7 +20,6 @@ categories = [["HC", 80000], ["1", 64000], ["2", 32000], ["3", 16000], ["4", 800
 grade_colours = [[0, "#fcd34d"], [3, "#f59e0b"], [6, "#ea580c"], [9, "#b91c1c"], [12, "#7f1d1d"]]
 
 [pois]
-max_offset_m = 300   # ignore POIs further than this from the route
 enabled = ["water", "toilets", "bakery", "cafe", "food", "fastfood", "grocery", "fuel", "vending", "icecream"]
 
 [stops]

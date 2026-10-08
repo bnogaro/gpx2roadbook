@@ -221,19 +221,19 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     cfg["towns"]["enabled"] = True
     book = build(HILLY, cfg)
     named = {(s.km, s.km_end) for s in book.stops if s.town}
-    # Saint-Girons, Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their village shops;
-    # fountains, cemeteries and lone bakeries are not asked
-    assert {(60.0, 61.3), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
+    # Saint-Girons (two stops), Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their
+    # village shops; fountains, cemeteries and lone bakeries are not asked
+    assert {(60.0, 60.6), (60.7, 61.5), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
     assert {4.3, 35.4} <= {round(a, 1) for a, _ in named}
-    assert len(http.asked) == len(named) == len(busy(book.stops, CFG)) == 5
+    assert len(http.asked) == len(named) == len(busy(book.stops, CFG)) == 6
     html = render_html(book, cfg)
-    assert "<b>km 60.0 → 61.3 · Saint-Girons</b>" in html
+    assert "<b>km 60.0 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
-    # one line of 3.2 mm: the strips still hold the same rows
+    # lines of 3.2 mm: they move rows down to the next strip, but need no strip more
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
-    assert strips.findall(html) == strips.findall(plain)
+    assert len(strips.findall(html)) == len(strips.findall(plain)) == 3
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
@@ -242,7 +242,7 @@ def test_the_cli_says_how_many_towns_it_found(monkeypatch: pytest.MonkeyPatch, t
     out = tmp_path / "out.html"
     result = CliRunner().invoke(app, [str(HILLY), "-o", str(out)])
     assert result.exit_code == 0, result.output
-    assert "Towns: 5 of 5 busy stops named" in result.output
+    assert "Towns: 6 of 6 busy stops named" in result.output
     _named(monkeypatch, tmp_path / "other").down = True
     result = CliRunner().invoke(app, [str(HILLY), "--no-details", "-o", str(out)])
     assert result.exit_code == 0
@@ -257,7 +257,7 @@ def test_towns_are_named_by_default_unless_turned_off(monkeypatch: pytest.Monkey
     http = _named(monkeypatch, tmp_path / "on")
     cfg = load_config()
     assert build(HILLY, cfg).towns is not None
-    assert len(http.asked) == 5
+    assert len(http.asked) == 6
     http = _named(monkeypatch, tmp_path / "off")
     cfg["towns"]["enabled"] = False
     assert build(HILLY, cfg).towns is None
@@ -295,11 +295,12 @@ class OneTownEach(FakeNominatim):
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    http = OneTownEach("Saint-Girons", "Le Mas-d'Azil", "Auterive")
+    http = OneTownEach("Saint-Girons", "Saint-Girons", "Le Mas-d'Azil", "Auterive")
     fake = partial(lookup, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
     monkeypatch.setattr(build_module, "name_towns", fake)
     cfg = load_config()
-    cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns: lines just over the strip's room
+    cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns (Saint-Girons is two stops)
+    cfg["render"]["length_mm"] = 214  # two strips without the town lines; with them, the finish only just overflows
     html = render_html(build(HILLY, cfg), cfg)
     assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)

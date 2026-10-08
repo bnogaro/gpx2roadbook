@@ -120,7 +120,6 @@ ADVANCED = [
     Setting("render", "length_mm", "--length", "Strip length, mm", float),
     Setting("stops", "gap_m", "--gap", "Merge POIs closer than, m", float),
     Setting("stops", "max_span_m", "--max-span", "Longest stop, m", float, shown=_span),
-    Setting("pois", "max_offset_m", "--max-offset", "Ignore POIs further from the route than, m", float),
     Setting("climbs", "min_gain_m", "--min-climb", "Smallest climb, m of gain", float),
     Setting("render", "emoji_lines", "--emoji-lines", "Lines of emojis a busy stop may fill", int),
     Setting("render", "leg_elevation", "--leg-elevation", "Climbing/descent on each leg", bool),

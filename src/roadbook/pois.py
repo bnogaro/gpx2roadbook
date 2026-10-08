@@ -35,11 +35,10 @@ def classify(pois: list[Poi], categories: dict[str, Any]) -> None:
                 break
 
 
-def filter_pois(pois: list[Poi], enabled: list[str], max_offset_m: float) -> list[Poi]:
-    return sorted(
-        (p for p in pois if p.category in enabled and p.offset_m <= max_offset_m),
-        key=lambda p: p.km,
-    )
+def filter_pois(pois: list[Poi], enabled: list[str]) -> list[Poi]:
+    """The POIs of the categories shown, in route order. How far from the route they may be is the exporter's call:
+    onroutemap.de asks for it when it finds them."""
+    return sorted((p for p in pois if p.category in enabled), key=lambda p: p.km)
 
 
 SAME_SPOT_M = 100  # POIs closer than this are one place: a stop never splits between them

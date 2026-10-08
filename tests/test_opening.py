@@ -159,9 +159,10 @@ def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
     assert f'<b>km 0.2</b> <span class="eta">~06:00{EN}06:21</span>' in html
     closed = f'<b class="verdict">closed</b> <span class="off">09:00{EN}19:30</span>'  # and when it opens, muted
     assert f'Intermarché Super <span class="off">(265 m)</span> {closed}' in html
-    # on the strip, the grocery and fast food emojis are dimmed; the fuel station's hours can't be read, so not it
+    # on the strip, the grocery and fast food emojis are dimmed; the fuel station's hours can't be read, so not it,
+    # and the cemetery's tap is no shop
     row = next(i for i in book.items if i.stop is first)
-    assert {g.emoji: g.dim for g in row.emojis} == {"🍔": True, "🛒": True, "⛽": False}
+    assert {g.emoji: g.dim for g in row.emojis} == {"🚰": False, "🍔": True, "🛒": True, "⛽": False}
     assert '<span class="dim">🛒</span>' in html
 
     cfg["ride"]["start"] = "08:50"  # there between 08:50 and 09:11: the supermarket opens meanwhile
