@@ -6,23 +6,44 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .model import Climb
     from .profile import Profile
 
+    Scale = Sequence[Sequence[float | str]]  # [[from this grade up, %, colour], ...], by rising grade
 
-def gutter_svg(
+GROUND = "#efefef"  # lighter than the gentlest climb, printed in grey too
+CLIMB = "#f59e0b"  # a climb's colour without a grade scale
+PIECE_KM = 1.0  # a climb is coloured a kilometre at a time, by each one's average grade, as race books do
+
+
+def grade_colour(grade: float, scale: Scale) -> str:
+    """The colour `scale` gives a grade, in %; below its first step, the first colour all the same."""
+    colour = str(scale[0][1])
+    for start, c in scale:
+        if grade >= float(start):
+            colour = str(c)
+    return colour
+
+
+def gutter_svg(  # noqa: PLR0913  the grade colours come on top of the geometry
     profile: Profile,
     climbs: list[Climb],
     anchors: list[tuple[float, float]],
     width_mm: float,
     height_mm: float,
     ele_range: tuple[float, float],
+    *,
+    grades: Scale = (),
 ) -> str:
     """A vertical profile running down a strip, aligned to its rows rather than to a km scale.
 
     `anchors` are (km, y_mm) pairs, one per row: the stretch of road between two anchors is drawn across
     exactly the vertical space between those rows, so each row's dot sits on the curve where the rider is.
-    Elevation grows to the right, mapped from `ele_range` (lowest, highest) onto the gutter's width.
+    Elevation grows to the right, mapped from `ele_range` (lowest, highest) onto the gutter's width. Each stretch of
+    a climb, about a kilometre, takes the colour `grades` gives its average grade: the steep ones show where they are,
+    and a grade wavering around a step doesn't streak the climb.
     """
     lo, hi = ele_range
     span = max(hi - lo, 1.0)
@@ -38,15 +59,26 @@ def gutter_svg(
     y = np.array(ys)
     x = (np.interp(km * 1000, profile.x, profile.e) - lo) / span * width_mm
 
-    def area(mask: np.ndarray, cls: str, fill: str) -> str:
-        if not mask.any():
-            return ""
-        xs, yy = x[mask], y[mask]
+    def area(points: np.ndarray, cls: str, fill: str) -> str:
+        xs, yy = x[points], y[points]
         pts = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(xs, yy, strict=True))
         return f'<polygon class="{cls}" points="0,{yy[0]:.2f} {pts} 0,{yy[-1]:.2f}" fill="{fill}"/>'
 
-    shapes = [area(np.ones_like(km, dtype=bool), "ground", "#e5e5e5")]
-    shapes += [area((km >= c.start_km) & (km <= c.end_km), "climb", "#f59e0b") for c in climbs]
+    shapes = [area(np.arange(len(km)), "ground", GROUND)]
+    for c in climbs:
+        points = np.flatnonzero((km >= c.start_km) & (km <= c.end_km))
+        if not points.size:
+            continue
+        edges = np.linspace(c.start_km, c.end_km, max(1, round(c.length_km / PIECE_KM)) + 1)
+        ele = np.interp(edges * 1000, profile.x, profile.e)
+        piece_grades = np.diff(ele) / np.maximum(np.diff(edges) * 1000, 1e-9) * 100
+        piece = np.clip(np.searchsorted(edges, km[points], side="right") - 1, 0, len(piece_grades) - 1)
+        fills = [grade_colour(g, grades) if grades else CLIMB for g in piece_grades[piece]]
+        start = 0
+        for end in [*(i + 1 for i in range(len(fills) - 1) if fills[i + 1] != fills[i]), len(fills)]:
+            # one point into the next stretch, so two colours meet without a gap between them
+            shapes.append(area(points[start : end + 1], "climb", fills[start]))
+            start = end
     line = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(x, y, strict=True))
     dots = "".join(
         f'<circle cx="{(np.interp(k * 1000, profile.x, profile.e) - lo) / span * width_mm:.2f}" '

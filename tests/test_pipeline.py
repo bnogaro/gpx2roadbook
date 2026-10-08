@@ -350,3 +350,25 @@ def test_a_climb_always_shows_its_gain(layout: str) -> None:
     assert 'class="gain">↗︎1552</span>' in html.replace('class="sub gain"', 'class="gain"')
     if layout == "strip":
         assert '<span class="fig">21km 7.4%</span>' in html
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+@pytest.mark.parametrize(("layout", "box"), [("strip", "row"), ("line", "tok")])
+def test_climb_rows_and_the_key_show_each_climb_s_grade(layout: str, box: str) -> None:
+    cfg = load_config()
+    cfg["render"]["layout"] = layout
+    book = build(HILLY, cfg)
+    html = render_html(book, cfg)
+    climbs = [it for it in book.items if it.kind == "climb"]
+    grades = re.findall(rf'class="{box} climb" style="[^"]*--grade: (#[0-9a-f]+)"', html)
+    assert len(grades) == len(climbs)
+    assert grades[0] == "#ea580c"  # the Col de Menté, 8.9 % on average: in the 6-9 % colour
+    key = re.search(r'<p class="key">Climbs by grade:(.*?)</p>', html)
+    assert key
+    assert re.findall(r"</span>([^<]+)", key.group(1)) == [
+        "under 3 %",
+        "3\u20136 %",
+        "6\u20139 %",
+        "9\u201312 %",
+        "12 % and more",
+    ]
