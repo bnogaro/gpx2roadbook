@@ -146,6 +146,8 @@ gutter_mm = 6     # default 4; 0 turns the profile off
 roadbook my_ride.gpx --config my.toml
 ```
 
+The climb colours are `climbs.grade_colours`, a list of `[grade, colour]` steps: each colour applies from its grade up, in %.
+
 To add a category of your own, add a table and put its name in `pois.enabled`. The order of the tables sets which emoji comes first when a row is short of space:
 
 ```toml
@@ -163,7 +165,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
 - ***Saint-Girons*** in italics, at the right above a row, is the town that stop is in (see [Town names](#town-names)).
-- **⛰️ rows** (orange) mark the foot of a climb. The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
+- **⛰️ rows** (orange) mark the foot of a climb. The bar down their left edge is in the colour of the climb's average grade (see below). The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Col de Portet d'Aspet** in brown, at the right above a ⛰️ row, is the col or peak that climb tops out at (see [Climb names](#climb-names)).
 - **Stops on a climb.** A stop within 300 m (`climbs.snap_m`) of a climb's foot or summit is merged into that row rather than given a row of its own. A ⛰️ row with a stop on it has no room for "Cat 4", so the category becomes a small superscript on the mountain (⛰️⁴ 🍔).
 - **🔝 rows** mark a summit. They only appear when a stop sits at the top; the profile already shows every other summit. If there is room, the row also gives the summit's elevation. A 🔝 row closes its climb with an orange line.
@@ -172,7 +174,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 
 The narrow strip on the right edge of each strip is the elevation profile of that stretch. Elevation grows to the right.
 
-- **Orange** shading is a climb. **Grey** is everything else.
+- **Climbs are coloured by grade**, a kilometre at a time, so the steep ones show where they are: yellow under 3 %, then orange (3–6 %), dark orange (6–9 %), red (9–12 %) and dark red from 12 %. **Grey** is everything else. The colours get darker as the road steepens, so they still read printed in black and white. A key at the end of the reference sheet recalls them, and each named climb there has a square in the colour of its average grade.
 - **Each dot** lines up with a row, so you can see where each stop is on the profile.
 - **Distance on the profile is not to scale.** The profile is stretched to fit between the rows, so a 10 km gap between two rows takes the same space as a 1 km gap. Use it to see the shape of the climbs, not to measure distance.
 - **Elevation is scaled for each strip separately.** A big slope on one strip is not the same height as a big slope on the next. Very flat stretches are kept flat, so small rolls don't look like mountains.

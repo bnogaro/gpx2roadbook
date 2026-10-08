@@ -330,13 +330,15 @@ def test_on_the_sample_the_pyrenean_cols_are_named(monkeypatch: pytest.MonkeyPat
     assert len(http.urls) == 1
     html = render_html(book, cfg)
     assert '<div class="head col"><span>Col de Menté</span></div>' in html
-    assert '<b>km 25.6 → 29.9 · <span class="col">Col de Portet d&#39;Aspet</span></b>' in html
+    # its swatch in the colour of its average grade, 9.6 %
+    swatch = '<span class="swatch" style="background: #b91c1c"></span>'
+    assert f'<b>km 25.6 → 29.9 · {swatch}<span class="col">Col de Portet d&#39;Aspet</span></b>' in html
     assert "Climb names © OpenStreetMap" in html
 
 
 def test_the_profile_stays_level_with_a_named_climbs_main_line(monkeypatch: pytest.MonkeyPatch) -> None:
     anchors: list[list[tuple[float, float]]] = []
-    monkeypatch.setattr(render_module, "gutter_svg", lambda _p, _c, a, *_: anchors.append(a) or "")
+    monkeypatch.setattr(render_module, "gutter_svg", lambda _p, _c, a, *_, **__: anchors.append(a) or "")
     climb = Climb(5, 10, 500, 10, 12, "1", name="Col de Menté")
     track = _track(MENTE, PORTET)
     items = [

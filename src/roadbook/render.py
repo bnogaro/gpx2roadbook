@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import logging
 import re
 import shutil
@@ -15,7 +16,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from .kinds import KINDS, climb_of
 from .model import Glyph
 from .opening import Ride, on_day
-from .svg import gutter_svg
+from .svg import grade_colour, gutter_svg
 
 if TYPE_CHECKING:
     import datetime as dt
@@ -107,6 +108,7 @@ class RowLayout:
     range_m: float  # a stop stretching at least this far shows where it ends
     emoji_lines: int = 1  # lines a row's emojis may fill; more than 1 wraps a crowded stop below its main line
     wrap_avail: float = 0.0  # mm for emojis on those extra lines, which carry no ↓ distance
+    grades: tuple[tuple[float, str], ...] = ()  # a climb's colour by its average grade: see svg.grade_colour()
 
 
 def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
@@ -121,7 +123,10 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "leg": None,
         "dist": None,
         "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
+        "grade": "",  # a climb or summit row's colour, by the climb's average grade
     }
+    if it.climb and layout.grades:
+        row["grade"] = grade_colour(it.climb.avg_grade, layout.grades)
     if kind.emoji:
         # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
         # The row is too narrow for both a stop and a full label, so with a stop on board the category
@@ -264,7 +269,13 @@ def _eta(w: Window, ride_day: dt.date | None) -> str:
     return f"~{at(w.early)}\u2013{at(w.late)}"
 
 
-def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_for: list[str]) -> list[dict[str, Any]]:
+def _details(
+    book: Roadbook,
+    categories: dict[str, Any],
+    range_m: float,
+    hours_for: list[str],
+    grades: tuple[tuple[float, str], ...] = (),
+) -> list[dict[str, Any]]:
     """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line.
 
     A named climb gets an entry too, at its foot, between the stops: its name, category, length and grade.
@@ -290,20 +301,30 @@ def _details(book: Roadbook, categories: dict[str, Any], range_m: float, hours_f
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
         eta = _eta(s.window, ride.date) if s.window else ""
         out.append({"at": s.km, "km": km, "town": s.town or "", "eta": eta, "groups": groups})
-    out += [_climb_entry(c) for c in book.climbs if c.name]
+    out += [_climb_entry(c, grades) for c in book.climbs if c.name]
     return sorted(out, key=lambda e: e["at"])  # stable: a stop at a climb's foot comes first, as on the strip
 
 
-def _climb_entry(c: Climb) -> dict[str, Any]:
+def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> dict[str, Any]:
     cat = f"Cat {c.label} · " if c.label else ""
     stats = {"name": f"{cat}{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗️{c.gain_m:.0f} m", "off": 0, "hours": None}
     return {
         "at": c.start_km,
         "km": f"{c.start_km:.1f} → {c.end_km:.1f}",
         "col": c.name,
+        "grade": grade_colour(c.avg_grade, grades) if grades else "",  # a swatch before the name, as on the strip
         "eta": "",
         "groups": [("⛰️", [stats])],
     }
+
+
+def _grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
+    """The reference sheet's key to the climb colours: ("under 3 %", colour), ("3 to 6 %", colour), …"""
+    steps = [f"{start:g}" for start, _ in grades]
+    labels = [f"under {steps[1]} %" if len(steps) > 1 else "climbs"]
+    labels += [f"{a}\u2013{b} %" for a, b in itertools.pairwise(steps[1:])]
+    labels += [f"{steps[-1]} % and more"] if len(steps) > 1 else []
+    return list(zip(labels, [c for _, c in grades], strict=True))
 
 
 def _credit(book: Roadbook) -> str:
@@ -326,7 +347,9 @@ def _credit(book: Roadbook) -> str:
     return listed[0].upper() + listed[1:]
 
 
-def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, height: float) -> None:
+def _add_gutters(
+    strips: list[dict[str, Any]], book: Roadbook, width: float, height: float, grades: tuple[tuple[float, str], ...]
+) -> None:
     """Give each strip a profile whose km scale follows its rows: one anchor at each row's main line."""
     p = book.profile
     if p is None:  # render_html() only asks for gutters when there is a profile
@@ -344,12 +367,13 @@ def _add_gutters(strips: list[dict[str, Any]], book: Roadbook, width: float, hei
         # each strip gets its own scale: one shared with a 1500 m pass would flatten every other strip
         lo, hi = p.ele_range(anchors[0][0], anchors[-1][0])
         span = (lo, max(hi, lo + GUTTER_MIN_SPAN_M))
-        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height + s["over"], span)
+        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height + s["over"], span, grades=grades)
 
 
 def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     r = cfg["render"]
     layout = r["layout"]
+    grades = tuple((float(start), str(colour)) for start, colour in cfg["climbs"]["grade_colours"])
     width = r["width_mm"] or LAYOUT_WIDTH[layout]
     length = r["length_mm"]
 
@@ -369,6 +393,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         # tokens of the line layout grow sideways instead
         emoji_lines=r["emoji_lines"] if layout == "strip" else 1,
         wrap_avail=avail + (DIST_W if layout == "strip" and not r["leg_elevation"] else 0),
+        grades=grades,
     )
     rows = [_row(it, book, row_layout) for it in book.items]
     if layout == "strip":  # a token of the line layout grows sideways: no room is left over in it
@@ -382,7 +407,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         for p in _paginate(rows, capacity, key)
     ]
     if gutter:
-        _add_gutters(strips, book, gutter, capacity)
+        _add_gutters(strips, book, gutter, capacity, grades)
     noun = "strip" if layout == "strip" else "ribbon"
     log.info("Layout: %d %ss of %g x %g mm", len(strips), noun, width, length)
     for n, s in enumerate(strips, 1):
@@ -398,7 +423,9 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
             capacity,
         )
 
-    details = _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"]) if r["details"] else []
+    details = (
+        _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades) if r["details"] else []
+    )
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -411,6 +438,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         details=details,
         ride=_ride_title(book),
         credit=_credit(book),
+        grade_key=_grade_key(grades) if book.climbs and grades else [],
         tool=TOOL,
         version=version(TOOL),
         home=HOME,
