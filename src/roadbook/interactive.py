@@ -122,7 +122,6 @@ ADVANCED = [
     Setting("stops", "max_span_m", "--max-span", "Longest stop, m", float, shown=_span),
     Setting("climbs", "min_gain_m", "--min-climb", "Smallest climb, m of gain", float),
     Setting("render", "emoji_lines", "--emoji-lines", "Lines of emojis a busy stop may fill", int),
-    Setting("render", "leg_elevation", "--leg-elevation", "Climbing/descent on each leg", bool),
     Setting("render", "details", "--details", "Reference sheet with POI names", bool),
     Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
     Setting("ride", "climb_min_per_100m", "--climb", "Arrival times: minutes added per 100 m climbed", float),

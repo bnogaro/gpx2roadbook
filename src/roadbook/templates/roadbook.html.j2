@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --head-h: {{ g.HEAD_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --leg-h: {{ g.LEG_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --head-h: {{ g.HEAD_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -46,12 +46,9 @@
   .row .head span { overflow: hidden; text-overflow: ellipsis; }
   .row .head.town { font-style: italic; }
   .row .head.col { font-weight: 700; color: #92400e; }
-  .row .leg { height: var(--leg-h); margin-left: calc(var(--km-col) + 0.5mm); padding-left: 1.5mm; border-left: 0.5mm solid #777;
-              font-size: 6pt; color: #444; white-space: nowrap; overflow: hidden; display: flex; align-items: center; }
   .row.climb { background: #fbe3c4; }
   .row.summit { background: #fbe3c4; border-bottom: 0.3mm solid #d97706; }
   .row.checkpoint, .row.start, .row.finish { background: #d9e8ff; border-top: 0.2mm solid #345; border-bottom: 0.2mm solid #345; }
-  .row.climb .leg, .row.checkpoint .leg { border-left-color: #b45309; }
   /* a climb's average grade, as a bar down the row's left edge (across a token's top): it takes no room */
   .row.climb, .row.summit { box-shadow: inset 0.8mm 0 0 var(--grade, transparent); }
   /* the watermark runs up the left edge, in the blank left of the right-aligned km: it takes no row height */
@@ -109,7 +106,6 @@
       <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
       {%- endfor %}
       {% if r.sub %}<div class="sub"><span class="fig">{{ r.sub }}</span>{% if r.gain %}<span class="gain">{{ r.gain }}</span>{% endif %}</div>{% endif %}
-      {% if r.leg %}<div class="leg">{{ r.leg }}</div>{% endif %}
     </div>
     {% endfor %}
     {% if s.gutter %}{{ s.gutter | safe }}{% endif %}

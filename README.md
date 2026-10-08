@@ -67,7 +67,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, leg climbing, reference sheet, arrival margin, climb names); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, climb names); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -101,7 +101,6 @@ Either way, cut along the dashed lines.
 | `--gap M` | Merge POIs closer than this many metres into one stop (default 500). |
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
-| `--leg-elevation` | Add a line under each row with the distance, climbing and descent to the next row. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
 | `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
@@ -159,7 +158,7 @@ match = ["bicycle", "velo", "cycle shop"]
 
 Each strip has a dark header with its km range and its number (`2/3`). The tool's name runs in small grey letters up its bottom-left edge (up the right end of a `line` ribbon), in space no row uses. Below the header, one row per point on the road:
 
-- **The bold number** is the km where the row sits. **`↓4.3`** at the right is the distance to the next row. With `--leg-elevation`, that distance moves to a line under the row, along with the climbing and descent to the next row.
+- **The bold number** is the km where the row sits. **`↓4.3`** at the right is the distance to the next row; the profile on the right shows the climbing and descent on the way.
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
 - **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.

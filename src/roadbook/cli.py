@@ -142,9 +142,6 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         str | None, typer.Option(help="Comma-separated POI categories to keep, e.g. water,bakery,lodging.")
     ] = None,
     details: Annotated[bool | None, typer.Option(help="Append a POI names reference sheet.")] = None,
-    leg_elevation: Annotated[
-        bool | None, typer.Option(help="Show climbing/descent metres on each leg between rows.")
-    ] = None,
     emoji_lines: Annotated[
         int | None,
         typer.Option(help="Lines a crowded stop's emojis may fill on a strip (default 2; 1 = one line, with a +)."),
@@ -222,7 +219,6 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("render", "length_mm", length),
         ("render", "page", page),
         ("render", "details", details),
-        ("render", "leg_elevation", leg_elevation),
         ("render", "emoji_lines", emoji_lines),
         ("hours", "enabled", hours),
         ("towns", "enabled", towns),
