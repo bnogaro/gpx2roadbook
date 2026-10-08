@@ -1,3 +1,22 @@
+## v0.4.0 (2026-10-08)
+
+### BREAKING CHANGE
+
+- --leg-elevation and [render] leg_elevation are gone.
+- --max-offset and [pois] max_offset_m are gone; set the
+distance in onroutemap.de instead. A config file that still sets
+max_offset_m is not refused: the key is ignored.
+
+### Feat
+
+- **climbs**: optionally close every climb with a summit row
+- **pois**: keep every POI of the export, without --max-offset
+- **climbs**: colour climbs by gradient
+
+### Refactor
+
+- **render**: drop --leg-elevation and each leg's climbing and descent
+
 ## v0.3.0 (2026-10-07)
 
 ### Feat
