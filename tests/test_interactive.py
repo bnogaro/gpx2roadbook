@@ -87,7 +87,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + ENTER  # categories: untick cafe … icecream, keep water, toilets, bakery
         + "y"  # PDF
         + ENTER  # output: as offered
-        + DOWN * 5
+        + DOWN * 4
         + SPACE
         + DOWN * 2
         + SPACE

@@ -85,9 +85,6 @@ def _explain_left_out(pois: list[Poi], cfg: dict[str, Any]) -> None:
             left.append(("match no category", f"no category for type {p.type!r}", p))
         elif p.category not in cfg["enabled"]:
             left.append(("are in categories not shown", f"category {p.category} not shown", p))
-        elif p.offset_m > cfg["max_offset_m"]:
-            why = f"lie over {cfg['max_offset_m']:g} m from the route"
-            left.append((why, f"{p.offset_m:.0f} m from the route", p))
     if left:
         counts = Counter(why for why, _, _ in left)
         log.info("POIs left out: %s", ", ".join(f"{n} {why}" for why, n in counts.items()))
@@ -124,7 +121,7 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
 
     snap_pois(track, pois)
     classify(pois, cfg["categories"])
-    kept = filter_pois(pois, cfg["pois"]["enabled"], cfg["pois"]["max_offset_m"])
+    kept = filter_pois(pois, cfg["pois"]["enabled"])
     _explain_left_out(pois, cfg["pois"])
     gap_m = cfg["stops"]["gap_m"]
     span_m = cfg["stops"]["max_span_m"] or 3 * gap_m

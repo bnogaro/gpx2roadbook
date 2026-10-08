@@ -13,7 +13,7 @@ You cut the strips out and tape them to your bike's top tube. Each one lists the
 
 ## Getting a GPX with POIs
 
-The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. The routes in [`samples/`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/) were made this way.
+The easiest source is [onroutemap.de](https://onroutemap.de). It is free and needs no account. Upload your route's GPX ("Upload GPX file") and set the maximum distance to the route: `roadbook` keeps every POI of the export, so that distance is the one that counts. It then finds supermarkets, bakeries, cafés, drinking water, toilets, fuel stations, fast food and more along the way. Use the download button (top left of the map) and choose the export with **the route and every discovered POI**, as GPX. The routes in [`samples/`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/) were made this way.
 
 Any other GPX works if it has:
 
@@ -97,7 +97,6 @@ Either way, cut along the dashed lines.
 | `--checkpoint-every KM` | Add a checkpoint row every N km (🚩 `CP1 · 120 to go`). |
 | `--checkpoint KM:LABEL` | Add one checkpoint, e.g. `--checkpoint 87.5:Lunch`. Repeat it for more. |
 | `--categories water,bakery,toilets` | Keep only these POI categories. The names are the `[categories.*]` sections of `default.toml`. |
-| `--max-offset M` | Ignore POIs further than this many metres from the route (default 300). |
 | `--min-climb M` | Only count ascents gaining at least this many metres as climbs (default 80). Lower it to see smaller rises. |
 | `--gap M` | Merge POIs closer than this many metres into one stop (default 500). |
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |

@@ -87,13 +87,13 @@ def test_without_v_only_warnings_join_the_summary(tmp_path: Path) -> None:
 def test_v_says_each_step_and_vv_each_detail(tmp_path: Path) -> None:
     out = str(tmp_path / "rb.html")
     steps = CliRunner().invoke(app, [str(FLAT), "-v", "-o", out]).output
-    for line in ("Read paris_le_mans.gpx: ", "POIs left out: ", "Stops: 64 from 435 POIs", "Layout: ", "Done in "):
+    for line in ("Read paris_le_mans.gpx: ", "POIs left out: ", "Stops: 70 from 652 POIs", "Layout: ", "Done in "):
         assert f"\n{line}" in f"\n{steps}"
     assert "\n  km " not in steps  # no details
     details = CliRunner().invoke(app, [str(FLAT), "-vv", "-o", out]).output
     assert (
-        "\nStops: 64 from 435 POIs, each within 500 m of the next, spanning 1500 m at most\n  km 30.8: water x2\n"
-        in details
+        "\nStops: 70 from 652 POIs, each within 500 m of the next, spanning 1500 m at most\n"
+        "  km 30.8-31.2: water x2, fastfood\n" in details
     )
     assert details.count("Done in ") == 1  # the second run replaced the first one's log, rather than add to it
 
