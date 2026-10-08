@@ -139,7 +139,7 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
         row["emoji_lines"] = extra
         emoji_w = EMOJI_W + stop_w
-        if kind.label_if_room and stop_w + LABEL_W > room:
+        if kind.label_if_room and stop_emojis and stop_w + LABEL_W > room:  # alone, the label clips at worst
             row["label"] = ""
     else:
         row["emojis"], row["emoji_lines"], row["more"], emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)

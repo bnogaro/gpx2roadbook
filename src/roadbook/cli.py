@@ -135,6 +135,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     min_climb: Annotated[
         float | None, typer.Option(help="Smallest gain, metres, for an ascent to count as a climb (default 80).")
     ] = None,
+    summit_rows: Annotated[
+        bool | None,
+        typer.Option(help="A summit row at every climb's top, not only where a stop is (default: off)."),
+    ] = None,
     max_span: Annotated[
         float | None, typer.Option(help="Longest a stop may stretch, metres; longer runs split (default 3 x gap).")
     ] = None,
@@ -235,6 +239,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         ("climb_names", "max_age_days", 0 if refresh else None),
         ("checkpoints", "every_km", checkpoint_every),
         ("climbs", "min_gain_m", min_climb),
+        ("climbs", "summit_rows", summit_rows),
         ("stops", "gap_m", gap),
         ("stops", "max_span_m", max_span),
     ):

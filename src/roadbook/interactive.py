@@ -125,6 +125,7 @@ ADVANCED = [
     Setting("render", "details", "--details", "Reference sheet with POI names", bool),
     Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
     Setting("ride", "climb_min_per_100m", "--climb", "Arrival times: minutes added per 100 m climbed", float),
+    Setting("climbs", "summit_rows", "--summit-rows", "A summit row at every climb's top", bool),
     Setting("climb_names", "enabled", "--climb-names", "Name the cols and peaks (OpenStreetMap, needs internet)", bool),
 ]
 
