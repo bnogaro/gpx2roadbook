@@ -355,3 +355,19 @@ def test_climb_rows_and_the_key_show_each_climb_s_grade(layout: str, box: str) -
         "9\u201312 %",
         "12 % and more",
     ]
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_summit_rows_can_close_every_climb() -> None:
+    cfg = load_config()
+    assert cfg["climbs"]["summit_rows"] is False
+    cfg["climbs"]["summit_rows"] = True
+    book = build(HILLY, cfg)
+    summits = [i for i in book.items if i.kind == "summit"]
+    assert [i.climb for i in summits] == book.climbs
+    # a top with no stop gets its elevation on a row of its own
+    bare = next(i for i in summits if i.stop is None)
+    row = _row(bare, book, _layout(12.5))
+    assert row["emojis"] == [Glyph("🔝")]
+    assert row["label"] == f"{bare.ele:.0f} m"
+    assert '<div class="row summit"' in render_html(book, cfg)

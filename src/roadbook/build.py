@@ -156,8 +156,9 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     items.extend(item("stop", s.km, **stop_kw(s)) for s in stops if id(s) not in absorbed)
     for i, c in enumerate(climbs):
         items.append(item("climb", c.start_km, climb=c, label=c.label, **stop_kw(snapped.get((i, "foot")))))
-        # the gutter already shows every summit; a row is only worth its space when a stop sits there
-        if top := snapped.get((i, "summit")):
+        # the gutter already shows every summit: by default a row is only worth its space when a stop sits there
+        top = snapped.get((i, "summit"))
+        if top or cfg["climbs"]["summit_rows"]:
             items.append(item("summit", c.end_km, climb=c, **stop_kw(top)))
     items.append(item("finish", length, label="FINISH"))
     items.sort(key=lambda it: (it.km, KINDS[it.kind].rank))

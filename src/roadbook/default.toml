@@ -13,6 +13,7 @@ merge_gap_m = 800    # merge two ascents whose break (top to next foot) is at mo
 merge_dip_m = 10     # ...and descends at most this many metres...
 merge_dip_ratio = 0.25  # ...or at most this fraction of the smaller ascent's gain
 snap_m = 300         # a stop this close to a climb's foot or summit is shown on that climb's row / as its summit
+summit_rows = false  # a 🔝 row with its elevation at every climb's top; else only where a stop sits there
 # category = first threshold reached, on score = length_m * avg_grade_pct (Tour de France style)
 categories = [["HC", 80000], ["1", 64000], ["2", 32000], ["3", 16000], ["4", 8000]]
 # a climb's colour by its grade, from each grade up (%): each stretch on the profile, the climb's average on its row;
