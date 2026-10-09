@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import datetime as dt
 import shlex
 import subprocess
 import sys
@@ -12,121 +11,27 @@ from typing import TYPE_CHECKING, Any
 
 import questionary
 
-from .opening import parse_break
-from .render import LAYOUT_WIDTH
+from . import settings as st
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
     from prompt_toolkit.input import Input
     from prompt_toolkit.output import Output
 
 
-@dataclass(frozen=True)
-class Setting:
-    """One cfg value the prompts can change, and the CLI flag that sets it."""
-
-    section: str
-    key: str
-    flag: str
-    question: str | Callable[[dict[str, Any]], str]  # or worked out from the answers so far
-    kind: type  # float, int, bool or str
-    shown: Callable[[dict[str, Any]], Any] | None = None  # the value 0 stands for, when 0 means "automatic"
-    choices: tuple[str, ...] = ()  # offered as a menu, with "Other…" for anything else
-    when: Callable[[dict[str, Any]], bool] | None = None  # asked only if this holds, given the answers so far
-    check: Callable[[str], bool | str] | None = None  # validates a text answer: True, or why it is refused
-
-    def text(self, cfg: dict[str, Any]) -> str:
-        return self.question if isinstance(self.question, str) else self.question(cfg)
-
-    def get(self, cfg: dict[str, Any]) -> Any:  # noqa: ANN401  cfg values are plain TOML scalars
-        return cfg[self.section][self.key]
-
-    def set(self, cfg: dict[str, Any], value: Any) -> None:  # noqa: ANN401
-        cfg[self.section][self.key] = value
-
-
-def _strip_width(cfg: dict[str, Any]) -> float:
-    return LAYOUT_WIDTH[cfg["render"]["layout"]]
-
-
-def _span(cfg: dict[str, Any]) -> float:
-    return 3 * cfg["stops"]["gap_m"]
-
-
-def _is_date(text: str) -> bool | str:
-    if not text.strip():
-        return True  # no date
-    try:
-        dt.date.fromisoformat(text.strip())
-    except ValueError:
-        return "a date like 2026-10-12, or empty"
-    return True
-
-
-def _is_time(text: str) -> bool | str:
-    if not text.strip():
-        return True  # no start time
-    try:
-        dt.time.fromisoformat(text.strip())
-    except ValueError:
-        return "a time like 06:00, or empty"
-    return True
-
-
-def _is_speed(text: str) -> bool | str:
-    try:
-        return float(text) > 0 or "a speed above 0, for the arrival times"
-    except ValueError:
-        return f"{text!r} is not a number"
-
-
-def _dated(cfg: dict[str, Any]) -> bool:
-    return bool(cfg["ride"]["date"])
-
-
-def _timed(cfg: dict[str, Any]) -> bool:
-    return _dated(cfg) and bool(cfg["ride"]["start"])
-
-
-def _date_question(cfg: dict[str, Any]) -> str:
-    # the date gives the arrival times their day; with opening hours, it also picks each shop's hours that day
-    if cfg["hours"]["enabled"]:
-        return "Ride date, YYYY-MM-DD (empty: the whole week's hours, no arrival times)"
-    return "Ride date, YYYY-MM-DD, for arrival times (empty: none)"
-
-
-COMMON = [
-    Setting("render", "page", "--page", "Paper size", str, choices=("A4", "A5", "A3", "Letter", "Legal")),
-    Setting("checkpoints", "every_km", "--checkpoint-every", "Checkpoint every N km (0 = none)", float),
-    Setting("towns", "enabled", "--towns", "Name the towns at busy stops (OpenStreetMap, needs internet)", bool),
-    Setting("hours", "enabled", "--hours", "Look up shops' opening hours (OpenStreetMap, needs internet)", bool),
-    Setting("ride", "date", "--date", _date_question, str, check=_is_date),
-    Setting(
-        "ride", "start", "--start", "Start time, HH:MM (empty: no arrival times)", str, when=_dated, check=_is_time
-    ),
-    Setting(
-        "ride",
-        "speed_kmh",
-        "--speed",
-        "Average speed on the flat, km/h, short stops included",
-        float,
-        when=_timed,
-        check=_is_speed,
-    ),
-]  # then the planned breaks, once there is a start time: see _breaks()
+# what the prompts ask, in their order; the layout, categories, breaks, PDF and output come with their own prompts
+COMMON = [st.PAGE, st.CHECKPOINT_EVERY, st.TOWNS, st.HOURS, st.DATE, st.START, st.SPEED]  # then the breaks: _breaks()
 ADVANCED = [
-    Setting("render", "width_mm", "--width", "Strip width, mm", float, shown=_strip_width),
-    Setting("render", "length_mm", "--length", "Strip length, mm", float),
-    Setting("stops", "gap_m", "--gap", "Merge POIs closer than, m", float),
-    Setting("stops", "max_span_m", "--max-span", "Longest stop, m", float, shown=_span),
-    Setting("climbs", "min_gain_m", "--min-climb", "Smallest climb, m of gain", float),
-    Setting("render", "emoji_lines", "--emoji-lines", "Lines of emojis a busy stop may fill", int),
-    Setting("render", "details", "--details", "Reference sheet with POI names", bool),
-    Setting("ride", "margin_pct", "--margin", "Arrival times may be off by, % of the time ridden", float),
-    Setting("ride", "climb_min_per_100m", "--climb", "Arrival times: minutes added per 100 m climbed", float),
-    Setting("climbs", "summit_rows", "--summit-rows", "A summit row at every climb's top", bool),
-    Setting("climb_names", "enabled", "--climb-names", "Name the cols and peaks (OpenStreetMap, needs internet)", bool),
+    st.WIDTH,
+    st.LENGTH,
+    st.GAP,
+    st.MAX_SPAN,
+    st.MIN_CLIMB,
+    st.EMOJI_LINES,
+    st.DETAILS,
+    st.MARGIN,
+    st.CLIMB,
+    st.SUMMIT_ROWS,
+    st.CLIMB_NAMES,
 ]
 
 
@@ -154,17 +59,7 @@ def _plain(value: Any) -> Any:  # noqa: ANN401
     return int(value) if isinstance(value, float) and value.is_integer() else value
 
 
-def _is_number(kind: type) -> Callable[[str], bool | str]:
-    def check(text: str) -> bool | str:
-        try:
-            return kind(text) >= 0 or "must be 0 or more"
-        except ValueError:
-            return f"{text!r} is not a number"
-
-    return check
-
-
-def _shown(s: Setting, cfg: dict[str, Any]) -> str:
+def _shown(s: st.Setting, cfg: dict[str, Any]) -> str:
     """A setting's value as listed in the advanced menu."""
     value = s.get(cfg)
     if s.kind is bool:
@@ -174,7 +69,7 @@ def _shown(s: Setting, cfg: dict[str, Any]) -> str:
     return str(_plain(value))
 
 
-def _ask(s: Setting, cfg: dict[str, Any], ask: _Prompts) -> None:
+def _ask(s: st.Setting, cfg: dict[str, Any], ask: _Prompts) -> None:
     current = s.get(cfg)
     question = s.text(cfg)
     if s.kind is bool:
@@ -192,7 +87,7 @@ def _ask(s: Setting, cfg: dict[str, Any], ask: _Prompts) -> None:
         # a 0 that means "automatic" is offered as the value it stands for, and kept as 0 if accepted unchanged
         auto = s.shown(cfg) if s.shown and not current else None
         default = str(_plain(auto if auto is not None else current))
-        validate = s.check or _is_number(s.kind)
+        validate = s.check or st.is_number(s.kind)
         answer = s.kind(ask(questionary.text(question, default=default, validate=validate, **ask.io)))
         s.set(cfg, 0 if auto is not None and answer == auto else answer)
 
@@ -219,7 +114,7 @@ def _layout(cfg: dict[str, Any], ask: _Prompts) -> None:
         questionary.Choice("line   one horizontal ribbon", value="line"),
     ]
     cfg["render"]["layout"] = ask(
-        questionary.select("Layout", choices=choices, default=cfg["render"]["layout"], **ask.io)
+        questionary.select(st.LAYOUT.text(cfg), choices=choices, default=cfg["render"]["layout"], **ask.io)
     )
 
 
@@ -231,7 +126,7 @@ def _categories(cfg: dict[str, Any], ask: _Prompts) -> None:
     ]
     cfg["pois"]["enabled"] = ask(
         questionary.checkbox(
-            "POI categories to show",
+            st.CATEGORIES.text(cfg),
             choices=choices,
             validate=lambda picked: bool(picked) or "pick at least one",
             **ask.io,
@@ -239,24 +134,11 @@ def _categories(cfg: dict[str, Any], ask: _Prompts) -> None:
     )
 
 
-def _parse_breaks(text: str) -> list[list[float]]:
-    return [parse_break(b) for b in text.split()]
-
-
-def _are_breaks(text: str) -> bool | str:
-    try:
-        _parse_breaks(text)
-    except ValueError:
-        return "KM:MINUTES, e.g. 95:45, separated by spaces"
-    return True
-
-
 def _breaks(cfg: dict[str, Any], ask: _Prompts) -> None:
     """The planned breaks, each delaying every arrival time after it: a list, so not a Setting."""
     current = " ".join(f"{_plain(km)}:{_plain(minutes)}" for km, minutes in cfg["ride"]["breaks"])
-    question = "Planned breaks, KM:MINUTES separated by spaces (empty: none)"
-    answer = ask(questionary.text(question, default=current, validate=_are_breaks, **ask.io))
-    cfg["ride"]["breaks"] = _parse_breaks(answer)
+    answer = ask(questionary.text(st.BREAKS.text(cfg), default=current, validate=st.are_breaks, **ask.io))
+    cfg["ride"]["breaks"] = st.parse_breaks(answer)
 
 
 def _advanced(cfg: dict[str, Any], ask: _Prompts) -> None:
@@ -281,12 +163,12 @@ def ask(
     for s in COMMON:
         if s.when is None or s.when(cfg):
             _ask(s, cfg, prompts)
-    if _timed(cfg):
+    if st.timed(cfg):
         _breaks(cfg, prompts)
     _categories(cfg, prompts)
-    pdf = prompts(questionary.confirm("Also export a PDF?", default=pdf, **prompts.io))
+    pdf = prompts(questionary.confirm(st.PDF.text(cfg), default=pdf, **prompts.io))
     default_out = str(out or gpx.with_suffix(".roadbook.html"))
-    out = Path(prompts(questionary.path("Output file", default=default_out, **prompts.io)))
+    out = Path(prompts(questionary.path(st.OUT.text(cfg), default=default_out, **prompts.io)))
     _advanced(cfg, prompts)
     return gpx, out, pdf
 
