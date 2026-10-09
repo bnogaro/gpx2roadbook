@@ -89,12 +89,14 @@ roadbook-gui                # or: roadbook-gui --browser
 
 - **Browse** for the GPX. The road book goes next to it, unless you change the output file.
 - Set the options. Hover over one to see what it does. The usual ones are on top, the rest under **Advanced settings**. Options that depend on others show up when they apply: the start time once you set a ride date, then the speed and planned breaks.
-- The **preview** follows your changes, at true size. It uses only the town names, climb names and hours already looked up, and says when some are missing: they come with the first **Make the road book**.
+- The **preview** follows your changes, at true size when it fits (**Fit**), or zoomed in or out. It uses only the town names, climb names and hours already looked up, and says when some are missing: they come with the first **Make the road book**.
 - **Make the road book** writes the HTML (and the PDF if asked), shows the summary, and lets you open the result or its folder. It also shows the same `roadbook …` command, to copy.
 
 The window remembers your settings for next time, in `gui.toml` in your user config folder (`%LOCALAPPDATA%\gpx2roadbook` on Windows, `~/.config/gpx2roadbook` on Linux, `~/Library/Application Support/gpx2roadbook` on macOS). The gear menu at the top right resets them to the defaults, or saves them as a file for `roadbook --config` (see [Customising](#customising)). That's a handy way to share an event's setup with the other riders.
 
 On Windows the window uses the Edge WebView2 runtime, which comes with Windows 10 and 11. If the window won't open, `roadbook-gui --browser` shows the same page in a browser tab instead. There you drop the GPX onto the page, and the road book goes to your Downloads folder.
+
+The page fits narrow windows and phones too, in one column. To use it from your phone, run `roadbook-gui --lan` on your computer, then open `http://<your computer's address>:8642` on the phone, on the same Wi-Fi. Your firewall may ask whether to allow it. A phone uploads the GPX and downloads the road book: it never sees or writes your computer's files. Without `--lan`, the page is served to your computer only. Anyone on your network can open it while `--lan` runs, so stop it (Ctrl+C) when you're done.
 
 ### Printing
 

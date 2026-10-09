@@ -1,8 +1,13 @@
 """The window: the GPX and the output on top, the common settings, the advanced ones folded away; the run, and a
-preview of the road book."""
+preview of the road book. Two columns on a wide screen, one on a phone or a narrow window, in that order.
+
+A device on the network (roadbook-gui --lan) gets no path on this computer, to read or to write: it uploads the GPX,
+and downloads the road book.
+"""
 
 from __future__ import annotations
 
+import ipaddress
 import tempfile
 from importlib.metadata import version
 from pathlib import Path
@@ -38,38 +43,57 @@ ADVANCED = (
 )
 
 
-def page() -> None:
+def page(*, lan: bool = False) -> None:
     """The page, built once per window: everything after that goes through bindings and handlers."""
     form = Form()  # local to this page: each window its own
+    remote = lan and not is_here(ui.context.client.ip)
     ui.page_title("gpx2roadbook")
     with ui.header().classes("items-center") as header:
         ui.label("gpx2roadbook").classes("text-lg font-bold")
         ui.label(version("gpx2roadbook")).classes("text-xs opacity-70")
-    with ui.row().classes("w-full no-wrap items-start gap-6 p-2"):
-        with ui.column().classes("w-1/2 gap-2"):
-            _files(form)
+    # a grid, not a row: one column below Tailwind's lg (1024 px), two above; min-w-0 lets a long path shrink
+    with ui.element("div").classes("w-full grid grid-cols-1 lg:grid-cols-2 items-start gap-6 p-2"):
+        with ui.column().classes("w-full min-w-0 gap-2"):
+            _files(form, remote=remote)
             lists = _settings(form)
-        with ui.column().classes("w-1/2 gap-2"):
-            RunPanel(form)
+        with ui.column().classes("w-full min-w-0 gap-2"):
+            RunPanel(form, remote=remote)
             PreviewPanel(form)
     with header:
         ui.space()
         Memory(form, on_apply=lambda: [rows.show.refresh() for rows in lists])
 
 
-def _files(form: Form) -> None:
+def is_here(ip: str) -> bool:
+    """Whether a browser tab runs on this computer: its address is a loopback one."""
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:  # no address, or a name
+        return ip == "localhost"
+
+
+def _files(form: Form, *, remote: bool) -> None:
     """The GPX, picked with the system's own dialog in a window, or uploaded in a browser tab; then the output."""
-    with ui.row().classes("w-full items-center no-wrap gap-2"):
-        ui.input("GPX file", on_change=lambda e: _gpx_typed(form, e.value)).bind_value_from(form, "gpx").classes(
-            "grow"
-        ).tooltip("The route, with its POIs: see the README for getting one from onroutemap.de").mark("gpx")
-        if app.native.main_window is not None:
-            ui.button("Browse", icon="folder_open", on_click=lambda: _browse(form)).props("outline").mark("browse")
+    if remote:  # the upload alone, and its name
+        ui.label().bind_text_from(form, "gpx", backward=lambda gpx: Path(gpx).name or "No GPX yet").classes(
+            "text-sm"
+        ).mark("gpx-name")
+    else:
+        with ui.row().classes("w-full items-center no-wrap gap-2"):
+            ui.input("GPX file", on_change=lambda e: _gpx_typed(form, e.value)).bind_value_from(form, "gpx").classes(
+                "grow min-w-0"
+            ).tooltip("The route, with its POIs: see the README for getting one from onroutemap.de").mark("gpx")
+            if app.native.main_window is not None:
+                ui.button("Browse", icon="folder_open", on_click=lambda: _browse(form)).props("outline").mark("browse")
     if app.native.main_window is None:  # a browser tab can't hand over a path: upload the file
         ui.upload(
-            label="or drop a GPX here", auto_upload=True, max_files=1, on_upload=lambda e: _uploaded(form, e)
+            label="Drop a GPX here" if remote else "or drop a GPX here",
+            auto_upload=True,
+            max_files=1,
+            on_upload=lambda e: _uploaded(form, e, remote=remote),
         ).props('accept=".gpx" flat bordered').classes("w-full").mark("upload")
-    ui.input(st.OUT.text(form.cfg)).bind_value(form, "out").classes("w-full").tooltip(st.OUT.help).mark("out")
+    if not remote:
+        ui.input(st.OUT.text(form.cfg)).bind_value(form, "out").classes("w-full").tooltip(st.OUT.help).mark("out")
     with ui.row().classes("gap-4"):
         ui.switch(st.PDF.text(form.cfg)).bind_value(form, "pdf").tooltip(st.PDF.help).mark("pdf-switch")
         ui.switch(st.REFRESH.text(form.cfg)).bind_value(form, "refresh").tooltip(st.REFRESH.help).mark("refresh")
@@ -107,8 +131,9 @@ async def _browse(form: Form) -> None:
         form.choose(Path(picked[0]))
 
 
-async def _uploaded(form: Form, e: UploadEventArguments) -> None:
-    """An upload has no folder of its own: it is kept in a temporary one, and the road book goes to Downloads."""
+async def _uploaded(form: Form, e: UploadEventArguments, *, remote: bool) -> None:
+    """An upload has no folder of its own: it is kept in a temporary one, and the road book goes to Downloads; for a
+    device on the network, next to it, to be downloaded from there."""
     path = Path(tempfile.mkdtemp(prefix="roadbook-")) / Path(e.file.name).name
     await e.file.save(path)
-    form.choose(path, user_downloads_path() / f"{path.stem}.roadbook.html")
+    form.choose(path, None if remote else user_downloads_path() / f"{path.stem}.roadbook.html")
