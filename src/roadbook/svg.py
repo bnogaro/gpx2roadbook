@@ -11,7 +11,7 @@ if TYPE_CHECKING:
     from .model import Climb
     from .profile import Profile
 
-    Scale = Sequence[Sequence[float | str]]  # [[from this grade up, %, colour], ...], by rising grade
+type Scale = Sequence[Sequence[float | str]]  # [[from this grade up, %, colour], ...], by rising grade
 
 GROUND = "#efefef"  # lighter than the gentlest climb, printed in grey too
 CLIMB = "#f59e0b"  # a climb's colour without a grade scale

@@ -3,7 +3,7 @@ name = "gpx2roadbook"
 version = "0.4.0"
 description = "Turn a GPX file with POIs into a compact, printable road book for a bike top tube."
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 license = "AGPL-3.0-or-later"
 license-files = ["LICENSE"]
 authors = [{ name = "Bastien Nogaro" }]
@@ -15,7 +15,6 @@ classifiers = [
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -80,7 +79,7 @@ branch = true
 
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 src = ["src"]
 
 [tool.ruff.lint]
@@ -110,12 +109,12 @@ max-positional-args = 6
 ]
 
 [tool.ruff.format]
-quote-style = "double"
+quote-style = "preserve"  # flake8-quotes (Q) keeps strings double-quoted; inside f-strings too, from 3.12
 indent-style = "space"
 docstring-code-format = true
 
 [tool.ty.environment]
-python-version = "3.11"
+python-version = "3.12"
 
 [tool.ty.terminal]
 error-on-warning = true

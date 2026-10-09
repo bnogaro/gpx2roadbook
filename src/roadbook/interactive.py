@@ -226,7 +226,7 @@ def _layout(cfg: dict[str, Any], ask: _Prompts) -> None:
 def _categories(cfg: dict[str, Any], ask: _Prompts) -> None:
     enabled = cfg["pois"]["enabled"]
     choices = [
-        questionary.Choice(f"{spec['emoji']} {name}", value=name, checked=name in enabled)
+        questionary.Choice(f"{spec["emoji"]} {name}", value=name, checked=name in enabled)
         for name, spec in cfg["categories"].items()
     ]
     cfg["pois"]["enabled"] = ask(

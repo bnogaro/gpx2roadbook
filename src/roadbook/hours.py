@@ -27,9 +27,9 @@ if TYPE_CHECKING:
     from .model import Poi
     from .osm import Http
 
-    Answer = Callable[[Poi, list["Place"], str], None]  # matches a POI among places found by a source
-
 log = logging.getLogger(__name__)
+
+type Answer = Callable[[Poi, list[Place], str], None]  # matches a POI among places found by a source
 
 CHUNK = 50  # POIs per Overpass request; Overpass is told a little less than TIMEOUT_S, so it gives up before we do
 MIN_SIMILARITY = 0.6
@@ -87,7 +87,7 @@ def _overpass_query(pois: list[Poi], match_m: float) -> str:
 def _from_overpass(element: dict[str, Any]) -> Place:
     where = element.get("center", element)
     tags = element["tags"]
-    osm_id = f"{element['type']}/{element['id']}"
+    osm_id = f"{element["type"]}/{element["id"]}"
     return Place(osm_id, tags.get("name", ""), where["lat"], where["lon"], tags["opening_hours"], _kind(tags))
 
 
@@ -108,12 +108,12 @@ def _nominatim(poi: Poi, match_m: float, http: Http, sleep: Callable[[float], No
 def _from_nominatim(results: list[dict[str, Any]]) -> list[Place]:
     return [
         Place(
-            f"{r['osm_type']}/{r['osm_id']}",
+            f"{r["osm_type"]}/{r["osm_id"]}",
             r.get("name", ""),
             float(r["lat"]),
             float(r["lon"]),
             hours,
-            f"{r['category']}={r['type']}" if r.get("category") in KIND_KEYS else "",  # Nominatim's main tag
+            f"{r["category"]}={r["type"]}" if r.get("category") in KIND_KEYS else "",  # Nominatim's main tag
         )
         for r in results
         if (hours := (r.get("extratags") or {}).get("opening_hours"))

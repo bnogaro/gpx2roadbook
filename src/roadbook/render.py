@@ -157,7 +157,7 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it: on a
         # strip down the km column, under the first; a ribbon's token has no column for it
         row["km_end"] = f"{it.stop.km_end:.1f}"
-        row["sub_short"] = f"→{row['km_end']}"
+        row["sub_short"] = f"→{row["km_end"]}"
     if it.dist_to_next is not None:  # at the end of the main line on a strip, at the foot of a ribbon's token
         row["dist"] = f"↓{it.dist_to_next:.1f}"
         row["leg_short"] = f"{it.dist_to_next:.1f}"

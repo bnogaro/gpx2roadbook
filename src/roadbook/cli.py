@@ -8,7 +8,7 @@ from enum import StrEnum
 from importlib.metadata import version
 from pathlib import Path  # noqa: TC003  Typer resolves the annotations of main() at runtime
 from time import perf_counter
-from typing import TYPE_CHECKING, Annotated, cast
+from typing import TYPE_CHECKING, Annotated, cast, override
 
 import typer
 
@@ -82,6 +82,7 @@ def _utf8_console() -> None:
 class _Indent(logging.Formatter):
     """A detail (-vv) indented under the step it belongs to, a request to OpenStreetMap (-vvv) twice."""
 
+    @override
     def format(self, record: logging.LogRecord) -> str:
         depth = 2 if record.name == "roadbook.http" else 1 if record.levelno < logging.INFO else 0
         return "  " * depth + super().format(record)

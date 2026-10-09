@@ -12,7 +12,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Any, TypeVar
+from typing import TYPE_CHECKING, Any
 
 from platformdirs import user_cache_path
 
@@ -20,10 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    Http = Callable[[str, dict[str, str] | None], Any]  # http() below, or a fake in tests
-
-T = TypeVar("T")
-R = TypeVar("R")
+type Http = Callable[[str, dict[str, str] | None], Any]  # http() below, or a fake in tests
 
 log = logging.getLogger(__name__)
 wire = logging.getLogger("roadbook.http")  # every request and answer: -vvv
@@ -78,7 +75,7 @@ def http(url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401  parsed 
     return json.loads(raw)
 
 
-def overpass(query: str, http: Http, parse: Callable[[dict[str, Any]], T | None]) -> list[T]:
+def overpass[T](query: str, http: Http, parse: Callable[[dict[str, Any]], T | None]) -> list[T]:
     """What `parse` makes of the elements Overpass finds for `query`, leaving out the ones it makes nothing of.
 
     The first server that answers does; raises OSError if none does, or none answers what `parse` can read.
@@ -94,7 +91,7 @@ def overpass(query: str, http: Http, parse: Callable[[dict[str, Any]], T | None]
     raise OSError(error) from error
 
 
-def nominatim(
+def nominatim[T](
     endpoint: str, params: dict[str, str], http: Http, sleep: Callable[[float], None], parse: Callable[[Any], T]
 ) -> T:
     """What `parse` makes of Nominatim's answer to `params` at `endpoint` ("search" or "reverse").
@@ -110,7 +107,7 @@ def nominatim(
         raise OSError(exc) from exc
 
 
-def one_by_one(items: list[T], ask: Callable[[T], R], answer: Callable[[T, R], None]) -> bool:
+def one_by_one[T, R](items: list[T], ask: Callable[[T], R], answer: Callable[[T, R], None]) -> bool:
     """`answer` each item with what `ask` gets for it, in turn, until NOMINATIM_GIVE_UP of them fail in a row: the
     service is down, or we are offline. Returns whether some were left unanswered."""
     failed = False
