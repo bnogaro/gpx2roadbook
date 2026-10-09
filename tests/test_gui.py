@@ -1,25 +1,37 @@
 """The GUI, through NiceGUI's User fixture: a simulated user, no browser (see nicegui/llms.md, "Testing")."""
 
+import asyncio
 import shutil
 import sys
-from collections.abc import AsyncIterator
+import tomllib
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 
 pytest.importorskip("nicegui", reason="the GUI is an optional extra: uv sync --extra gui")
 
-from nicegui import ui
+from nicegui import app, ui
 from nicegui.testing.user import User
 from nicegui.testing.user_simulation import user_simulation
 
 import roadbook.gui
 import roadbook.gui.app
 from roadbook.config import load_config
+from roadbook.gui.models import memory
 from roadbook.gui.models.form import Form, Row
 from roadbook.gui.pages.main import page
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
+
+
+@pytest.fixture(autouse=True)
+def remembered(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> Path:
+    """The last settings go to a file of the test's own, never the user's config folder."""
+    file = tmp_path / "config" / "gui.toml"
+    monkeypatch.setattr(memory, "path", lambda: file)
+    return file
 
 
 @pytest.fixture
@@ -109,3 +121,80 @@ def test_roadbook_gui_starts_the_window_or_says_how_to_install_it(
     with pytest.raises(SystemExit):
         roadbook.gui.main()
     assert 'uv tool install "gpx2roadbook[gui]"' in capsys.readouterr().err
+
+
+async def test_the_last_settings_come_back_and_are_saved_as_they_change(user: User, remembered: Path) -> None:
+    _write(remembered, '[ride]\ndate = "2026-10-17"\nstart = "07:00"\nbreaks = [[95, 45]]\n')
+    await user.open("/")
+    await user.should_see(marker="break-km-0")  # the rows too, which no binding reaches
+    await user.should_see("2026-10-17")
+    _pick(user, "start", "08:30")
+    saved = await _saved(remembered, lambda cfg: cfg["ride"]["start"] == "08:30")
+    assert saved == {"ride": {"date": "2026-10-17", "start": "08:30", "breaks": [[95.0, 45.0]]}}
+    assert load_config(remembered)["ride"]["start"] == "08:30"  # a file the CLI takes with --config
+    for chip in user.find(marker="category-water").elements:
+        chip.selected = False  # ty: ignore[unresolved-attribute]  # as a click does
+    await _saved(remembered, lambda cfg: "water" not in cfg.get("pois", {}).get("enabled", ["water"]))
+    user.find(marker="settings-menu").click()
+    user.find(marker="reset").click()
+    await user.should_see("Settings back to the defaults")
+    await user.should_not_see(marker="break-km-0")
+    await user.should_not_see(marker="start")  # no date any more
+    assert all(chip.selected for chip in user.find(marker="category-water").elements)  # ty: ignore[unresolved-attribute]
+    assert await _saved(remembered, lambda cfg: not cfg) == {}
+
+
+async def test_a_broken_or_outdated_file_is_left_out_with_a_notice(user: User, remembered: Path) -> None:
+    _write(remembered, "[render]\nlayout = 3\n")
+    await user.open("/")
+    await user.should_see("Your last settings are left out")
+    await user.should_see("strip")  # the default layout
+    _write(remembered, "[ride\n")
+    await user.open("/")
+    await user.should_see("Your last settings are left out")
+
+
+async def test_save_as_downloads_the_settings_in_a_browser_tab(user: User) -> None:
+    await user.open("/")
+    _pick(user, "date", "2026-10-17")
+    await user.should_see(marker="start")
+    user.find(marker="settings-menu").click()
+    user.find(marker="save-as").click()
+    response = await user.download.next()
+    assert tomllib.loads(response.text) == {"ride": {"date": "2026-10-17"}}
+
+
+async def test_save_as_writes_where_the_dialog_says_in_a_window(
+    user: User, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    shared = tmp_path / "event.toml"
+
+    class Window:
+        async def create_file_dialog(self, *_args: object, **_kwargs: object) -> str:
+            return str(shared)  # Windows hands the path back as it is; others as a tuple of one
+
+    await user.open("/")
+    with monkeypatch.context() as window:  # a window only for the dialog: nicegui would shut it down after the test
+        window.setattr(app.native, "main_window", Window())
+        user.find(marker="settings-menu").click()
+        user.find(marker="save-as").click()
+        await user.should_see("Saved")
+    assert tomllib.loads(shared.read_text(encoding="utf-8")) == {}  # the defaults: nothing to say
+
+
+async def _saved(file: Path, done: Callable[[dict[str, Any]], bool]) -> dict[str, Any]:
+    """The remembered settings, once they say what the test waits for: they are saved within a second."""
+    for _ in range(40):
+        if (cfg := _read(file)) is not None and done(cfg):
+            return cfg
+        await asyncio.sleep(0.1)
+    raise AssertionError(_read(file))
+
+
+def _write(file: Path, text: str) -> None:
+    file.parent.mkdir(exist_ok=True)
+    file.write_text(text, encoding="utf-8")
+
+
+def _read(file: Path) -> dict[str, Any] | None:
+    return tomllib.loads(file.read_text(encoding="utf-8")) if file.is_file() else None

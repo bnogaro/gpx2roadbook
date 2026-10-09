@@ -37,7 +37,9 @@ def categories(form: Form) -> None:
                 color="primary",
                 text_color="white",
                 on_selection_change=lambda e, n=name: toggle(n, e),
-            ).props("outline dense").mark(f"category-{name}")
+            ).bind_selected_from(form.cfg["pois"], "enabled", backward=lambda enabled, n=name: n in enabled).props(
+                "outline dense"
+            ).mark(f"category-{name}")
 
 
 class Rows:
