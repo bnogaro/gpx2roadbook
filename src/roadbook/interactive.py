@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 import questionary
 
 from . import settings as st
+from .api import default_out as default_out_for
 
 if TYPE_CHECKING:
     from prompt_toolkit.input import Input
@@ -167,7 +168,7 @@ def ask(
         _breaks(cfg, prompts)
     _categories(cfg, prompts)
     pdf = prompts(questionary.confirm(st.PDF.text(cfg), default=pdf, **prompts.io))
-    default_out = str(out or gpx.with_suffix(".roadbook.html"))
+    default_out = str(out or default_out_for(gpx))
     out = Path(prompts(questionary.path(st.OUT.text(cfg), default=default_out, **prompts.io)))
     _advanced(cfg, prompts)
     return gpx, out, pdf
@@ -190,7 +191,7 @@ def _added(cfg: dict[str, Any], base: dict[str, Any]) -> list[str]:
 def command(gpx: Path, out: Path, *, pdf: bool, cfg: dict[str, Any], base: dict[str, Any], config: Path | None) -> str:
     """The plain `roadbook …` command that does what the prompts were answered with: only what differs from `base`."""
     args = ["roadbook", str(gpx)]
-    if out != gpx.with_suffix(".roadbook.html"):
+    if out != default_out_for(gpx):
         args += ["-o", str(out)]
     if config:
         args += ["--config", str(config)]
