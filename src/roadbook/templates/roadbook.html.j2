@@ -185,7 +185,7 @@
     {{ c.svg | safe }}
   </div>
   {% endfor %}
-  {% if grade_key %}<p class="key">Grade of each km:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
+  {% if grade_key %}<p class="key">Grade of each slab:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
 </div>
 {% endif %}
 </body>

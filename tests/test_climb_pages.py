@@ -1,3 +1,4 @@
+import itertools
 import re
 from pathlib import Path
 from typing import Any
@@ -8,14 +9,14 @@ from typer.testing import CliRunner
 
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.climb_pages import chosen, pages, sections
+from roadbook.climb_pages import chosen, pages, sections, step_km
 from roadbook.config import load_config
 from roadbook.model import Climb, ClimbPage, Poi, Stop, Track
 from roadbook.osm import M_PER_DEG, OVERPASS
 from roadbook.places import Place, lookup, on_road, road
 from roadbook.profile import Profile
 from roadbook.render import render_html
-from roadbook.svg import CARD_PLOT_H, climb_svg
+from roadbook.svg import CARD_GROUND_H, CARD_PLOT_H, climb_svg
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 CATEGORIES = load_config()["climbs"]["categories"]
@@ -60,6 +61,45 @@ def test_a_climb_is_cut_into_kilometres_from_its_foot(end: float, lengths: list[
     assert all(s.grade == pytest.approx(1000 / 12_000 * 100, abs=0.5) for s in cut)
 
 
+@pytest.mark.parametrize(
+    ("length", "min_sections", "step"),
+    [
+        (9.6, 6, 1.0),  # a kilometre at a time, as the races print it
+        (6.0, 6, 1.0),
+        (5.9, 6, 0.5),  # 5 whole km are too few: 11 half km
+        (3.0, 6, 0.5),
+        (2.3, 6, 0.25),  # once 2 slabs, now 9
+        (0.8, 6, 0.25),  # 100 m would be shorter than the profile is smoothed over
+        (2.3, 0, 1.0),
+    ],
+)
+def test_a_short_climb_is_cut_into_shorter_steps(length: float, min_sections: int, step: float) -> None:
+    assert step_km(_climb(1.0, 1.0 + length), _profile(_track()), min_sections) == step
+
+
+def test_no_step_is_shorter_than_the_profile_is_smoothed_over() -> None:
+    climb = _climb(1.0, 1.8)
+    assert step_km(climb, Profile(_track(), smooth_m=50), 6) == 0.1  # a 75 m average: 100 m steps are the road's
+    assert step_km(climb, Profile(_track(), smooth_m=2000), 6) == 1.0  # none is: a kilometre, as ever
+
+
+@pytest.mark.parametrize(
+    ("end", "step", "smooth_m", "lengths"),
+    [
+        (3.4, 0.25, 100, [0.25] * 9 + [0.15]),
+        (3.35, 0.25, 100, [0.25] * 8 + [0.35]),  # 100 m: shorter than the profile is smoothed over (125 m)
+        (4.6, 0.5, 100, [0.5] * 6 + [0.6]),  # 100 m: under 30 % of a step
+        (1.7, 0.1, 50, [0.1] * 7),  # with a 75 m average, 100 m steps
+    ],
+)
+def test_the_steps_run_from_the_foot_and_the_last_one_takes_a_short_remainder(
+    end: float, step: float, smooth_m: float, lengths: list[float]
+) -> None:
+    cut = sections(_climb(1.0, end), Profile(_track(), smooth_m=smooth_m), step)
+    assert [s.length_km for s in cut] == pytest.approx(lengths)
+    assert (cut[0].start_km, cut[-1].end_km) == (1.0, end)
+
+
 def test_the_climbs_of_a_category_or_harder_get_a_page(caplog: pytest.LogCaptureFixture) -> None:
     climbs = [_climb(k, k + 1, label) for k, label in enumerate(("4", "HC", "", "2", "3", "1"))]
     assert [c.label for c in chosen(climbs, "3", CATEGORIES)] == ["HC", "2", "3", "1"]  # in route order
@@ -75,8 +115,10 @@ def _stop(km: float, category: str = "water") -> Stop:
 def test_a_page_has_the_stops_on_its_climb_its_foot_and_summit_too() -> None:
     profile = _profile(_track())
     stops = [_stop(0.5), _stop(1.8), _stop(4.0), _stop(6.2), _stop(6.6)]
-    (page,) = pages([_climb(2.0, 6.0)], stops, profile, {"from_category": "3"}, CATEGORIES, snap_m=300)
+    cfg = {"from_category": "3", "min_sections": 6}
+    (page,) = pages([_climb(2.0, 6.0)], stops, profile, cfg, CATEGORIES, snap_m=300)
     assert [s.km for s in page.stops] == [1.8, 4.0, 6.2]  # 200 m from the foot, and from the summit, are on it
+    assert [s.length_km for s in page.sections] == pytest.approx([0.5] * 8)  # 4 whole km are too few
 
 
 # --- the places on the way
@@ -171,6 +213,46 @@ def _size(svg: str) -> tuple[float, float]:
     found = re.search(r'width="([\d.]+)mm" height="([\d.]+)mm"', svg)
     assert found
     return float(found[1]), float(found[2])
+
+
+def _ramp(steps: list[float], grade: float = 5.0) -> list[tuple[float, float, float, float]]:
+    """Sections of these lengths, km, from km 0 and 500 m up, all at `grade` %."""
+    edges = np.cumsum([0.0, *steps])
+    return [(a, b, 500 + a * grade * 10, 500 + b * grade * 10) for a, b in itertools.pairwise(edges)]
+
+
+def _kms(svg: str) -> list[str]:
+    return re.findall(r'font-size="2" text-anchor="middle">([^<]+)<', svg)
+
+
+def _grades(svg: str) -> list[str]:
+    return re.findall(r'font-weight="700" text-anchor="middle" fill="[^"]+">([^<]+)<', svg)
+
+
+def test_the_km_scale_reads_by_quarter_km_or_by_half_km_when_they_crowd_it() -> None:
+    kms = _kms(climb_svg(_ramp([0.25] * 8 + [0.3]), [], 190))
+    assert kms == ["0", "0.25", "0.5", "0.75", "1", "1.25", "1.5", "1.75", "2", "2.3"]
+    crowded = _kms(climb_svg(_ramp([0.25] * 40), [], 190))  # 10 km in 4.5 mm steps
+    assert crowded[:4] == ["0", "0.5", "1", "1.5"]
+    assert crowded[-2:] == ["9.5", "10.0"]
+
+
+def test_the_summit_km_wins_over_a_label_too_close_to_it() -> None:
+    kms = _kms(climb_svg(_ramp([1.0] * 25 + [0.3]), [], 190))
+    assert kms[-3:] == ["23", "24", "25.3"]  # 25 is 2 mm before the summit
+
+
+def test_a_slab_too_narrow_for_its_grade_rounds_it_then_leaves_it_out() -> None:
+    assert _grades(climb_svg(_ramp([1.0] * 25 + [0.3], 6.94), [], 190))[-2:] == ["6.9", "7"]
+    assert len(_grades(climb_svg(_ramp([1.0] * 60 + [0.3], 6.94), [], 190))) == 60  # the last one, 0.9 mm wide
+
+
+def test_the_lowest_slab_has_room_for_its_grade() -> None:
+    svg = climb_svg(_ramp([1.0] * 35, 4.0), [], 190)  # long and gentle: a low card
+    points = re.search(r'<polygon points="([^"]+)"', svg)
+    assert points
+    corners = [[float(v) for v in p.split(",")] for p in points[1].split()]
+    assert corners[0][1] - corners[1][1] >= CARD_GROUND_H  # from the base up to the foot
 
 
 def test_every_card_draws_a_grade_as_steep_so_a_steep_climb_gets_a_narrower_card() -> None:

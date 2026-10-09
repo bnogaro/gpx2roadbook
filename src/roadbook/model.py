@@ -78,7 +78,8 @@ class Climb:
 
 @dataclass
 class Section:
-    """A stretch of a climb as its page shows it: a kilometre from the foot, the last one up to the summit."""
+    """A stretch of a climb as its page shows it: a step from the foot (1 km, or less on a short climb), the last one
+    up to the summit."""
 
     start_km: float  # on the route
     end_km: float
