@@ -100,8 +100,17 @@ def test_a_long_stop_shows_where_it_ends() -> None:
     book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
     long_stop, short_stop = (Stop([Poi("p", "", 0, 0, km=10.0), Poi("p", "", 0, 0, km=k)]) for k in (11.2, 10.4))
     long_row = _row(Item("stop", 10.0, 0, stop=long_stop), book, _layout(20))
-    assert long_row["sub"] == long_row["sub_short"] == "→11.2"
+    # on a strip, at the foot of the km column; on a ribbon's token, a line of its own
+    assert (long_row["km_end"], long_row["sub"], long_row["sub_short"]) == ("11.2", "", "→11.2")
     assert long_row["h"] > _row(Item("stop", 10.0, 0, stop=short_stop), book, _layout(20))["h"]
+    # a stop whose emojis already wrap onto a second line puts it there: no taller than another stop
+    glyphs = [Glyph(e) for e in "🚰🚻🥖🛒⛽☕"]
+    wrapped = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
+    crowded = Stop([Poi("p", "", 0, 0, km=10.0), Poi("p", "", 0, 0, km=11.2)])
+    rows = [_row(Item("stop", 10.0, 0, stop=s, emojis=glyphs), book, wrapped) for s in (crowded, short_stop)]
+    assert rows[0]["emoji_lines"]
+    assert rows[0]["km_end"] == "11.2"
+    assert rows[0]["h"] == rows[1]["h"]
 
 
 def test_stops_snap_to_the_nearest_climb_edge_within_reach() -> None:

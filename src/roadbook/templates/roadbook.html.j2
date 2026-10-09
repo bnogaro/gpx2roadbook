@@ -9,7 +9,7 @@
   @page { size: {{ page }} {{ orientation }}; margin: 8mm; }
   :root {
     --w: {{ width }}mm; --l: {{ length }}mm;
-    --main-h: {{ g.MAIN_H }}mm; --head-h: {{ g.HEAD_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm;
+    --main-h: {{ g.MAIN_H }}mm; --head-h: {{ g.HEAD_H }}mm; --emo-h: {{ g.EMO_H }}mm; --sub-h: {{ g.SUB_H }}mm; --frame-pad: {{ g.FRAME_PAD }}mm;
     --hdr-h: {{ g.HDR_H }}mm; --km-col: {{ g.KM_COL }}mm; --pad: {{ g.PAD }}mm; --gutter: {{ g.GUTTER }}mm;
   }
   * { box-sizing: border-box; }
@@ -33,7 +33,20 @@
   .row .dist { margin-left: auto; flex: none; font-size: 6pt; color: #555; font-variant-numeric: tabular-nums; }
   .row .lbl { font-size: 6.5pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
   /* a crowded stop's emojis carry on below its main line, lined up under the first one */
-  .row .emo-line { height: var(--emo-h); margin-left: var(--km-col); padding-left: 1mm; display: flex; align-items: center; }
+  .row .emo-line { height: var(--emo-h); padding: 0 var(--pad); display: flex; align-items: center; gap: 1mm; }
+  /* a long stop: its last km at the foot of the km column, lighter than its first, the two joined by dots */
+  .row .end-line { height: var(--sub-h); padding: 0 var(--pad); display: flex; align-items: center; }
+  .row .km.end { font-weight: 400; font-size: 6.5pt; }
+  .row.spans, .row.in-town { position: relative; }
+  .row.in-town { padding-bottom: var(--frame-pad); }
+  /* a town: a thin frame round its name, its row and its range, open on the right towards the profile; drawn over
+     the row, which only gets --frame-pad under it, for the bottom line to clear the emojis */
+  .row.in-town::after { content: ""; position: absolute; left: 0.4mm; right: 0; top: 0.4mm; bottom: 0.2mm;
+                        border: 0.2mm solid #777; border-right: none; border-radius: 1mm 0 0 1mm; pointer-events: none; }
+  .row.spans::before { content: ""; position: absolute; left: calc(var(--km-col) - 4.4mm);
+                       top: calc(var(--heads) * var(--head-h) + var(--main-h) - 1mm); bottom: calc(var(--last-h) - 1mm);
+                       border-left: 0.35mm dotted #555; }
+  .row.spans.in-town::before { bottom: calc(var(--last-h) - 1mm + var(--frame-pad)); }  /* above a frame's padding */
   .row .sub { height: var(--sub-h); margin-left: var(--km-col); padding: 0 var(--pad) 0 1mm; font-size: 6.5pt; font-weight: 600;
               white-space: nowrap; overflow: hidden; display: flex; gap: 1mm; }
   /* a climb's gain keeps its place at the right, under the "↓" distances: only its length and grade may be cut */
@@ -94,7 +107,10 @@
   <div class="strip"{% if s.over %} style="height: calc(var(--l) + {{ '%.1f' % s.over }}mm)"{% endif %}>
     <div class="hdr"><span>km {{ s.first }} → {{ s.last }}</span><span>{{ loop.index }}/{{ loop.length }}</span></div>
     {% for r in s.rows %}
-    <div class="row {{ r.kind }}"{% if r.grade %} style="--grade: {{ r.grade }}"{% endif %}>
+    {%- set style = (['--grade: ' ~ r.grade] if r.grade else [])
+                  + (['--heads: %d; --last-h: var(--%s)' % (r.heads | length, 'emo-h' if r.emoji_lines else 'sub-h')]
+                     if r.km_end else []) %}
+    <div class="row {{ r.kind }}{% if r.km_end %} spans{% endif %}{% if r.town %} in-town{% endif %}"{% if style %} style="{{ style | join('; ') }}"{% endif %}>
       {% for h in r.heads %}<div class="head {{ h.cls }}"><span>{{ h.text }}</span></div>{% endfor %}
       <div class="main">
         <span class="km">{{ r.km }}</span>
@@ -103,8 +119,9 @@
         {% if r.dist %}<span class="dist">{{ r.dist }}</span>{% endif %}
       </div>
       {%- for line in r.emoji_lines %}
-      <div class="emo-line">{{ emo(line, r.more and loop.last) }}</div>
+      <div class="emo-line"><span class="km{% if loop.last and r.km_end %} end">{{ r.km_end }}{% else %}">{% endif %}</span>{{ emo(line, r.more and loop.last) }}</div>
       {%- endfor %}
+      {% if r.km_end and not r.emoji_lines %}<div class="end-line"><span class="km end">{{ r.km_end }}</span></div>{% endif %}
       {% if r.sub %}<div class="sub"><span class="fig">{{ r.sub }}</span>{% if r.gain %}<span class="gain">{{ r.gain }}</span>{% endif %}</div>{% endif %}
     </div>
     {% endfor %}

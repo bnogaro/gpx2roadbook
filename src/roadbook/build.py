@@ -15,6 +15,7 @@ from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
 from .snap import snap_pois
 from .summits import lookup as name_climbs
+from .towns import group as group_by_town
 from .towns import lookup as name_towns
 
 if TYPE_CHECKING:
@@ -135,10 +136,12 @@ def build(gpx_path: Path, cfg: dict[str, Any]) -> Roadbook:
     # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
     wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
     hours = find_hours(kept, cfg["hours"]) if wanted else None
-    _judge(stops, ride, profile)
     # names go above rows on the strip, and on the reference sheet; a ribbon of tokens has no room for them
     named = cfg["render"]["layout"] == "strip" or cfg["render"]["details"]
     towns = name_towns(stops, cfg["towns"]) if named and cfg["towns"]["enabled"] else None
+    if towns is not None:  # a town's stops make one, so judged on arrival as one
+        stops = group_by_town(stops, cfg["towns"]["group_km"])
+    _judge(stops, ride, profile)
     climb_names = name_climbs(climbs, track, cfg["climb_names"]) if named and cfg["climb_names"]["enabled"] else None
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields

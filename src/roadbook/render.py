@@ -35,6 +35,7 @@ DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the 
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
+FRAME_PAD = 0.8  # under a town's row, so its frame's bottom line clears the emojis
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
 PDF_TIMEOUT_S = 120  # a few seconds is usual; a browser stuck on a dialog would otherwise never return
@@ -118,6 +119,8 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "km": f"{it.km:.1f}",
         "label": kind.label(it, book),
         "sub": "",
+        "sub_short": "",
+        "km_end": "",  # a long stop's last km, at the foot of the km column
         "gain": "",  # a climb's ↗ metres, at the end of its sub line
         "dist": None,
         "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
@@ -151,13 +154,17 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         row["gain"] = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
         row["sub_short"] = f"{length}km {c.avg_grade:.0f}%"
     elif it.stop and _spans(it.stop, layout.range_m):
-        # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
-        row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
+        # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it: on a
+        # strip down the km column, under the first; a ribbon's token has no column for it
+        row["km_end"] = f"{it.stop.km_end:.1f}"
+        row["sub_short"] = f"→{row['km_end']}"
     if it.dist_to_next is not None:  # at the end of the main line on a strip, at the foot of a ribbon's token
         row["dist"] = f"↓{it.dist_to_next:.1f}"
         row["leg_short"] = f"{it.dist_to_next:.1f}"
-    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0)
-    row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
+    # the last km takes the km column of the row's last emoji line; with none, a short line of its own
+    end_h = SUB_H if row["km_end"] and not row["emoji_lines"] else 0
+    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0) + end_h
+    row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub_short"] else 0.0)
     return row
 
 
@@ -178,17 +185,19 @@ def _spans(stop: Stop, range_m: float) -> bool:
 def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
     """Give rows their heading lines, each HEAD_H mm tall: the town of a named stop, then the name of a named climb.
 
-    A town is not named again on the next row in the same town: Chartres or Le Mans may be two or three busy stops
-    in a row, and naming it once is enough on a narrow strip. A climb's name goes above its foot's row, the one that
-    always shows (its summit only gets a row when a stop is there), so it announces the climb before it starts and
-    sits right above the length and grade it goes with. A climb row whose foot is in a named town gets both lines:
-    where you are, then what comes.
+    A town is not named again on the next row in the same town: its stops make one (towns.group), but two too far
+    apart to join may still follow each other, and naming it once is enough on a narrow strip. A climb's name goes
+    above its foot's row, the one that always shows (its summit only gets a row when a stop is there), so it
+    announces the climb before it starts and sits right above the length and grade it goes with. A climb row whose
+    foot is in a named town gets both lines: where you are, then what comes.
     """
     last = None  # the last town shown
     for it, row in zip(book.items, rows, strict=True):
         town = it.stop.town if it.stop else None
         if town and town != last:
             row["heads"].append({"cls": "town", "text": town})
+            row["town"] = True  # framed with its name
+            row["h"] += FRAME_PAD
         last = town or last
         if it.kind == "climb" and it.climb and it.climb.name:
             row["heads"].append({"cls": "col", "text": it.climb.name})
@@ -438,6 +447,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         g={
             "MAIN_H": MAIN_H,
             "HEAD_H": HEAD_H,
+            "FRAME_PAD": FRAME_PAD,
             "SUB_H": SUB_H,
             "HDR_H": HDR_H,
             "KM_COL": KM_COL,

@@ -7,7 +7,7 @@
 `gpx2roadbook` (command: `roadbook`) turns a GPX route with points of interest (water, food, toilets, …) into a compact road book you can print.
 You cut the strips out and tape them to your bike's top tube. Each one lists the stops, climbs and distances for a stretch of the ride, next to a small elevation profile.
 
-<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 0 to 60.7: stops with water, toilet, food and shop emojis; the town names Saint-Béat-Lez, Saint-Lary and Saint-Girons above their stops; the Col de Menté and Col de Portet d&#39;Aspet above their climb rows, with length, grade and gain, and a summit row; and an elevation profile down the right edge, its climbs coloured from yellow to dark red by grade" width="220">
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 0 to 69.6: stops with water, toilet, food and shop emojis; the towns Saint-Béat-Lez, Saint-Lary and Saint-Girons each framed with their stop, Saint-Girons as one stop from km 59.0 to 62.2 down the km column; the Col de Menté and Col de Portet d&#39;Aspet above their climb rows, with length, grade and gain, and a summit row; and an elevation profile down the right edge, its climbs coloured from yellow to dark red by grade" width="220">
 
 *The first strip of [`samples/entrainement_ubf.gpx`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/entrainement_ubf.gpx), with the default settings, shown here at about twice its printed size. On paper it is 35 mm wide. Town and col names come from OpenStreetMap; the steeper a climb, the darker its colour.*
 
@@ -161,7 +161,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 - **The bold number** is the km where the row sits. **`↓4.3`** at the right is the distance to the next row; the profile on the right shows the climbing and descent on the way.
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
 - **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
-- **`→129.1`** under a stop means its POIs stretch from the row's km to km 129.1. Stops longer than 1 km (`render.stop_range_m`) show this, which mostly happens with a large `--gap`.
+- **A second, lighter km** under a stop's km, joined to it by dots, is where the stop ends: its POIs stretch from the first km to the second, e.g. 122.4 to 129.1. Stops longer than 1 km (`render.stop_range_m`) show it, in a town or with a large `--gap`. It sits on the stop's second line of emojis when it has one, or else on a short line of its own. On a `line` ribbon, a long stop's token says `→129.1` instead.
 - ***Saint-Girons*** in italics, at the right above a row, is the town that stop is in (see [Town names](#town-names)).
 - **⛰️ rows** (orange) mark the foot of a climb. The bar down their left edge is in the colour of the climb's average grade (see below). The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
 - **Col de Portet d'Aspet** in brown, at the right above a ⛰️ row, is the col or peak that climb tops out at (see [Climb names](#climb-names)).
@@ -186,14 +186,15 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 A stop grouping many POIs is usually a town, so it gets the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons"). `--no-towns` leaves them out.
 
 ```text
-km 60.0 → 61.3 · Saint-Girons
+km 60.0 → 61.5 · Saint-Girons
 🚰 Eau potable (124 m), Eau potable (146 m)
 🚻 Toilettes (183 m), Toilettes, Toilettes (209 m)
 🥖 Boulangerie, Le Blé Doré (234 m), Pâtisserie Boissonnot, …
 ```
 
 - **Which stops.** Those with at least 8 POIs (`towns.min_pois`), or at least 5 when one is a bakery or a grocery (`towns.shop_min_pois`, `towns.shops`), counting only the categories you show: a town centre, or a village with its shop, not a fountain, a cemetery tap or a lone bakery.
-- **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. That line takes 3.2 mm, so a strip holds a little less. When two or three busy stops in a row are in the same town (Chartres, Le Mans), only the first names it.
+- **One stop per town.** A town's POIs often fall into several stops, split by `--gap`. Its named stops, and the unnamed ones between them, are merged into one, whatever `--gap` says: Le Mans is one row from km 264.8 to 269.4 rather than three. Only stops up to 5 km apart join (`towns.group_km`; 0 never groups), since a route may come back through a town later. The small stops just outside a town's named ones, up to 2 km (`towns.edge_km`), are asked which town they are in, and join it if it's the same: the supermarket on the way out of Saint-Girons does, the next village's bakery doesn't. That's one more request, once, for each such stop.
+- **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. A thin frame, open on the right, holds the name, the row and the town's range together. That line takes 3.2 mm, so a strip holds a little less. When two busy stops in a row are in the same town but too far apart to be one, only the first names it.
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
 - **On the reference sheet**, every busy stop has its name next to its km.
 - **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.

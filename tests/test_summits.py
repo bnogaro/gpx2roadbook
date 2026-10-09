@@ -15,7 +15,7 @@ from roadbook.config import load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
-from roadbook.render import HEAD_H, MAIN_H, RowLayout, _add_heads, _credit, _details, _row, render_html
+from roadbook.render import FRAME_PAD, HEAD_H, MAIN_H, RowLayout, _add_heads, _credit, _details, _row, render_html
 from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -251,7 +251,8 @@ def _heads(*items: Item) -> list[dict[str, Any]]:
     plain = [r["h"] for r in rows]
     _add_heads(rows, book)
     for r, h in zip(rows, plain, strict=True):
-        assert r["h"] == pytest.approx(h + HEAD_H * len(r["heads"]))
+        framed = FRAME_PAD if r.get("town") else 0  # a town's row has room under it for its frame
+        assert r["h"] == pytest.approx(h + HEAD_H * len(r["heads"]) + framed)
     return rows
 
 

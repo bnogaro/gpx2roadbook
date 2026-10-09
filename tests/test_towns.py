@@ -13,8 +13,8 @@ from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
-from roadbook.render import HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
-from roadbook.towns import ZOOM, busy, centre, lookup
+from roadbook.render import FRAME_PAD, HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
+from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 REVERSE = f"{NOMINATIM}/reverse"
@@ -87,7 +87,7 @@ def test_centre_is_the_poi_nearest_the_middle() -> None:
 def test_a_busy_stop_gets_its_town_and_a_quiet_one_is_not_asked(tmp_path: Path) -> None:
     town, fountain = _stop(9), _stop(1)
     http = FakeNominatim()
-    report = _lookup([town, fountain], tmp_path, http)
+    report = _lookup([town, fountain], tmp_path, http, edge_km=0)  # the fountain is not asked as a town's edge
     assert (town.town, fountain.town) == ("Saint-Girons", None)
     assert (report.asked, report.found, report.cached, report.failed) == (1, 1, 0, False)
     (asked,) = http.asked
@@ -185,13 +185,13 @@ def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]
 def test_a_named_stop_gets_a_line_above_its_row() -> None:
     _, plain = _stop_row("🚰")
     [row] = _named_rows("Le Mas-d'Azil")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
 
 
 def test_a_full_row_still_gets_its_town_in_full() -> None:
     _, plain = _stop_row("🚰🚻🥖☕🛒⛽🍔")
     [row] = _named_rows("Le Mas-d'Azil", emojis="🚰🚻🥖☕🛒⛽🍔")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
 
 
 def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
@@ -205,7 +205,11 @@ def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
 
 def _named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, answer: Any = None) -> FakeNominatim:  # noqa: ANN401
     http = FakeNominatim(answer)
-    fake = partial(lookup, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
+
+    def fake(stops: list[Stop], cfg: dict[str, Any]) -> Report:
+        # the fake puts every spot in one town: no edge, which test_a_town_takes_the_small_stops_at_its_edges covers
+        return lookup(stops, {**cfg, "edge_km": 0}, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
+
     monkeypatch.setattr(build_module, "name_towns", fake)
     return http
 
@@ -221,15 +225,18 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     cfg["towns"]["enabled"] = True
     book = build(HILLY, cfg)
     named = {(s.km, s.km_end) for s in book.stops if s.town}
-    # Saint-Girons (two stops), Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their
-    # village shops; fountains, cemeteries and lone bakeries are not asked
-    assert {(60.0, 60.6), (60.7, 61.5), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
+    # Saint-Girons, Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their village shops;
+    # fountains, cemeteries and lone bakeries are not asked. Saint-Girons' two busy stops, both asked, make one
+    assert {(60.0, 61.5), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
     assert {4.3, 35.4} <= {round(a, 1) for a, _ in named}
-    assert len(http.asked) == len(named) == len(busy(book.stops, CFG)) == 6
+    assert len(http.asked) == 6
+    assert len(named) == len(busy(book.stops, CFG)) == 5
     html = render_html(book, cfg)
-    assert "<b>km 60.0 · Saint-Girons</b>" in html
+    assert "<b>km 60.0 → 61.5 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
+    # each named town framed with its row: as many frames as town lines
+    assert len(re.findall(r'<div class="row [^"]*\bin-town\b', html)) == html.count('<div class="head town">') > 0
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
     # lines of 3.2 mm: they move rows down to the next strip, but need no strip more
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
@@ -299,11 +306,71 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     fake = partial(lookup, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
     monkeypatch.setattr(build_module, "name_towns", fake)
     cfg = load_config()
+    cfg["towns"]["edge_km"] = 0  # the four answers are for the busy stops
     cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns (Saint-Girons is two stops)
-    cfg["render"]["length_mm"] = 214  # two strips without the town lines; with them, the finish only just overflows
+    cfg["render"]["length_mm"] = 209  # two strips without the town lines; with them, the finish only just overflows
     html = render_html(build(HILLY, cfg), cfg)
     assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
     assert [n for _, n in headers] == ["1/2", "2/2"]  # the town lines take the finish past the second strip's length
     assert headers[-1][0].endswith("206.2")
     assert re.search(r'<div class="strip" style="height: calc\(var\(--l\) \+ \d\.\dmm\)">', html)
+
+
+def _at(km: float, n: int = 1, town: str | None = None) -> Stop:
+    return Stop([Poi(f"p{km}", "", LAT, LON, km=km + i / 10, category="water") for i in range(n)], town=town)
+
+
+def test_the_stops_of_one_town_make_one_whatever_split_them() -> None:
+    stops = [_at(10, 9, "Le Mans"), _at(11.5), _at(12.4, 8, "Le Mans"), _at(14, 8, "Le Mans"), _at(20, 8, "Arnage")]
+    grouped = group(stops, within_km=5)
+    # the unnamed stop between two of Le Mans is in Le Mans too; Arnage stays apart
+    assert [(s.km, s.km_end, s.town, len(s.pois)) for s in grouped] == [
+        (10.0, pytest.approx(14.7), "Le Mans", 9 + 1 + 8 + 8),
+        (20.0, pytest.approx(20.7), "Arnage", 8),
+    ]
+
+
+def test_a_town_the_route_comes_back_through_later_is_a_visit_of_its_own() -> None:
+    stops = [_at(10, 8, "Chartres"), _at(30, 8, "Chartres")]
+    assert len(group(stops, within_km=5)) == 2
+    assert len(group([_at(10, 8, "Chartres"), _at(12, 8, "Chartres")], within_km=0)) == 2  # 0: no grouping
+    # an unnamed stop with no named stop of the same town after it stays on its own
+    assert len(group([_at(10, 8, "Chartres"), _at(11)], within_km=5)) == 2
+
+
+class ByPlace(FakeNominatim):
+    """Answers each spot with the town `towns` gives its latitude, rounded to 3 decimals."""
+
+    def __init__(self, towns: dict[float, str]) -> None:
+        super().__init__()
+        self.towns = towns
+
+    def __call__(self, url: str, data: dict[str, str] | None) -> Any:  # noqa: ANN401
+        super().__call__(url, data)
+        lat = round(float(self.asked[-1]["lat"]), 3)
+        return {"address": {"town": self.towns[lat]}} if lat in self.towns else {"error": "Unable to geocode"}
+
+
+def test_a_town_takes_the_small_stops_at_its_edges(tmp_path: Path) -> None:
+    def at(km: float, lat: float, n: int = 1) -> Stop:
+        return Stop([Poi(f"p{km}", "", lat, LON, km=km + i / 100, category="grocery") for i in range(n)])
+
+    # a village before the town, the town, its supermarket on the way out, the next village, and one too far on
+    stops = [at(8.5, 43.001), at(10, 43.002, 9), at(11, 43.003), at(12, 43.004), at(15, 43.005)]
+    http = ByPlace({43.001: "Coulaines", 43.002: "Le Mans", 43.003: "Le Mans", 43.004: "Arnage"})
+    report = lookup(stops, CFG, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
+    # the supermarket joins Le Mans; the villages on either side are asked but keep no name, for no heading of their
+    # own; the stop 3 km on is not asked
+    assert [s.town for s in stops] == [None, "Le Mans", "Le Mans", None, None]
+    assert [round(float(a["lat"]), 3) for a in http.asked] == [43.002, 43.003, 43.004, 43.001]
+    assert (report.asked, report.found) == (1, 1)  # the report counts the busy stops, as the summary says
+    assert [(s.km, s.town) for s in group(stops, CFG["group_km"])] == [
+        (8.5, None),
+        (10, "Le Mans"),
+        (12, None),
+        (15, None),
+    ]
+    again = ByPlace({})  # all from the cache next time
+    lookup([at(8.5, 43.001), at(10, 43.002, 9), at(11, 43.003)], CFG, cache_path=tmp_path / "towns.json", http=again)
+    assert again.asked == []
