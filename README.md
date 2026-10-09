@@ -24,7 +24,7 @@ Any other GPX works if it has:
 
 You need:
 
-- [uv](https://docs.astral.sh/uv/), which installs Python and the tool for you (or [pipx](https://pipx.pypa.io/));
+- [uv](https://docs.astral.sh/uv/), which installs Python and the tool for you (or [pipx](https://pipx.pypa.io/), with Python 3.12 or later);
 - Google Chrome or Microsoft Edge, only if you want `--pdf`.
 
 Then:
