@@ -23,13 +23,34 @@ if TYPE_CHECKING:
 WATCH_S = 0.25  # how often the settings are looked at
 DEBOUNCE_S = 0.6  # how long they must stand still before the preview is built again
 ZOOMS = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
+FITS = (0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0)  # what Fit picks from, never above true size
+PX_PER_MM = 96 / 25.4  # CSS pixels
 HIDE = {"strips": ".details", "sheet": ".sheet"}  # each tab hides the other one's part of the road book
 
 
-def framed(html: str, tab: str, zoom: float) -> str:
-    """The road book as the preview shows it: one tab's part, zoomed; at 1, its millimetres are the screen's."""
-    style = f"<style>{HIDE[tab]} {{ display: none; }} html {{ zoom: {zoom:g}; }}</style>"
+def framed(html: str, tab: str, zoom: float | None, widest_mm: float) -> str:
+    """The road book as the preview shows it: one tab's part, zoomed; at 1, its millimetres are the screen's.
+
+    Zoom None fits: the largest of FITS that leaves room for the widest piece (a strip, or a line's ribbon) across the
+    frame, picked by the frame's own media queries, so a phone and a wide window each get theirs with no measuring.
+    """
+    if zoom is None:
+        fit = [f"html {{ zoom: {FITS[0]:g}; }}"]
+        fit += [
+            f"@media (min-width: {widest_mm * PX_PER_MM * z:.0f}px) {{ html {{ zoom: {z:g}; }} }}" for z in FITS[1:]
+        ]
+        zooming = " ".join(fit)
+    else:
+        zooming = f"html {{ zoom: {zoom:g}; }}"
+    style = f"<style>{HIDE[tab]} {{ display: none; }} {zooming}</style>"
     return html.replace("</head>", f"{style}</head>", 1)
+
+
+def widest(cfg: dict[str, Any]) -> float:
+    """The widest piece of the road book on screen, mm: a strip's width, or a line's ribbon length; the strips wrap."""
+    line = st.LAYOUT.get(cfg) == "line"
+    across = st.LENGTH.get(cfg) if line else st.WIDTH.get(cfg) or st.strip_width(cfg)
+    return float(across) + 10  # its frame and a margin
 
 
 def notes(shot: Preview) -> list[str]:
@@ -54,22 +75,23 @@ class PreviewPanel:
         self.since = 0.0  # ...since when
         self.shown: str | None = None  # the settings the preview was built from
         self.tab = "strips"
-        self.zoom = 1.0
+        self.zoom: float | None = None  # None fits the frame's width
         self.frame: Element | None = None
-        with ui.row().classes("w-full items-center no-wrap gap-1"):
+        with ui.row().classes("w-full items-center gap-1"):
             with ui.tabs(on_change=self.pick).classes("grow") as tabs:
                 ui.tab("strips", "Strips", icon="view_week").mark("preview-strips")
                 ui.tab("sheet", "Reference sheet", icon="list_alt").mark("preview-sheet")
             tabs.value = self.tab
-            ui.button(icon="zoom_out", on_click=lambda: self.zoom_by(-1)).props("flat dense round").tooltip(
-                "Zoom out"
-            ).mark("zoom-out")
-            ui.label().bind_text_from(self, "zoom", backward=lambda z: f"{z:.0%}").classes("w-12 text-center").mark(
-                "zoom"
-            )
-            ui.button(icon="zoom_in", on_click=lambda: self.zoom_by(1)).props("flat dense round").tooltip(
-                "Zoom in"
-            ).mark("zoom-in")
+            with ui.row().classes("items-center no-wrap gap-1"):  # the zoom keeps together, on a phone too
+                ui.button(icon="zoom_out", on_click=lambda: self.zoom_by(-1)).props("flat dense round").tooltip(
+                    "Zoom out"
+                ).mark("zoom-out")
+                ui.button(on_click=self.fit).bind_text_from(
+                    self, "zoom", backward=lambda z: "Fit" if z is None else f"{z:.0%}"
+                ).props("flat dense no-caps").classes("w-14").tooltip("Fit the width, at most true size").mark("zoom")
+                ui.button(icon="zoom_in", on_click=lambda: self.zoom_by(1)).props("flat dense round").tooltip(
+                    "Zoom in"
+                ).mark("zoom-in")
         self.view()
         ui.timer(WATCH_S, self.watch)
 
@@ -95,7 +117,7 @@ class PreviewPanel:
             html = f"<p style='font-family: sans-serif'>No reference sheet: turn on “{st.DETAILS.text(self.form.cfg)}”"
             html += " in the advanced settings.</p>"
         else:
-            html = framed(self.shot.html, self.tab, self.zoom)
+            html = framed(self.shot.html, self.tab, self.zoom, widest(self.form.settings()))
         self.frame.props["srcdoc"] = html
 
     def pick(self, e: ValueChangeEventArguments) -> None:
@@ -103,8 +125,13 @@ class PreviewPanel:
         self.reframe()
 
     def zoom_by(self, step: int) -> None:
-        i = min(max(ZOOMS.index(self.zoom) + step, 0), len(ZOOMS) - 1)
+        """A step from the zoom shown; from Fit, a step from true size."""
+        i = min(max(ZOOMS.index(1.0 if self.zoom is None else self.zoom) + step, 0), len(ZOOMS) - 1)
         self.zoom = ZOOMS[i]
+        self.reframe()
+
+    def fit(self) -> None:
+        self.zoom = None
         self.reframe()
 
     async def watch(self) -> None:

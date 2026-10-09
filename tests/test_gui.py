@@ -13,15 +13,18 @@ import pytest
 pytest.importorskip("nicegui", reason="the GUI is an optional extra: uv sync --extra gui")
 
 from nicegui import app, ui
+from nicegui.elements.upload_files import SmallFileUpload
 from nicegui.testing.user import User
 from nicegui.testing.user_simulation import user_simulation
 
 import roadbook.gui
 import roadbook.gui.app
 from roadbook.config import load_config
+from roadbook.gui.components.preview import framed, widest
 from roadbook.gui.models import memory
 from roadbook.gui.models.form import Form, Row
-from roadbook.gui.pages.main import page
+from roadbook.gui.pages import main
+from roadbook.gui.pages.main import is_here, page
 from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -112,9 +115,14 @@ async def test_the_preview_follows_the_settings_from_the_cache_only(
     await user.should_see("Towns: 2 stops not looked up yet")
     assert not (tmp_path / "ride.roadbook.html").is_file()  # a preview writes nothing
     assert ".details { display: none; }" in _srcdoc(user)
-    user.find(marker="zoom-in").click()
+    await user.should_see("Fit")  # the width of the pane, at most true size
+    assert "@media (min-width:" in _srcdoc(user)
+    user.find(marker="zoom-in").click()  # a step up from true size
     await user.should_see("125%")
     assert "zoom: 1.25" in _srcdoc(user)
+    assert "@media (min-width:" not in _srcdoc(user)
+    user.find(marker="zoom").click()
+    await user.should_see("Fit")
     for tabs in user.find(kind=ui.tabs).elements:
         tabs.value = "sheet"  # as a click does in a window
     assert ".sheet { display: none; }" in _srcdoc(user)
@@ -128,6 +136,54 @@ async def test_the_preview_follows_the_settings_from_the_cache_only(
 
 def _srcdoc(user: User) -> str:
     return next(iter(user.find(marker="preview-frame").elements)).props["srcdoc"]
+
+
+def test_fit_picks_the_largest_zoom_the_widest_piece_has_room_for() -> None:
+    cfg = load_config()
+    assert widest(cfg) == pytest.approx(45)  # a 35 mm strip, its frame and margin
+    cfg["render"]["layout"] = "line"
+    assert widest(cfg) == pytest.approx(cfg["render"]["length_mm"] + 10)  # a ribbon, the long way
+    fitted = framed("<head></head>", "strips", None, 100)
+    assert "html { zoom: 0.25; }" in fitted  # the narrowest frame
+    assert "@media (min-width: 378px) { html { zoom: 1; } }" in fitted  # 100 mm, true size, once it has room
+    assert "zoom: 1.25" not in fitted  # never above true size
+    assert "@media" not in framed("<head></head>", "strips", 0.5, 100)
+
+
+def test_only_this_computer_is_here() -> None:
+    assert is_here("127.0.0.1")
+    assert is_here("::1")
+    assert is_here("localhost")
+    assert not is_here("192.168.1.20")
+    assert not is_here("")
+
+
+@pytest.fixture
+async def phone(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[User]:
+    """A device on the network, as roadbook-gui --lan serves it."""
+    monkeypatch.setattr(main, "is_here", lambda _ip: False)
+    async with user_simulation(root=lambda: page(lan=True)) as simulated:
+        yield simulated
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+async def test_a_device_on_the_network_uploads_and_downloads_and_gets_no_path(phone: User) -> None:
+    await phone.open("/")
+    for marker in ("gpx", "out", "browse"):  # no path on this computer, to read or to write
+        await phone.should_not_see(marker=marker)
+    await phone.should_see("No GPX yet")
+    for upload in phone.find(marker="upload").elements:
+        await upload.handle_uploads(  # ty: ignore[unresolved-attribute]  # as a browser's upload does
+            [SmallFileUpload("ride.gpx", "application/gpx+xml", FLAT.read_bytes())]
+        )
+    await phone.should_see("ride.gpx", retries=50)
+    phone.find(marker="make").click()
+    await phone.should_see(marker="wrote", retries=50)
+    for marker in ("open", "folder"):  # they would open on this computer
+        await phone.should_not_see(marker=marker)
+    phone.find(marker="download").click()
+    response = await phone.download.next(timeout=5)
+    assert response.content.startswith(b"<!doctype html>")
 
 
 def test_the_form_hands_its_rows_and_refresh_to_the_run() -> None:
@@ -150,12 +206,16 @@ def test_the_form_hands_its_rows_and_refresh_to_the_run() -> None:
 def test_roadbook_gui_starts_the_window_or_says_how_to_install_it(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    started: list[bool] = []
-    monkeypatch.setattr(roadbook.gui.app, "start", lambda *, native: started.append(native))
-    for argv, native in ((["roadbook-gui"], True), (["roadbook-gui", "--browser"], False)):
+    started: list[tuple[bool, bool]] = []
+    monkeypatch.setattr(roadbook.gui.app, "start", lambda *, native, lan: started.append((native, lan)))
+    for argv, how in (
+        (["roadbook-gui"], (True, False)),
+        (["roadbook-gui", "--browser"], (False, False)),
+        (["roadbook-gui", "--lan"], (False, True)),  # a browser tab, for the network
+    ):
         monkeypatch.setattr(sys, "argv", argv)
         roadbook.gui.main()
-        assert started.pop() is native
+        assert started.pop() == how
     monkeypatch.setitem(sys.modules, "roadbook.gui.app", None)  # as if the extra were not installed
     monkeypatch.setattr(sys, "argv", ["roadbook-gui"])
     with pytest.raises(SystemExit):

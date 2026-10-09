@@ -39,10 +39,11 @@ class _Queue(logging.Handler):
 
 
 class RunPanel:
-    """The Run button, the log, and what the run made."""
+    """The Run button, the log, and what the run made: opened here, or downloaded by a device on the network."""
 
-    def __init__(self, form: Form) -> None:
+    def __init__(self, form: Form, *, remote: bool = False) -> None:
         self.form = form
+        self.remote = remote
         self.result: Result | None = None
         self.queue = _Queue()
         self.button = (
@@ -52,12 +53,17 @@ class RunPanel:
             .mark("make")
         )
         self.log = ui.log(max_lines=400).classes("w-full h-48 text-xs").mark("log")
+        self.log.visible = False  # until a run: an empty box is room lost, on a phone most
         ui.timer(0.2, self.show_log)
         self.summary = ui.column().classes("w-full gap-0").mark("summary")
         with ui.row().classes("gap-2") as self.actions:
-            ui.button("Open", icon="open_in_new", on_click=self.open_html).props("outline").mark("open")
-            ui.button("PDF", icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
-            ui.button("Folder", icon="folder_open", on_click=self.open_folder).props("outline").mark("folder")
+            if remote:  # opening a file here would open it on this computer, not on the device
+                ui.button("Download", icon="download", on_click=self.download_html).props("outline").mark("download")
+                ui.button("PDF", icon="picture_as_pdf", on_click=self.download_pdf).props("outline").mark("pdf")
+            else:
+                ui.button("Open", icon="open_in_new", on_click=self.open_html).props("outline").mark("open")
+                ui.button("PDF", icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
+                ui.button("Folder", icon="folder_open", on_click=self.open_folder).props("outline").mark("folder")
         self.actions.visible = False
         with ui.row().classes("w-full items-center no-wrap gap-2") as self.same:
             self.command = ui.label().classes("font-mono text-xs break-all").mark("command")
@@ -78,6 +84,7 @@ class RunPanel:
             return
         self.button.disable()
         self.log.clear()
+        self.log.visible = True
         logger = logging.getLogger("roadbook")
         level = logger.level
         logger.setLevel(logging.INFO)  # the steps, as roadbook -v shows them
@@ -123,15 +130,30 @@ class RunPanel:
 
     async def make_pdf(self) -> None:
         """Print the road book to a PDF next to it, with Edge or Chrome, and open it."""
+        if pdf := await self.pdf():
+            await run.io_bound(webbrowser.open, pdf.as_uri())
+
+    async def pdf(self) -> Path | None:
+        """The PDF next to the road book, printed with Edge or Chrome unless the run already made it."""
         if not self.result:
-            return
+            return None
+        if self.result.pdf is not None:
+            return self.result.pdf
         pdf = self.result.html.with_suffix(".pdf")
         try:
             await run.io_bound(html_to_pdf, self.result.html, pdf)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # no browser, or it failed
             ui.notify(f"PDF not written: {exc}", type="negative", multi_line=True)
-            return
-        await run.io_bound(webbrowser.open, pdf.as_uri())
+            return None
+        return pdf
+
+    async def download_html(self) -> None:
+        if self.result:
+            await _download(self.result.html, "text/html")
+
+    async def download_pdf(self) -> None:
+        if pdf := await self.pdf():
+            await _download(pdf, "application/pdf")
 
     async def open_folder(self) -> None:
         if self.result:
@@ -140,3 +162,10 @@ class RunPanel:
     def copy(self) -> None:
         ui.clipboard.write(self.command.text)  # not awaited: a plain function in nicegui 3.18
         ui.notify("Command copied")
+
+
+async def _download(file: Path, media_type: str) -> None:
+    """Hand a file to the device: read off the event loop, then sent as the download's content."""
+    data = await run.io_bound(file.read_bytes)
+    if data is not None:  # None: the app is shutting down
+        ui.download.content(data, file.name, media_type)

@@ -15,13 +15,19 @@ INSTALL = 'The GUI needs the "gui" extra: uv tool install "gpx2roadbook[gui]" (o
 def main() -> None:
     parser = argparse.ArgumentParser(prog="roadbook-gui", description=__doc__.splitlines()[0])
     parser.add_argument("--browser", action="store_true", help="open in a browser tab, not in a window of its own")
+    parser.add_argument(
+        "--lan",
+        action="store_true",
+        help="in a browser tab that phones and other devices on your network can open too, at this computer's address"
+        " (port 8642); they upload the GPX and download the road book",
+    )
     args = parser.parse_args()
     try:
         from .app import start  # noqa: PLC0415  the extra may be missing: say so, rather than fail on import
     except ImportError:  # as llms.md says for optional dependencies, not ModuleNotFoundError
         _say(INSTALL)
         sys.exit(1)
-    start(native=not args.browser)
+    start(native=not (args.browser or args.lan), lan=args.lan)
 
 
 def _say(message: str) -> None:
