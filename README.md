@@ -41,6 +41,12 @@ uv tool upgrade gpx2roadbook     # or: pipx upgrade gpx2roadbook
 
 `roadbook --version` tells you which version you have.
 
+For the window (see [The window](#the-window)), install the `gui` extra instead. It also gives you `roadbook`:
+
+```sh
+uv tool install "gpx2roadbook[gui]"     # or: pipx install "gpx2roadbook[gui]"
+```
+
 To try it once without installing anything:
 
 ```sh
@@ -70,6 +76,25 @@ roadbook -i                 # or: roadbook -i my_ride.gpx
 It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, climb names, summit rows); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
+
+### The window
+
+Rather click than type? With the `gui` extra installed, open the window:
+
+```sh
+roadbook-gui                # or: roadbook-gui --browser
+```
+
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/gui.png" alt="The gpx2roadbook window: on the left the GPX file entrainement_ubf.gpx with a Browse button, the output file, switches for PDF and for looking everything up again, then the layout, paper size, checkpoints, town names, opening hours, ride date and the POI categories as ticked chips, with the advanced settings folded below; on the right a Make the road book button above a preview of the three strips at true size, with tabs for the strips and the reference sheet and zoom buttons" width="640">
+
+- **Browse** for the GPX. The road book goes next to it, unless you change the output file.
+- Set the options. Hover over one to see what it does. The usual ones are on top, the rest under **Advanced settings**. Options that depend on others show up when they apply: the start time once you set a ride date, then the speed and planned breaks.
+- The **preview** follows your changes, at true size. It uses only the town names, climb names and hours already looked up, and says when some are missing: they come with the first **Make the road book**.
+- **Make the road book** writes the HTML (and the PDF if asked), shows the summary, and lets you open the result or its folder. It also shows the same `roadbook …` command, to copy.
+
+The window remembers your settings for next time, in `gui.toml` in your user config folder (`%LOCALAPPDATA%\gpx2roadbook` on Windows, `~/.config/gpx2roadbook` on Linux, `~/Library/Application Support/gpx2roadbook` on macOS). The gear menu at the top right resets them to the defaults, or saves them as a file for `roadbook --config` (see [Customising](#customising)). That's a handy way to share an event's setup with the other riders.
+
+On Windows the window uses the Edge WebView2 runtime, which comes with Windows 10 and 11. If the window won't open, `roadbook-gui --browser` shows the same page in a browser tab instead. There you drop the GPX onto the page, and the road book goes to your Downloads folder.
 
 ### Printing
 

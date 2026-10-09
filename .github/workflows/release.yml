@@ -55,6 +55,13 @@ jobs:
           uvx --isolated --from ./dist/*.whl roadbook --help
           uvx --isolated --from ./dist/*.whl roadbook samples/paris_le_mans.gpx --no-towns -o "$RUNNER_TEMP/smoke.html"
           test -s "$RUNNER_TEMP/smoke.html"
+      - name: Smoke test the GUI extra
+        # --help returns before NiceGUI is imported, so import the window's module too: a missing page or component
+        # in the wheel, or an extra that no longer resolves, fails here
+        run: |
+          whl=$(echo dist/*.whl)
+          uvx --isolated --from "gpx2roadbook[gui] @ ./$whl" roadbook-gui --help
+          uv run --isolated --no-project --with "gpx2roadbook[gui] @ ./$whl" python -c "import roadbook.gui.app"
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: dist
