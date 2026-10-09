@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  lint:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -25,8 +25,37 @@ jobs:
         run: uv run ruff check --output-format=github .
       - name: Type check
         run: uv run ty check src/ tests/
+
+  tests:
+    name: tests (Python ${{ matrix.python }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # a failure on one Python says nothing about the others
+      matrix:
+        python: ["3.12", "3.13", "3.14"]  # every version requires-python takes
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+        with:
+          enable-cache: true
+          python-version: ${{ matrix.python }}
+      - run: uv sync --locked
       - name: Test with coverage
         run: uv run pytest -q
+
+  # the check main's ruleset requires: one name, whatever the matrix holds. It runs even when a job it needs failed,
+  # as a skipped required check would count as passed
+  test:
+    needs: [lint, tests]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Lint and every Python's tests passed
+        env:
+          RESULTS: ${{ needs.lint.result }} ${{ needs.tests.result }}
+        run: test "$RESULTS" = "success success"
 
   security:
     runs-on: ubuntu-latest
