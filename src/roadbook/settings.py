@@ -121,6 +121,12 @@ def timed(cfg: Config) -> bool:
     return dated(cfg) and bool(cfg["ride"]["start"])
 
 
+def refresh(cfg: Config) -> None:
+    """--refresh: every answer cached from earlier runs counts as too old, so all are looked up again."""
+    for section in ("hours", "towns", "climb_names"):
+        cfg[section]["max_age_days"] = 0
+
+
 def _date_label(cfg: Config) -> str:
     # the date gives the arrival times their day; with opening hours, it also picks each shop's hours that day
     if cfg["hours"]["enabled"]:

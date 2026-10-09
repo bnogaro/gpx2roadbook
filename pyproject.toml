@@ -31,6 +31,9 @@ dependencies = [
     "opening-hours-py>=2.1",
 ]
 
+[project.optional-dependencies]
+gui = ["nicegui[native]>=3.18"]  # roadbook-gui: a window to set the options and make the road book
+
 [project.urls]
 Homepage = "https://github.com/bnogaro/gpx2roadbook"
 Issues = "https://github.com/bnogaro/gpx2roadbook/issues"
@@ -39,6 +42,9 @@ Changelog = "https://github.com/bnogaro/gpx2roadbook/blob/main/CHANGELOG.md"
 [project.scripts]
 roadbook = "roadbook.cli:app"
 gpx2roadbook = "roadbook.cli:app"  # same command under the package's name, so `uvx gpx2roadbook` works
+
+[project.gui-scripts]
+roadbook-gui = "roadbook.gui:main"  # a GUI script: no console window on Windows; needs the "gui" extra
 
 [dependency-groups]
 audit = [
@@ -56,6 +62,7 @@ lint = [
 ]
 test = [
     "pytest>=8",
+    "pytest-asyncio>=1.0",  # the GUI's tests: NiceGUI's User fixture runs in the app's async context
     "pytest-cov>=7.1.0",
 ]
 
@@ -68,6 +75,7 @@ module-name = "roadbook"  # the distribution is gpx2roadbook (roadbook is taken 
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"  # as NiceGUI's User fixture asks; no wider loop scope, which it warns against
 addopts = [
     "--cov=roadbook",
     "--cov-report=term-missing",

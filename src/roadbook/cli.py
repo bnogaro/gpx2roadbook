@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Annotated, cast, override
 import typer
 
 from . import settings as st
-from .api import GpxError, run
+from .api import GpxError, lookup_line, run
 from .config import load_config
 from .interactive import ask, command
 from .opening import parse_break
@@ -66,12 +66,6 @@ def _extra_checkpoint(value: str) -> list:
         raise typer.BadParameter(msg, param_hint="--checkpoint") from exc
 
 
-def _refresh(cfg: dict, *, wanted: bool) -> None:
-    """--refresh: every answer cached from earlier runs counts as too old, so all are looked up again."""
-    for section in ("hours", "towns", "climb_names") if wanted else ():
-        cfg[section]["max_age_days"] = 0
-
-
 def _show_version(wanted: bool) -> None:  # noqa: FBT001  Typer's callback for a flag
     if wanted:
         typer.echo(f"gpx2roadbook {version('gpx2roadbook')}")
@@ -112,12 +106,11 @@ def _log_to_stderr(verbosity: int) -> None:
 
 def _echo_lookup(what: str, r: Report | None, found: str, items: str) -> None:
     """One line on what an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)"."""
-    if r is None or not r.asked:  # not asked for, or nothing to look up: a flat route has no climbs to name
-        return
-    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    typer.echo(f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else ""))
-    if r.failed:
-        typer.echo(f"{what}: OpenStreetMap did not answer for some {items}; run again later.", err=True)
+    if said := lookup_line(what, r, found, items):
+        line, failure = said
+        typer.echo(line)
+        if failure:
+            typer.echo(failure, err=True)
 
 
 @app.command()
@@ -278,7 +271,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     ):
         if value is not None:
             setting.set(cfg, value)
-    _refresh(cfg, wanted=refresh)
+    if refresh:
+        st.refresh(cfg)
     if checkpoint:
         st.CHECKPOINTS.set(cfg, [*st.CHECKPOINTS.get(cfg), *map(_extra_checkpoint, checkpoint)])
     if categories:
