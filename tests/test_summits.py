@@ -160,6 +160,17 @@ def test_a_second_run_uses_the_cache_without_network(tmp_path: Path) -> None:
     assert (report.cached, report.found, report.failed, offline.urls) == (2, 1, False, [])
 
 
+def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None:
+    track = _track(MENTE, PORTET)
+    _lookup([_climb(10)], track, tmp_path, FakeHttp())
+    http = FakeHttp()
+    climbs = [_climb(10), _climb(20)]
+    cfg = {**CFG, "max_age_days": 0}
+    report = lookup(climbs, track, cfg, cache_path=tmp_path / "c.json", http=http, offline=True)
+    assert [c.name for c in climbs] == ["Col de Menté", None]
+    assert (report.cached, report.unasked, report.failed, http.urls) == (1, 1, False, [])
+
+
 def test_other_radii_ask_again(tmp_path: Path) -> None:
     track = _track(MENTE)
     _lookup([_climb()], track, tmp_path, FakeHttp())

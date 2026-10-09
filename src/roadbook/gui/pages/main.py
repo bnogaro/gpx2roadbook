@@ -1,4 +1,5 @@
-"""The window: the GPX and the output on top, the common settings, the advanced ones folded away, and the run."""
+"""The window: the GPX and the output on top, the common settings, the advanced ones folded away; the run, and a
+preview of the road book."""
 
 from __future__ import annotations
 
@@ -14,6 +15,7 @@ from roadbook import settings as st
 from roadbook.gui.components.fields import Condition, setting_field
 from roadbook.gui.components.lists import Rows, categories
 from roadbook.gui.components.memory import Memory
+from roadbook.gui.components.preview import PreviewPanel
 from roadbook.gui.components.run_panel import RunPanel
 from roadbook.gui.models.form import Form
 
@@ -49,6 +51,7 @@ def page() -> None:
             lists = _settings(form)
         with ui.column().classes("w-1/2 gap-2"):
             RunPanel(form)
+            PreviewPanel(form)
     with header:
         ui.space()
         Memory(form, on_apply=lambda: [rows.show.refresh() for rows in lists])

@@ -7,6 +7,8 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
 
@@ -15,12 +17,13 @@ from .parse import GpxError
 from .render import html_to_pdf, render_html
 
 if TYPE_CHECKING:
+    from collections.abc import Iterator
     from pathlib import Path
 
     from .model import Roadbook
     from .osm import Report
 
-__all__ = ["GpxError", "Result", "default_out", "lookup_line", "run"]
+__all__ = ["GpxError", "Preview", "Result", "default_out", "lookup_line", "preview", "run"]
 
 
 @dataclass
@@ -34,16 +37,39 @@ class Result:
     warnings: list[str] = field(default_factory=list)  # what the run warned of: no elevation, no arrival times…
 
 
+@dataclass
+class Preview:
+    """What a preview made: the road book built offline (see `preview`), and its HTML, written nowhere."""
+
+    book: Roadbook  # its lookups' reports count what they left unasked: report.unasked
+    html: str
+    warnings: list[str] = field(default_factory=list)
+
+
 class _Collect(logging.Handler):
-    """Keeps the warnings a run logs, for its Result."""
+    """Keeps the warnings logged on this thread, for a Result: a preview may build alongside a run, on another."""
 
     def __init__(self) -> None:
         super().__init__(logging.WARNING)
+        self.thread = threading.get_ident()
         self.messages: list[str] = []
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
-        self.messages.append(record.getMessage())
+        if record.thread == self.thread:
+            self.messages.append(record.getMessage())
+
+
+@contextmanager
+def _warnings() -> Iterator[list[str]]:
+    """The warnings logged within, on this thread."""
+    collect = _Collect()
+    logger = logging.getLogger("roadbook")
+    logger.addHandler(collect)
+    try:
+        yield collect.messages
+    finally:
+        logger.removeHandler(collect)
 
 
 def lookup_line(what: str, r: Report | None, found: str, items: str) -> tuple[str, str | None] | None:
@@ -68,10 +94,7 @@ def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = 
     Raises GpxError for a file that is no GPX the road book can use. A PDF that can't be written is not an error:
     the HTML is there all the same, and the Result says why.
     """
-    collect = _Collect()
-    logger = logging.getLogger("roadbook")
-    logger.addHandler(collect)
-    try:
+    with _warnings() as warnings:
         book = build(gpx, cfg)
         out = out or default_out(gpx)
         out.write_text(render_html(book, cfg), encoding="utf-8")
@@ -84,7 +107,17 @@ def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = 
                 result.pdf_error = str(exc)
             else:
                 result.pdf = target
-    finally:
-        logger.removeHandler(collect)
-    result.warnings = collect.messages
+    result.warnings = warnings
     return result
+
+
+def preview(gpx: Path, cfg: dict[str, Any]) -> Preview:
+    """Build the road book of `gpx` with the settings `cfg` and render it, writing nothing: a look before the run.
+
+    The OpenStreetMap lookups only read their cache, whatever its age, and never go online: names and hours not
+    cached yet are missing, and the book's reports count them (`unasked`). Raises GpxError as `run` does.
+    """
+    with _warnings() as warnings:
+        book = build(gpx, cfg, offline=True)
+        html = render_html(book, cfg)
+    return Preview(book, html, warnings)

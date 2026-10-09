@@ -123,7 +123,7 @@ def _from_nominatim(results: list[dict[str, Any]]) -> list[Place]:
 class Cache:
     """Matches already looked up, keyed by POI position and name: the OSM place found, or none."""
 
-    def __init__(self, path: Path, max_age_days: float) -> None:
+    def __init__(self, path: Path, max_age_days: float | None) -> None:
         self.store = JsonCache(path, CACHE_VERSION, max_age_days, field="place")
 
     @staticmethod
@@ -153,16 +153,18 @@ def lookup(
     cache_path: Path | None = None,
     http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
+    offline: bool = False,
 ) -> Report:
     """Set `opening_hours` and `osm_id` on the POIs of the `cfg["categories"]` that OSM knows hours for.
 
-    Never raises for a network problem: POIs left unanswered keep no hours, and the report says so.
+    Never raises for a network problem: POIs left unanswered keep no hours, and the report says so. Offline, only
+    the cache answers, whatever the age of its answers, and the report counts the POIs it leaves unasked.
     """
     started = time.perf_counter()
     match_m = cfg["match_m"]
     wanted = [p for p in pois if p.category in cfg["categories"]]
     log.info("Opening hours: %d shops to look up", len(wanted))
-    cache = Cache(cache_path or default_cache_path(), cfg["max_age_days"])
+    cache = Cache(cache_path or default_cache_path(), None if offline else cfg["max_age_days"])
     report = Report(asked=len(wanted))
 
     todo: list[Poi] = []
@@ -174,6 +176,8 @@ def lookup(
             _log_match(p, place, "cached")
         else:
             todo.append(p)
+    if offline:
+        report.unasked, todo = len(todo), []
 
     def answer(p: Poi, places: list[Place], source: str) -> None:
         place = match(p, places, match_m, cfg["kinds"].get(p.category or ""))
