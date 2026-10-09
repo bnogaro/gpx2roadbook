@@ -319,8 +319,8 @@ CLIMB_NAMES = Setting(
 )
 CLIMB_PAGES = Setting(
     "--climb-pages",
-    "Append climb pages: each climb's profile a kilometre at a time, with its grades and the places on the way"
-    " (default: off).",
+    "Append climb pages: each climb's profile in slabs of 1 km, or shorter on a short climb, with their grades and"
+    " the places on the way (default: off).",
     "Climb pages, a profile per climb",
     "climb_pages",
     "enabled",

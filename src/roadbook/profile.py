@@ -39,6 +39,7 @@ class Profile:
         raw = np.interp(self.x, track.dist, track.ele)
         med = np.median(sliding_window_view(np.pad(raw, 2, mode="edge"), 5), axis=1)
         k = max(1, round(smooth_m / step_m)) | 1
+        self.smooth_m = k * step_m  # what the moving average spans: no grade over less is the road's own
         self.e = np.convolve(np.pad(med, k // 2, mode="edge"), np.ones(k) / k, mode="valid")
 
         self.turns = turning_points(self.e, swing_m)

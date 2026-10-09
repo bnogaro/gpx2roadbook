@@ -129,7 +129,7 @@ Either way, cut along the dashed lines.
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
-| `--climb-pages` | Add a page of climb profiles, each climb a kilometre at a time (see [Climb pages](#climb-pages)). |
+| `--climb-pages` | Add a page of climb profiles, each climb cut into slabs by grade (see [Climb pages](#climb-pages)). |
 | `--climb-pages-from CAT` | With `--climb-pages`: the easiest category that gets a profile, `HC`, `1`, `2`, `3` or `4` (default `3`). |
 | `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
@@ -216,7 +216,8 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 
 <img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/climb-page.png" alt="The Col de Menté's climb profile: Cat HC, 9.6 km at 8.9 %, from 504 m to 1357 m; ten slabs, one per kilometre, each coloured and labelled by its grade from 7.8 to 10.8 %, the altitude at each kilometre, the km from the foot below; above, dashed lines to the villages Lez and Boutx and to the stops' emojis" width="640">
 
-- **What each card shows.** Each kilometre from the foot is drawn as a slab, coloured and labelled with its own grade on the same colour scale as the strips; the last one runs to the summit. Above the slabs: the altitude at each kilometre, at the foot and at the top.
+- **What each card shows.** The climb is cut from its foot into slabs, each coloured and labelled with its own grade on the same colour scale as the strips; the last one runs to the summit. Above the slabs: the altitude at their edges, at the foot and at the top.
+- **Slab length.** A kilometre, as the big races print it, on a climb of 6 km or more. A shorter one gets 500 m slabs, or 250 m under 3 km, so it still has at least 6 (`climb_pages.min_sections`) and its steep bits show. No shorter: the elevation is smoothed over about 200 m (`elevation.smooth_m`), so a grade over 100 m would only blur its neighbours'. With `min_sections = 0`, every climb goes a kilometre at a time.
 - **Places and stops.** With town names on, the towns, villages and hamlets the road goes through are marked above the profile, within 250 m of the road (`climb_pages.place_m`). These are looked up on OpenStreetMap, once per run and cached. The stops on the strips are marked with their emojis.
 - **Scale.** Every card draws a grade equally steep, so climbs compare at a glance: a short, steep climb gets a narrower card, a long, gentle one a lower card.
 - **Which climbs.** Only climbs of category 3 or harder get a card, so a hilly ride doesn't get one for every small bump. `--climb-pages-from 4` includes every categorised climb, and `--climb-pages-from HC` keeps only the biggest.

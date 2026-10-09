@@ -1,7 +1,8 @@
-"""The climb pages: a card for each climb worth one, its profile a kilometre at a time, as the big races print them.
+"""The climb pages: a card for each climb worth one, its profile a slab at a time, as the big races print them.
 
-A climb is cut into kilometres from its foot, each with its own grade; the stops on the way come from the strips,
-and the towns, villages and hamlets the road goes through from OpenStreetMap (places.py).
+A climb is cut into steps from its foot, each with its own grade: kilometres, or shorter on a short climb. The stops
+on the way come from the strips, and the towns, villages and hamlets the road goes through from OpenStreetMap
+(places.py).
 """
 
 from __future__ import annotations
@@ -18,13 +19,24 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-SHORT_KM = 0.3  # a last stretch shorter than this joins the kilometre before it: a grade over a few metres is noise
+STEPS_KM = (1.0, 0.5, 0.25, 0.1)  # round lengths, the longest first: a rider reads "500 m at 9 %" at a glance
+SHORT = 0.3  # a last stretch under this share of a step joins the one before: a grade over a few metres is noise
 
 
-def sections(climb: Climb, profile: Profile) -> list[Section]:
-    """The climb in kilometres from its foot; the last one runs to the summit, a short remainder included."""
-    edges = [climb.start_km + k for k in range(int(climb.length_km) + 1)]
-    if climb.end_km - edges[-1] >= SHORT_KM or len(edges) == 1:
+def step_km(climb: Climb, profile: Profile, min_sections: float) -> float:
+    """The longest step cutting the climb into `min_sections` or more, or the shortest there is on a short climb.
+
+    Never shorter than the profile is smoothed over: a grade over less would be the smoothing's, not the road's.
+    """
+    usable = [s for s in STEPS_KM if s * 1000 >= profile.smooth_m] or [STEPS_KM[0]]
+    return next((s for s in usable if climb.length_km / s >= min_sections), usable[-1])
+
+
+def sections(climb: Climb, profile: Profile, step: float = 1.0) -> list[Section]:
+    """The climb in steps of `step` km from its foot; the last one runs to the summit, a short remainder included:
+    under SHORT of a step, or shorter than the profile is smoothed over."""
+    edges = [climb.start_km + k * step for k in range(int(climb.length_km / step) + 1)]
+    if climb.end_km - edges[-1] >= max(SHORT * step, profile.smooth_m / 1000) or len(edges) == 1:
         edges.append(climb.end_km)
     else:
         edges[-1] = climb.end_km
@@ -50,6 +62,6 @@ def pages(
     for c in chosen(climbs, str(cfg["from_category"]), categories):
         lo, hi = c.start_km - snap_m / 1000, c.end_km + snap_m / 1000
         on_it = [s for s in stops if s.km_end >= lo and s.km <= hi]
-        out.append(ClimbPage(c, sections(c, profile), on_it))
+        out.append(ClimbPage(c, sections(c, profile, step_km(c, profile, cfg["min_sections"])), on_it))
     log.info("Climb pages: %d climbs of category %s or harder", len(out), cfg["from_category"])
     return out

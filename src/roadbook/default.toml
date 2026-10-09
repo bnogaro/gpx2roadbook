@@ -64,8 +64,10 @@ peak_m = 200         # ...else a named peak this close (the road crosses a pass,
 max_age_days = 365   # look up again once a cached answer is this old
 
 [climb_pages]
-enabled = false      # a page of climb profiles after the reference sheet: each climb a kilometre at a time...
+enabled = false      # a page of climb profiles after the reference sheet, each climb in slabs of their own grade...
 from_category = "3"  # ...for the climbs of this category or harder (HC, 1, 2, 3, 4)
+min_sections = 6     # slabs of 1 km, 500 m, 250 m or 100 m: the longest giving a climb this many (0 = always 1 km, as
+                     # race books do), never shorter than the profile is smoothed over (elevation.smooth_m)
 place_m = 250        # with town names on: the towns, villages and hamlets this close to a climb's road are marked
 
 [ride]
