@@ -1,3 +1,25 @@
+## v0.5.0 (2026-10-09)
+
+### BREAKING CHANGE
+
+- Python 3.11 is no longer supported. Installing with uv
+fetches a newer Python by itself; with pipx, use a Python 3.12 or later.
+
+### Feat
+
+- **towns**: join the small stops at a town's edges to it
+- **render**: frame each named town with its row on the strip
+- **towns**: make one stop of each town, whatever --gap says
+- **render**: show where a long stop ends in the km column
+
+### Refactor
+
+- use Python 3.12 type aliases, @override and nested f-string quotes
+
+### Build
+
+- require Python 3.12
+
 ## v0.4.0 (2026-10-08)
 
 ### BREAKING CHANGE
