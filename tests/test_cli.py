@@ -7,7 +7,7 @@ import pytest
 import typer
 from typer.testing import CliRunner
 
-from roadbook import cli
+from roadbook import api
 from roadbook.cli import _echo_lookup, app
 from roadbook.osm import Report
 
@@ -42,7 +42,7 @@ def test_a_pdf_the_browser_could_not_print_is_reported(
     def fail(_html: Path, _pdf: Path) -> None:
         raise error
 
-    monkeypatch.setattr(cli, "html_to_pdf", fail)
+    monkeypatch.setattr(api, "html_to_pdf", fail)
     result = CliRunner().invoke(app, [str(FLAT), "--pdf", "-o", str(tmp_path / "rb.html")])
     assert result.exit_code == 1
     assert "PDF not written" in result.output
@@ -71,7 +71,7 @@ def test_refresh_looks_every_cached_answer_up_again(
         used.update(cfg)
         raise typer.Exit  # the settings are all this test needs
 
-    monkeypatch.setattr(cli, "build", build)
+    monkeypatch.setattr(api, "build", build)
     assert CliRunner().invoke(app, [str(FLAT), *flags]).exit_code == 0
     assert [used[s]["max_age_days"] for s in ("hours", "towns", "climb_names")] == ages
 

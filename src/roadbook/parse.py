@@ -5,6 +5,7 @@ import re
 from typing import TYPE_CHECKING
 
 import gpxpy
+import gpxpy.gpx
 import numpy as np
 
 from .model import Poi, Track
@@ -15,6 +16,11 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 _MIN_POINTS = 2  # a route needs at least two points to have a length
+
+
+class GpxError(ValueError):
+    """A file the road book can't be made from: unreadable, not GPX, or with no route in it."""
+
 
 # OnRouteMap writes e.g. "Ligne droite jusqu'à l'itinéraire: 8 m, Kilomètre d'itinéraire: 30.8 km"
 _KM = re.compile(r"Kilom[eè]tre d'itin[eé]raire:\s*([\d.]+)\s*km", re.IGNORECASE)
@@ -39,15 +45,19 @@ def _fill_missing(ele: np.ndarray) -> np.ndarray:
 
 
 def read_gpx(path: Path) -> tuple[Track, list[Poi]]:
-    with path.open(encoding="utf-8") as fh:
-        gpx = gpxpy.parse(fh)
+    try:
+        with path.open(encoding="utf-8") as fh:
+            gpx = gpxpy.parse(fh)
+    except (OSError, UnicodeDecodeError, gpxpy.gpx.GPXException) as exc:
+        msg = f"{path.name}: not a GPX file the road book can read ({exc})"
+        raise GpxError(msg) from exc
 
     points = [p for t in gpx.tracks for s in t.segments for p in s.points]
     if not points:  # fall back to a planned route
         points = [p for r in gpx.routes for p in r.points]
     if len(points) < _MIN_POINTS:
         msg = f"{path.name}: no track or route points found"
-        raise ValueError(msg)
+        raise GpxError(msg)
 
     lat = np.array([p.latitude for p in points])
     lon = np.array([p.longitude for p in points])

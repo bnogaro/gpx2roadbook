@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import subprocess
 import sys
 from datetime import datetime, time
 from enum import StrEnum
@@ -13,11 +12,10 @@ from typing import TYPE_CHECKING, Annotated, cast, override
 import typer
 
 from . import settings as st
-from .build import build
+from .api import GpxError, run
 from .config import load_config
 from .interactive import ask, command
 from .opening import parse_break
-from .render import html_to_pdf, render_html
 
 if TYPE_CHECKING:
     from io import TextIOWrapper
@@ -297,15 +295,24 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         typer.echo("Missing GPX file: give one, or use -i to be asked.", err=True)
         raise typer.Exit(2)
 
-    book = build(gpx, cfg)
-    html = render_html(book, cfg)
-    out = out or gpx.with_suffix(".roadbook.html")
-    out.write_text(html, encoding="utf-8")
-    _summary(book)
-    typer.echo(f"Wrote {out}")
-    if pdf:
-        _write_pdf(out)
+    _make(gpx, cfg, out, pdf=pdf)
     log.info("Done in %.1f s", perf_counter() - started)
+
+
+def _make(gpx: Path, cfg: dict, out: Path | None, *, pdf: bool) -> None:
+    """Run, then say what was made; exit 1 for a GPX that can't be read, or a PDF that wasn't written."""
+    try:
+        result = run(gpx, cfg, out=out, pdf=pdf)
+    except GpxError as exc:
+        typer.echo(str(exc), err=True)
+        raise typer.Exit(1) from exc
+    _summary(result.book)
+    typer.echo(f"Wrote {result.html}")
+    if result.pdf_error:
+        typer.echo(f"PDF not written: {result.pdf_error}", err=True)
+        raise typer.Exit(1)
+    if result.pdf:
+        typer.echo(f"Wrote {result.pdf}")
 
 
 def _summary(book: Roadbook) -> None:
@@ -316,13 +323,3 @@ def _summary(book: Roadbook) -> None:
     _echo_lookup("Opening hours", book.hours, "shops", "shops")
     _echo_lookup("Towns", book.towns, "busy stops named", "stops")
     _echo_lookup("Climb names", book.climb_names, "climbs named", "climbs")
-
-
-def _write_pdf(html: Path) -> None:
-    pdf_path = html.with_suffix(".pdf")
-    try:
-        html_to_pdf(html, pdf_path)
-    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # the browser failed, or never finished
-        typer.echo(f"PDF not written: {exc}", err=True)
-        raise typer.Exit(1) from exc
-    typer.echo(f"Wrote {pdf_path}")
