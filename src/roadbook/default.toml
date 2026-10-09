@@ -54,6 +54,8 @@ shops = ["bakery", "grocery"]
 max_age_days = 365   # look up again once a cached answer is this old
 group_km = 5         # stops of one town this close make a single stop, whatever --gap says (0 = never); further apart,
                      # the route has left and come back
+edge_km = 2          # with grouping, a small stop this close to a town's first or last stop is asked which town it is
+                     # in, and joins the town if it is the same: the supermarket on the way out
 
 [climb_names]
 enabled = true       # name the col, pass or peak at each climb's top, from OpenStreetMap (needs internet; cached)

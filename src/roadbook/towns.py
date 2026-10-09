@@ -11,7 +11,7 @@ import time
 from typing import TYPE_CHECKING, Any
 
 from .model import Stop
-from .osm import JsonCache, Report, cache_path, nominatim, one_by_one
+from .osm import NOMINATIM_GIVE_UP, JsonCache, Report, cache_path, nominatim, one_by_one
 from .osm import http as _http
 
 if TYPE_CHECKING:
@@ -129,11 +129,72 @@ def lookup(
     if todo:
         log.info("Towns: %d cached; asking Nominatim about the other %d, one a second", report.cached, len(todo))
     report.failed = one_by_one(todo, lambda s: _reverse(centre(s), http, sleep), answer)
+    edges = 0
+    if cfg["group_km"] and cfg["edge_km"] and not report.failed:  # grouped, a town also takes its edges' stops
+        edges = _ask_edges(stops, cfg["edge_km"], cache, http, sleep, report)
     cache.save()
     report.found = sum(1 for s in wanted if s.town)
-    if todo:
+    if todo or edges or report.failed:
         log.info("Towns: looked up in %.1f s", time.perf_counter() - started)
     return report
+
+
+def _ask_edges(
+    stops: list[Stop], edge_km: float, cache: JsonCache, http: Http, sleep: Callable[[float], None], report: Report
+) -> int:
+    """Join the small stops at the named towns' edges to them (see _join_edges); returns how many were asked about.
+
+    Those are not in the report, which counts the busy stops, as its summary line says; a failure is.
+    """
+    failures = asked = 0  # failures: in a row
+
+    def town_of(s: Stop) -> str | None:
+        nonlocal failures, asked
+        known, town = cache.get(_key(centre(s)))
+        if known or failures >= NOMINATIM_GIVE_UP:
+            return town
+        asked += 1
+        try:
+            town = _reverse(centre(s), http, sleep)
+        except OSError:
+            failures += 1
+            report.failed = True
+            return None
+        failures = 0
+        cache.put(_key(centre(s)), town)
+        return town
+
+    _join_edges(stops, edge_km, town_of)
+    if asked:
+        log.info("Towns: asked Nominatim about %d small stops at a town's edge", asked)
+    return asked
+
+
+def _join_edges(stops: list[Stop], edge_km: float, town_of: Callable[[Stop], str | None]) -> None:
+    """Name the small stops at a named town's edges after it, when OSM puts them in it.
+
+    A supermarket on the way out of town is two POIs, too few to be asked about as a busy stop. From each named
+    stop, outwards both ways, each unnamed stop up to `edge_km` from the last one in the town is asked which town it
+    is in: in the same town, it is named after it, for group() to merge it in, and the walk goes on from it; in
+    another, or none, it stays unnamed, with no heading of its own, and the walk stops there.
+    """
+    joined = 0
+    for i, s in enumerate(stops):
+        if not s.town:
+            continue
+        for step in (1, -1):
+            j, near = i + step, s
+            while 0 <= j < len(stops) and stops[j].town is None:
+                other = stops[j]
+                apart = other.km - near.km_end if step > 0 else near.km - other.km_end
+                if apart > edge_km or town_of(other) != s.town:
+                    break
+                other.town = s.town
+                _log_town(other, "at its edge")
+                joined += 1
+                near, j = other, j + step
+    if joined:
+        log.info("Towns: %d small stops at a town's edge joined it", joined)
 
 
 def _log_town(s: Stop, how: str) -> None:
