@@ -35,6 +35,7 @@ DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the 
 LABEL_W = 8.0  # room kept for a short label ("Cat HC", "1240 m") next to a climb's own emoji
 GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevation, so rolling ground stays flat
 HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
+FRAME_PAD = 0.8  # under a town's row, so its frame's bottom line clears the emojis
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
 
 PDF_TIMEOUT_S = 120  # a few seconds is usual; a browser stuck on a dialog would otherwise never return
@@ -195,6 +196,8 @@ def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
         town = it.stop.town if it.stop else None
         if town and town != last:
             row["heads"].append({"cls": "town", "text": town})
+            row["town"] = True  # framed with its name
+            row["h"] += FRAME_PAD
         last = town or last
         if it.kind == "climb" and it.climb and it.climb.name:
             row["heads"].append({"cls": "col", "text": it.climb.name})
@@ -444,6 +447,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         g={
             "MAIN_H": MAIN_H,
             "HEAD_H": HEAD_H,
+            "FRAME_PAD": FRAME_PAD,
             "SUB_H": SUB_H,
             "HDR_H": HDR_H,
             "KM_COL": KM_COL,

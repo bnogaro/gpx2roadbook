@@ -13,7 +13,7 @@ from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
-from roadbook.render import HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
+from roadbook.render import FRAME_PAD, HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
 from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -185,13 +185,13 @@ def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]
 def test_a_named_stop_gets_a_line_above_its_row() -> None:
     _, plain = _stop_row("🚰")
     [row] = _named_rows("Le Mas-d'Azil")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
 
 
 def test_a_full_row_still_gets_its_town_in_full() -> None:
     _, plain = _stop_row("🚰🚻🥖☕🛒⛽🍔")
     [row] = _named_rows("Le Mas-d'Azil", emojis="🚰🚻🥖☕🛒⛽🍔")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H)
+    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
 
 
 def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
@@ -231,6 +231,8 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     assert "<b>km 60.0 → 61.5 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
+    # each named town framed with its row: as many frames as town lines
+    assert len(re.findall(r'<div class="row [^"]*\bin-town\b', html)) == html.count('<div class="head town">') > 0
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
     # lines of 3.2 mm: they move rows down to the next strip, but need no strip more
     strips = re.compile(r'<div class="hdr"><span>([^<]*)</span>')
