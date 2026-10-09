@@ -22,6 +22,7 @@ from roadbook.config import load_config
 from roadbook.gui.models import memory
 from roadbook.gui.models.form import Form, Row
 from roadbook.gui.pages.main import page
+from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
 
@@ -88,6 +89,45 @@ async def test_picking_a_gpx_and_making_the_road_book(user: User, tmp_path: Path
     command = next(iter(user.find(marker="command").elements)).text  # ty: ignore[unresolved-attribute]  # a label
     assert "--categories toilets,bakery,cafe" in command
     await user.should_see(kind=ui.log)
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+async def test_the_preview_follows_the_settings_from_the_cache_only(
+    user: User, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    offline_calls: list[bool] = []
+
+    def towns(_stops: object, _cfg: object, *, offline: bool) -> Report:
+        offline_calls.append(offline)
+        return Report(asked=3, cached=1, unasked=2)
+
+    monkeypatch.setattr("roadbook.build.name_towns", towns)
+    gpx = tmp_path / "ride.gpx"
+    shutil.copy(FLAT, gpx)
+    await user.open("/")
+    await user.should_see(marker="preview-empty")
+    user.find(marker="gpx").type(str(gpx))
+    await user.should_see(marker="preview-frame", retries=50)
+    assert set(offline_calls) == {True}  # never online
+    await user.should_see("Towns: 2 stops not looked up yet")
+    assert not (tmp_path / "ride.roadbook.html").is_file()  # a preview writes nothing
+    assert ".details { display: none; }" in _srcdoc(user)
+    user.find(marker="zoom-in").click()
+    await user.should_see("125%")
+    assert "zoom: 1.25" in _srcdoc(user)
+    for tabs in user.find(kind=ui.tabs).elements:
+        tabs.value = "sheet"  # as a click does in a window
+    assert ".sheet { display: none; }" in _srcdoc(user)
+    _pick(user, "layout", "line")
+    for _ in range(50):  # built again, a moment after the change
+        await asyncio.sleep(0.1)
+        if 'class="ribbon"' in _srcdoc(user):
+            break
+    assert 'class="ribbon"' in _srcdoc(user)
+
+
+def _srcdoc(user: User) -> str:
+    return next(iter(user.find(marker="preview-frame").elements)).props["srcdoc"]
 
 
 def test_the_form_hands_its_rows_and_refresh_to_the_run() -> None:

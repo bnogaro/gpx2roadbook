@@ -116,7 +116,7 @@ def _key(top: Point, cfg: dict[str, Any]) -> str:
     return f"{top[0]:.4f},{top[1]:.4f},{cfg["pass_m"]:g},{cfg["peak_m"]:g}"
 
 
-def lookup(
+def lookup(  # noqa: PLR0913  the network's seams for the tests, and offline, come on top of what to name
     climbs: list[Climb],
     track: Track,
     cfg: dict[str, Any],
@@ -124,14 +124,17 @@ def lookup(
     cache_path: Path | None = None,
     http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
+    offline: bool = False,
 ) -> Report:
     """Set `name` on the climbs whose summit OSM puts a named col, pass or peak at.
 
-    Never raises for a network problem: climbs left unanswered keep no name, and the report says so.
+    Never raises for a network problem: climbs left unanswered keep no name, and the report says so. Offline, only
+    the cache answers, whatever the age of its answers, and the report counts the climbs it leaves unasked.
     """
     started = time.perf_counter()
     log.info("Climb names: %d climbs to name", len(climbs))
-    cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, cfg["max_age_days"], field="name")
+    max_age = None if offline else cfg["max_age_days"]
+    cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, max_age, field="name")
     report = Report(asked=len(climbs))
     tops = {id(c): track.at(c.end_km) for c in climbs}
     todo: list[Climb] = []
@@ -143,6 +146,8 @@ def lookup(
             _log_name(c, "cached")
         else:
             todo.append(c)
+    if offline:
+        report.unasked, todo = len(todo), []
 
     def answer(c: Climb, places: list[Place], source: str) -> None:
         top = tops[id(c)]

@@ -46,6 +46,7 @@ class Report:
     cached: int = 0  # of `asked`, answered from the cache
     sources: list[str] = field(default_factory=list)  # the services that answered the others
     failed: bool = False  # some could not be looked up at all
+    unasked: int = 0  # of `asked`, left unanswered by an offline lookup, which only reads the cache
 
     def answered_by(self, source: str) -> None:
         if source not in self.sources:
@@ -134,14 +135,15 @@ def cache_path(name: str) -> Path:
 class JsonCache:
     """Answers already looked up, by key, each stamped with when; a file of another `version` starts empty.
 
-    An answer may be None ("OSM has nothing"), which is still an answer: only a failed lookup is left out.
+    An answer may be None ("OSM has nothing"), which is still an answer: only a failed lookup is left out. With
+    `max_age_days` None, an answer of any age is known: what an offline lookup, which can't ask again, goes by.
     """
 
-    def __init__(self, path: Path, version: int, max_age_days: float, field: str = "value") -> None:
+    def __init__(self, path: Path, version: int, max_age_days: float | None, field: str = "value") -> None:
         self.path = path
         self.version = version
         self.field = field  # the entry key the answer is stored under
-        self.oldest = dt.datetime.now(dt.UTC) - dt.timedelta(days=max_age_days)
+        self.oldest = None if max_age_days is None else dt.datetime.now(dt.UTC) - dt.timedelta(days=max_age_days)
         self.changed = False  # nothing to write back until an answer is put
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
@@ -153,7 +155,7 @@ class JsonCache:
     def get(self, key: str) -> tuple[bool, Any]:
         """(known, answer): known is False when `key` was never looked up, or too long ago."""
         entry = self.entries.get(key)
-        if entry is None or dt.datetime.fromisoformat(entry["at"]) < self.oldest:
+        if entry is None or (self.oldest and dt.datetime.fromisoformat(entry["at"]) < self.oldest):
             return False, None
         return True, entry[self.field]
 

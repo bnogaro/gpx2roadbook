@@ -100,15 +100,18 @@ def lookup(
     cache_path: Path | None = None,
     http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
+    offline: bool = False,
 ) -> Report:
     """Set `town` on the busy stops (see `busy`) that OSM places in a town.
 
-    Never raises for a network problem: stops left unanswered keep no name, and the report says so.
+    Never raises for a network problem: stops left unanswered keep no name, and the report says so. Offline, only
+    the cache answers, whatever the age of its answers, and the report counts the stops it leaves unasked.
     """
     started = time.perf_counter()
     wanted = busy(stops, cfg)
     log.info("Towns: %d busy stops to name", len(wanted))
-    cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, cfg["max_age_days"], field="town")
+    max_age = None if offline else cfg["max_age_days"]
+    cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, max_age, field="town")
     report = Report(asked=len(wanted))
     todo: list[Stop] = []
     for s in wanted:
@@ -119,6 +122,8 @@ def lookup(
             _log_town(s, "cached")
         else:
             todo.append(s)
+    if offline:
+        report.unasked, todo = len(todo), []
 
     def answer(s: Stop, town: str | None) -> None:
         cache.put(_key(centre(s)), town)
@@ -131,7 +136,8 @@ def lookup(
     report.failed = one_by_one(todo, lambda s: _reverse(centre(s), http, sleep), answer)
     edges = 0
     if cfg["group_km"] and cfg["edge_km"] and not report.failed:  # grouped, a town also takes its edges' stops
-        edges = _ask_edges(stops, cfg["edge_km"], cache, http, sleep, report)
+        ask = None if offline else lambda p: _reverse(p, http, sleep)
+        edges = _ask_edges(stops, cfg["edge_km"], cache, ask, report)
     cache.save()
     report.found = sum(1 for s in wanted if s.town)
     if todo or edges or report.failed:
@@ -140,22 +146,23 @@ def lookup(
 
 
 def _ask_edges(
-    stops: list[Stop], edge_km: float, cache: JsonCache, http: Http, sleep: Callable[[float], None], report: Report
+    stops: list[Stop], edge_km: float, cache: JsonCache, ask: Callable[[Poi], str | None] | None, report: Report
 ) -> int:
     """Join the small stops at the named towns' edges to them (see _join_edges); returns how many were asked about.
 
-    Those are not in the report, which counts the busy stops, as its summary line says; a failure is.
+    `ask` gets Nominatim's answer, see _reverse; None offline, when only the cache answers. Those stops are not in
+    the report, which counts the busy stops, as its summary line says; a failure is.
     """
     failures = asked = 0  # failures: in a row
 
     def town_of(s: Stop) -> str | None:
         nonlocal failures, asked
         known, town = cache.get(_key(centre(s)))
-        if known or failures >= NOMINATIM_GIVE_UP:
+        if known or ask is None or failures >= NOMINATIM_GIVE_UP:
             return town
         asked += 1
         try:
-            town = _reverse(centre(s), http, sleep)
+            town = ask(centre(s))
         except OSError:
             failures += 1
             report.failed = True

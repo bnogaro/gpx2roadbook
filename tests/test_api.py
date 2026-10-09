@@ -8,6 +8,7 @@ from typer.testing import CliRunner
 from roadbook import api
 from roadbook.cli import app
 from roadbook.config import load_config
+from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
 pytestmark = pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
@@ -58,6 +59,24 @@ def test_a_file_the_road_book_cannot_be_made_from_is_a_gpx_error(tmp_path: Path,
     assert result.exit_code == 1
     assert says in result.output
     assert "Traceback" not in result.output
+
+
+def test_a_preview_builds_offline_and_writes_nothing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    gpx = tmp_path / "ride.gpx"
+    shutil.copy(FLAT, gpx)
+    asked: list[bool] = []
+
+    def towns(_stops: object, _cfg: object, *, offline: bool) -> Report:
+        asked.append(offline)
+        return Report(asked=3, cached=1, unasked=2)
+
+    monkeypatch.setattr("roadbook.build.name_towns", towns)
+    shot = api.preview(gpx, load_config())
+    assert asked == [True]
+    assert shot.book.towns == Report(asked=3, cached=1, unasked=2)
+    assert "<html" in shot.html
+    assert shot.warnings == []
+    assert list(tmp_path.iterdir()) == [gpx]
 
 
 def test_a_pdf_asked_for_comes_next_to_the_html(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

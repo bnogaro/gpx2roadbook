@@ -134,6 +134,16 @@ def test_a_stale_cache_is_looked_up_again(tmp_path: Path) -> None:
     assert len(http.asked) == 1
 
 
+def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None:
+    _lookup([_stop(8)], tmp_path, FakeNominatim())
+    http = FakeNominatim()
+    named, unasked, edge = _stop(8), _stop(8, lat=LAT + 0.05), _stop(1, km=60.5)  # edge: small, near the named one
+    cfg = {**CFG, "max_age_days": 0}
+    report = lookup([named, edge, unasked], cfg, cache_path=tmp_path / "towns.json", http=http, offline=True)
+    assert (named.town, unasked.town, edge.town) == ("Saint-Girons", None, None)
+    assert (report.cached, report.unasked, report.failed, http.asked) == (1, 1, False, [])
+
+
 def test_an_odd_answer_counts_as_a_failure(tmp_path: Path) -> None:
     stop = _stop(8)
     assert _lookup([stop], tmp_path, FakeNominatim(["not", "a", "dict"])).failed
@@ -206,9 +216,10 @@ def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
 def _named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, answer: Any = None) -> FakeNominatim:  # noqa: ANN401
     http = FakeNominatim(answer)
 
-    def fake(stops: list[Stop], cfg: dict[str, Any]) -> Report:
+    def fake(stops: list[Stop], cfg: dict[str, Any], *, offline: bool) -> Report:
         # the fake puts every spot in one town: no edge, which test_a_town_takes_the_small_stops_at_its_edges covers
-        return lookup(stops, {**cfg, "edge_km": 0}, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None)
+        cfg = {**cfg, "edge_km": 0}
+        return lookup(stops, cfg, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None, offline=offline)
 
     monkeypatch.setattr(build_module, "name_towns", fake)
     return http

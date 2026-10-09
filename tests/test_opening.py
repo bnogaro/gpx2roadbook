@@ -119,7 +119,7 @@ HOURS = {"Intermarché Super": "Mo-Sa 09:00-19:30", "La Tablée": "Tu-Sa 09:00-2
 def fake_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sets hours on the shops at km 0.2 of HILLY as the OSM lookup would, without network."""
 
-    def lookup(pois: list, cfg: dict) -> Report:
+    def lookup(pois: list, cfg: dict, *, offline: bool) -> Report:  # noqa: ARG001  as offline as online
         for p in pois:
             if p.category in cfg["categories"]:
                 p.opening_hours = HOURS.get(p.name)

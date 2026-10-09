@@ -140,6 +140,16 @@ def test_a_stale_cache_is_looked_up_again(tmp_path: Path) -> None:
     assert http.urls == [OVERPASS[0]]
 
 
+def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None:
+    _lookup([_poi()], tmp_path, FakeHttp())
+    http = FakeHttp()
+    known, unasked = _poi(), _poi("Boulangerie Dupont", "bakery", lat=LAT + 0.01)
+    cfg = {**CFG, "max_age_days": 0}
+    report = lookup([known, unasked], cfg, cache_path=tmp_path / "cache.json", http=http, offline=True)
+    assert (known.opening_hours, unasked.opening_hours) == ("Mo-Sa 09:00-19:30", None)
+    assert (report.cached, report.unasked, report.failed, http.urls) == (1, 1, False, [])
+
+
 def test_overpass_falls_back_to_its_mirror(tmp_path: Path) -> None:
     http = FakeHttp(down=(OVERPASS[0],))
     shop = _poi()
