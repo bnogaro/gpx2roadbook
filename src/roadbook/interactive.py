@@ -33,6 +33,8 @@ ADVANCED = [
     st.CLIMB,
     st.SUMMIT_ROWS,
     st.CLIMB_NAMES,
+    st.CLIMB_PAGES,
+    st.CLIMB_PAGES_FROM,
 ]
 
 

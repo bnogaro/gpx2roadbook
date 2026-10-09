@@ -187,6 +187,14 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         bool | None,
         typer.Option(*st.CLIMB_NAMES.decls, help=st.CLIMB_NAMES.help),
     ] = None,
+    climb_pages: Annotated[
+        bool | None,
+        typer.Option(*st.CLIMB_PAGES.decls, help=st.CLIMB_PAGES.help),
+    ] = None,
+    climb_pages_from: Annotated[
+        str | None,
+        typer.Option(*st.CLIMB_PAGES_FROM.decls, help=st.CLIMB_PAGES_FROM.help),
+    ] = None,
     date: Annotated[
         datetime | None,
         typer.Option(*st.DATE.decls, formats=["%Y-%m-%d"], help=st.DATE.help),
@@ -257,6 +265,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.HOURS, hours),
         (st.TOWNS, towns),
         (st.CLIMB_NAMES, climb_names),
+        (st.CLIMB_PAGES, climb_pages),
+        (st.CLIMB_PAGES_FROM, climb_pages_from),
         (st.DATE, start_date or (date and date.date().isoformat())),
         (st.START, start_time),
         (st.SPEED, speed),
@@ -317,3 +327,4 @@ def _summary(book: Roadbook) -> None:
     _echo_lookup("Opening hours", book.hours, "shops", "shops")
     _echo_lookup("Towns", book.towns, "busy stops named", "stops")
     _echo_lookup("Climb names", book.climb_names, "climbs named", "climbs")
+    _echo_lookup("Places on climbs", book.places, "climbs with places found", "climbs")

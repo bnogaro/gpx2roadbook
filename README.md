@@ -129,6 +129,8 @@ Either way, cut along the dashed lines.
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
 | `--no-details` | Leave out the reference sheet with the POI names. |
+| `--climb-pages` | Add a page of climb profiles, each climb a kilometre at a time (see [Climb pages](#climb-pages)). |
+| `--climb-pages-from CAT` | With `--climb-pages`: the easiest category that gets a profile, `HC`, `1`, `2`, `3` or `4` (default `3`). |
 | `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
 | `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
@@ -137,7 +139,7 @@ Either way, cut along the dashed lines.
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
-| `--refresh` | Look up opening hours, town names and climb names again, instead of using the answers cached from earlier runs. |
+| `--refresh` | Look up opening hours, town names, climb names and the places on climbs again, instead of using the answers cached from earlier runs. |
 | `-i`, `--interactive` | Ask for the settings step by step (see [Interactive mode](#interactive-mode)). |
 | `-v`, `-vv`, `-vvv` | Say what it does: `-v` each step, why POIs were left out and how long the lookups took; `-vv` each stop, climb, shop, town and climb name found; `-vvv` every request to OpenStreetMap too. |
 | `--config my.toml` | Override any setting, see below. |
@@ -207,6 +209,17 @@ The narrow strip on the right edge of each strip is the elevation profile of tha
 ### The reference sheet
 
 After the strips comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`. A footer line at its end says which version of gpx2roadbook made it and where to get it.
+
+### Climb pages
+
+`--climb-pages` adds a page of climb profiles after the reference sheet, like the ones the big races print. It's meant for reading before the ride, or keeping in a pocket:
+
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/climb-page.png" alt="The Col de Menté's climb profile: Cat HC, 9.6 km at 8.9 %, from 504 m to 1357 m; ten slabs, one per kilometre, each coloured and labelled by its grade from 7.8 to 10.8 %, the altitude at each kilometre, the km from the foot below; above, dashed lines to the villages Lez and Boutx and to the stops' emojis" width="640">
+
+- **What each card shows.** Each kilometre from the foot is drawn as a slab, coloured and labelled with its own grade on the same colour scale as the strips; the last one runs to the summit. Above the slabs: the altitude at each kilometre, at the foot and at the top.
+- **Places and stops.** With town names on, the towns, villages and hamlets the road goes through are marked above the profile, within 250 m of the road (`climb_pages.place_m`). These are looked up on OpenStreetMap, once per run and cached. The stops on the strips are marked with their emojis.
+- **Scale.** Every card draws a grade equally steep, so climbs compare at a glance: a short, steep climb gets a narrower card, a long, gentle one a lower card.
+- **Which climbs.** Only climbs of category 3 or harder get a card, so a hilly ride doesn't get one for every small bump. `--climb-pages-from 4` includes every categorised climb, and `--climb-pages-from HC` keeps only the biggest.
 
 ### Town names
 

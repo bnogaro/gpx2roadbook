@@ -63,6 +63,11 @@ pass_m = 300         # a named mountain pass or saddle this close to the summit 
 peak_m = 200         # ...else a named peak this close (the road crosses a pass, but only skirts a peak)
 max_age_days = 365   # look up again once a cached answer is this old
 
+[climb_pages]
+enabled = false      # a page of climb profiles after the reference sheet: each climb a kilometre at a time...
+from_category = "3"  # ...for the climbs of this category or harder (HC, 1, 2, 3, 4)
+place_m = 250        # with town names on: the towns, villages and hamlets this close to a climb's road are marked
+
 [ride]
 date = ""            # "YYYY-MM-DD": with hours, each shop's hours on that day only ("" = its whole week)
 start = ""           # "HH:MM", with date and speed_kmh: estimate when each stop is reached...

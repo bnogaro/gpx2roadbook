@@ -22,6 +22,7 @@ LOOKUPS = (  # what the summary says of each OpenStreetMap lookup, as the CLI do
     ("Opening hours", "hours", "shops", "shops"),
     ("Towns", "towns", "busy stops named", "stops"),
     ("Climb names", "climb_names", "climbs named", "climbs"),
+    ("Places on climbs", "places", "climbs with places found", "climbs"),
 )
 
 

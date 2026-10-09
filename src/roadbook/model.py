@@ -76,6 +76,35 @@ class Climb:
         return self.end_km - self.start_km
 
 
+@dataclass
+class Section:
+    """A stretch of a climb as its page shows it: a kilometre from the foot, the last one up to the summit."""
+
+    start_km: float  # on the route
+    end_km: float
+    ele_start: float
+    ele_end: float
+
+    @property
+    def length_km(self) -> float:
+        return self.end_km - self.start_km
+
+    @property
+    def grade(self) -> float:
+        """Its average grade, percent."""
+        return (self.ele_end - self.ele_start) / max(self.length_km * 1000, 1e-9) * 100
+
+
+@dataclass
+class ClimbPage:
+    """A climb's card on the climb pages: its profile by sections, and what the road passes on the way up."""
+
+    climb: Climb
+    sections: list[Section]
+    stops: list[Stop]  # the stops on the way, the foot's and the summit's too
+    places: list[tuple[float, str]] = field(default_factory=list)  # (route km, name): the towns, villages, hamlets
+
+
 @dataclass(frozen=True)
 class Glyph:
     """An emoji as a row shows it, with its superscript already formatted: a POI count ("2") or a category ("HC")."""
@@ -113,3 +142,5 @@ class Roadbook:
     towns: Report | None = None  # None when town names were not looked up
     climb_names: Report | None = None  # None when climb names were not looked up
     ride: Ride | None = None
+    climb_pages: list[ClimbPage] = field(default_factory=list)  # empty unless asked for
+    places: Report | None = None  # None when the places on the climbs were not looked up
