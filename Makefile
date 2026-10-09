@@ -1,7 +1,7 @@
 .PHONY: dev lint format test audit build release
 
 dev:
-	uv sync --all-groups
+	uv sync --all-groups --all-extras
 	uv run prek install
 
 lint:

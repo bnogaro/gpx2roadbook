@@ -18,8 +18,9 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from .model import Roadbook
+    from .osm import Report
 
-__all__ = ["GpxError", "Result", "default_out", "run"]
+__all__ = ["GpxError", "Result", "default_out", "lookup_line", "run"]
 
 
 @dataclass
@@ -43,6 +44,17 @@ class _Collect(logging.Handler):
     @override
     def emit(self, record: logging.LogRecord) -> None:
         self.messages.append(record.getMessage())
+
+
+def lookup_line(what: str, r: Report | None, found: str, items: str) -> tuple[str, str | None] | None:
+    """What an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)", and a warning if some
+    went unanswered; None when it wasn't asked for, or had nothing to look up (a flat route has no climbs to name)."""
+    if r is None or not r.asked:
+        return None
+    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
+    line = f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else "")
+    failure = f"{what}: OpenStreetMap did not answer for some {items}; run again later." if r.failed else None
+    return line, failure
 
 
 def default_out(gpx: Path) -> Path:
