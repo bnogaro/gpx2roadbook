@@ -118,6 +118,8 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         "km": f"{it.km:.1f}",
         "label": kind.label(it, book),
         "sub": "",
+        "sub_short": "",
+        "km_end": "",  # a long stop's last km, at the foot of the km column
         "gain": "",  # a climb's ↗ metres, at the end of its sub line
         "dist": None,
         "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
@@ -151,13 +153,17 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         row["gain"] = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
         row["sub_short"] = f"{length}km {c.avg_grade:.0f}%"
     elif it.stop and _spans(it.stop, layout.range_m):
-        # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it
-        row["sub"] = row["sub_short"] = f"→{it.stop.km_end:.1f}"
+        # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it: on a
+        # strip down the km column, under the first; a ribbon's token has no column for it
+        row["km_end"] = f"{it.stop.km_end:.1f}"
+        row["sub_short"] = f"→{row['km_end']}"
     if it.dist_to_next is not None:  # at the end of the main line on a strip, at the foot of a ribbon's token
         row["dist"] = f"↓{it.dist_to_next:.1f}"
         row["leg_short"] = f"{it.dist_to_next:.1f}"
-    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0)
-    row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub"] else 0.0)
+    # the last km takes the km column of the row's last emoji line; with none, a short line of its own
+    end_h = SUB_H if row["km_end"] and not row["emoji_lines"] else 0
+    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0) + end_h
+    row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub_short"] else 0.0)
     return row
 
 
