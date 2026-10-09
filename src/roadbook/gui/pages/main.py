@@ -13,6 +13,7 @@ from platformdirs import user_downloads_path
 from roadbook import settings as st
 from roadbook.gui.components.fields import Condition, setting_field
 from roadbook.gui.components.lists import Rows, categories
+from roadbook.gui.components.memory import Memory
 from roadbook.gui.components.run_panel import RunPanel
 from roadbook.gui.models.form import Form
 
@@ -39,15 +40,18 @@ def page() -> None:
     """The page, built once per window: everything after that goes through bindings and handlers."""
     form = Form()  # local to this page: each window its own
     ui.page_title("gpx2roadbook")
-    with ui.header().classes("items-center"):
+    with ui.header().classes("items-center") as header:
         ui.label("gpx2roadbook").classes("text-lg font-bold")
         ui.label(version("gpx2roadbook")).classes("text-xs opacity-70")
     with ui.row().classes("w-full no-wrap items-start gap-6 p-2"):
         with ui.column().classes("w-1/2 gap-2"):
             _files(form)
-            _settings(form)
+            lists = _settings(form)
         with ui.column().classes("w-1/2 gap-2"):
             RunPanel(form)
+    with header:
+        ui.space()
+        Memory(form, on_apply=lambda: [rows.show.refresh() for rows in lists])
 
 
 def _files(form: Form) -> None:
@@ -68,20 +72,21 @@ def _files(form: Form) -> None:
         ui.switch(st.REFRESH.text(form.cfg)).bind_value(form, "refresh").tooltip(st.REFRESH.help).mark("refresh")
 
 
-def _settings(form: Form) -> None:
-    """The common settings, then the lists, then the advanced settings folded away."""
+def _settings(form: Form) -> list[Rows]:
+    """The common settings, then the lists, then the advanced settings folded away; the rows, to rebuild."""
     with ui.card().classes("w-full"):
         for s in COMMON:
             setting_field(s, form)
         with ui.column().classes("w-full gap-0") as breaks:
-            Rows(form.breaks, st.BREAKS, "minutes", minutes=True)
+            breaks_rows = Rows(form.breaks, st.BREAKS, "minutes", minutes=True)
         if st.BREAKS.when is not None:  # planned breaks only count with arrival times
             breaks.bind_visibility_from(Condition(form.cfg, st.BREAKS.when), "holds")
         categories(form)
     with ui.expansion("Advanced settings", icon="tune").classes("w-full").mark("advanced"):
         for s in ADVANCED:
             setting_field(s, form)
-        Rows(form.checkpoints, st.CHECKPOINTS, "label", minutes=False)
+        checkpoints_rows = Rows(form.checkpoints, st.CHECKPOINTS, "label", minutes=False)
+    return [breaks_rows, checkpoints_rows]
 
 
 def _gpx_typed(form: Form, text: str | None) -> None:
