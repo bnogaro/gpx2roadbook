@@ -7,7 +7,7 @@
 `gpx2roadbook` (command: `roadbook`) turns a GPX route with points of interest (water, food, toilets, …) into a compact road book you can print.
 You cut the strips out and tape them to your bike's top tube. Each one lists the stops, climbs and distances for a stretch of the ride, next to a small elevation profile.
 
-<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 0 to 60.7: stops with water, toilet, food and shop emojis; the town names Saint-Béat-Lez, Saint-Lary and Saint-Girons above their stops; the Col de Menté and Col de Portet d&#39;Aspet above their climb rows, with length, grade and gain, and a summit row; and an elevation profile down the right edge, its climbs coloured from yellow to dark red by grade" width="220">
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 0 to 69.6: stops with water, toilet, food and shop emojis; the towns Saint-Béat-Lez, Saint-Lary and Saint-Girons each framed with their stop, Saint-Girons as one stop from km 59.0 to 62.2 down the km column; the Col de Menté and Col de Portet d&#39;Aspet above their climb rows, with length, grade and gain, and a summit row; and an elevation profile down the right edge, its climbs coloured from yellow to dark red by grade" width="220">
 
 *The first strip of [`samples/entrainement_ubf.gpx`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/entrainement_ubf.gpx), with the default settings, shown here at about twice its printed size. On paper it is 35 mm wide. Town and col names come from OpenStreetMap; the steeper a climb, the darker its colour.*
 
