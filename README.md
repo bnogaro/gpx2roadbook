@@ -186,14 +186,15 @@ After the strips comes a page listing every stop by km (as a range, e.g. `km 122
 A stop grouping many POIs is usually a town, so it gets the town's name: easier to remember than a km, and handy to talk about the plan ("lunch in Saint-Girons"). `--no-towns` leaves them out.
 
 ```text
-km 60.0 → 61.3 · Saint-Girons
+km 60.0 → 61.5 · Saint-Girons
 🚰 Eau potable (124 m), Eau potable (146 m)
 🚻 Toilettes (183 m), Toilettes, Toilettes (209 m)
 🥖 Boulangerie, Le Blé Doré (234 m), Pâtisserie Boissonnot, …
 ```
 
 - **Which stops.** Those with at least 8 POIs (`towns.min_pois`), or at least 5 when one is a bakery or a grocery (`towns.shop_min_pois`, `towns.shops`), counting only the categories you show: a town centre, or a village with its shop, not a fountain, a cemetery tap or a lone bakery.
-- **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. That line takes 3.2 mm, so a strip holds a little less. When two or three busy stops in a row are in the same town (Chartres, Le Mans), only the first names it.
+- **One stop per town.** A town's POIs often fall into several stops, split by `--gap`. Its named stops, and the unnamed ones between them, are merged into one, whatever `--gap` says: Le Mans is one row from km 264.8 to 269.4 rather than three. Only stops up to 5 km apart join (`towns.group_km`; 0 never groups), since a route may come back through a town later.
+- **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. That line takes 3.2 mm, so a strip holds a little less. When two busy stops in a row are in the same town but too far apart to be one, only the first names it.
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
 - **On the reference sheet**, every busy stop has its name next to its km.
 - **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.

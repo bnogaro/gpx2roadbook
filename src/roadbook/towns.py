@@ -10,6 +10,7 @@ import logging
 import time
 from typing import TYPE_CHECKING, Any
 
+from .model import Stop
 from .osm import JsonCache, Report, cache_path, nominatim, one_by_one
 from .osm import http as _http
 
@@ -17,7 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    from .model import Poi, Stop
+    from .model import Poi
     from .osm import Http
 
 log = logging.getLogger(__name__)
@@ -66,6 +67,30 @@ def _town(result: dict[str, Any]) -> str | None:
 
 def default_cache_path() -> Path:
     return cache_path("towns.json")
+
+
+def group(stops: list[Stop], within_km: float) -> list[Stop]:
+    """Merge each run of stops in one town into a single stop, whatever split them (--gap, --max-span).
+
+    A run goes from a stop named after a town to the next one named after the same town, taking the unnamed stops
+    between them, which lie in that town too; it stops at a stop named after another town. Only stops up to
+    `within_km` apart join: a route may come back through a town hours later, a visit of its own. 0: no grouping.
+    """
+    out: list[Stop] = []
+    last = -1  # index in `out` of the last stop with a town
+    for s in stops:
+        named = out[last] if last >= 0 else None
+        if within_km and s.town and named and s.town == named.town and s.km - named.km_end <= within_km:
+            pois = [p for t in out[last:] for p in t.pois] + s.pois
+            out[last:] = [Stop(pois, town=s.town)]
+            log.debug("km %.1f-%.1f: one stop in %s, %d POIs", pois[0].km, pois[-1].km, s.town, len(pois))
+        else:
+            out.append(s)
+        if s.town:
+            last = len(out) - 1
+    if len(out) < len(stops):
+        log.info("Towns: %d stops grouped into %d, one per town", len(stops), len(out))
+    return out
 
 
 def lookup(

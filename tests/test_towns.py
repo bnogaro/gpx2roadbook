@@ -14,7 +14,7 @@ from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
 from roadbook.render import HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
-from roadbook.towns import ZOOM, busy, centre, lookup
+from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 REVERSE = f"{NOMINATIM}/reverse"
@@ -221,13 +221,14 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     cfg["towns"]["enabled"] = True
     book = build(HILLY, cfg)
     named = {(s.km, s.km_end) for s in book.stops if s.town}
-    # Saint-Girons (two stops), Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their
-    # village shops; fountains, cemeteries and lone bakeries are not asked
-    assert {(60.0, 60.6), (60.7, 61.5), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
+    # Saint-Girons, Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their village shops;
+    # fountains, cemeteries and lone bakeries are not asked. Saint-Girons' two busy stops, both asked, make one
+    assert {(60.0, 61.5), (178.4, 179.7)} <= {(round(a, 1), round(b, 1)) for a, b in named}
     assert {4.3, 35.4} <= {round(a, 1) for a, _ in named}
-    assert len(http.asked) == len(named) == len(busy(book.stops, CFG)) == 6
+    assert len(http.asked) == 6
+    assert len(named) == len(busy(book.stops, CFG)) == 5
     html = render_html(book, cfg)
-    assert "<b>km 60.0 · Saint-Girons</b>" in html
+    assert "<b>km 60.0 → 61.5 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
     assert "town names © OpenStreetMap" in html.replace("Town", "town")
@@ -300,10 +301,32 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     monkeypatch.setattr(build_module, "name_towns", fake)
     cfg = load_config()
     cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns (Saint-Girons is two stops)
-    cfg["render"]["length_mm"] = 214  # two strips without the town lines; with them, the finish only just overflows
+    cfg["render"]["length_mm"] = 209  # two strips without the town lines; with them, the finish only just overflows
     html = render_html(build(HILLY, cfg), cfg)
     assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
     assert [n for _, n in headers] == ["1/2", "2/2"]  # the town lines take the finish past the second strip's length
     assert headers[-1][0].endswith("206.2")
     assert re.search(r'<div class="strip" style="height: calc\(var\(--l\) \+ \d\.\dmm\)">', html)
+
+
+def _at(km: float, n: int = 1, town: str | None = None) -> Stop:
+    return Stop([Poi(f"p{km}", "", LAT, LON, km=km + i / 10, category="water") for i in range(n)], town=town)
+
+
+def test_the_stops_of_one_town_make_one_whatever_split_them() -> None:
+    stops = [_at(10, 9, "Le Mans"), _at(11.5), _at(12.4, 8, "Le Mans"), _at(14, 8, "Le Mans"), _at(20, 8, "Arnage")]
+    grouped = group(stops, within_km=5)
+    # the unnamed stop between two of Le Mans is in Le Mans too; Arnage stays apart
+    assert [(s.km, s.km_end, s.town, len(s.pois)) for s in grouped] == [
+        (10.0, pytest.approx(14.7), "Le Mans", 9 + 1 + 8 + 8),
+        (20.0, pytest.approx(20.7), "Arnage", 8),
+    ]
+
+
+def test_a_town_the_route_comes_back_through_later_is_a_visit_of_its_own() -> None:
+    stops = [_at(10, 8, "Chartres"), _at(30, 8, "Chartres")]
+    assert len(group(stops, within_km=5)) == 2
+    assert len(group([_at(10, 8, "Chartres"), _at(12, 8, "Chartres")], within_km=0)) == 2  # 0: no grouping
+    # an unnamed stop with no named stop of the same town after it stays on its own
+    assert len(group([_at(10, 8, "Chartres"), _at(11)], within_km=5)) == 2

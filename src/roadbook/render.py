@@ -184,11 +184,11 @@ def _spans(stop: Stop, range_m: float) -> bool:
 def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
     """Give rows their heading lines, each HEAD_H mm tall: the town of a named stop, then the name of a named climb.
 
-    A town is not named again on the next row in the same town: Chartres or Le Mans may be two or three busy stops
-    in a row, and naming it once is enough on a narrow strip. A climb's name goes above its foot's row, the one that
-    always shows (its summit only gets a row when a stop is there), so it announces the climb before it starts and
-    sits right above the length and grade it goes with. A climb row whose foot is in a named town gets both lines:
-    where you are, then what comes.
+    A town is not named again on the next row in the same town: its stops make one (towns.group), but two too far
+    apart to join may still follow each other, and naming it once is enough on a narrow strip. A climb's name goes
+    above its foot's row, the one that always shows (its summit only gets a row when a stop is there), so it
+    announces the climb before it starts and sits right above the length and grade it goes with. A climb row whose
+    foot is in a named town gets both lines: where you are, then what comes.
     """
     last = None  # the last town shown
     for it, row in zip(book.items, rows, strict=True):
