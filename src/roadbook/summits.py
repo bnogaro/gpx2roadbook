@@ -28,9 +28,9 @@ if TYPE_CHECKING:
     from .model import Climb, Track
     from .osm import Http
 
-    Point = tuple[float, float]  # lat, lon
-
 log = logging.getLogger(__name__)
+
+type Point = tuple[float, float]  # lat, lon
 
 # Nominatim's tag filters, in order of preference; it files a node tagged both mountain_pass and natural=saddle under
 # mountain_pass only, so each needs its own request. The peak is only asked for when no pass or saddle is near.
@@ -113,7 +113,7 @@ def default_cache_path() -> Path:
 
 def _key(top: Point, cfg: dict[str, Any]) -> str:
     # ~10 m, and the radii: an answer chosen with other radii may not be the same
-    return f"{top[0]:.4f},{top[1]:.4f},{cfg['pass_m']:g},{cfg['peak_m']:g}"
+    return f"{top[0]:.4f},{top[1]:.4f},{cfg["pass_m"]:g},{cfg["peak_m"]:g}"
 
 
 def lookup(

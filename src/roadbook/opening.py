@@ -44,7 +44,7 @@ def _time(value: object) -> dt.time | None:
     return dt.time.fromisoformat(value) if isinstance(value, str) and value else None
 
 
-Gain = Callable[[float, float], float]  # metres climbed between two km
+type Gain = Callable[[float, float], float]  # metres climbed between two km
 
 
 def _flat(_a: float, _b: float) -> float:

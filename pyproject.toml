@@ -109,7 +109,7 @@ max-positional-args = 6
 ]
 
 [tool.ruff.format]
-quote-style = "double"
+quote-style = "preserve"  # flake8-quotes (Q) keeps strings double-quoted; inside f-strings too, from 3.12
 indent-style = "space"
 docstring-code-format = true
 

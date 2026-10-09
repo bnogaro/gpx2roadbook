@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-    Http = Callable[[str, dict[str, str] | None], Any]  # http() below, or a fake in tests
+type Http = Callable[[str, dict[str, str] | None], Any]  # http() below, or a fake in tests
 
 log = logging.getLogger(__name__)
 wire = logging.getLogger("roadbook.http")  # every request and answer: -vvv
