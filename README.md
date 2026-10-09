@@ -227,7 +227,7 @@ km 4.3
 
 - **On your ride day.** Add `--date 2026-10-11` and each shop shows only that day's hours, e.g. `08:00–12:30, 15:00–19:30`, or **closed**. Public holidays count, for the country the shop is in: a shop marked `PH off` is closed on 11 November in France. A `?` after hours means OpenStreetMap isn't sure the shop is open then. Hours that aren't in OpenStreetMap's format are shown as written, in grey.
 - **Where they come from.** The GPX has no hours, so each shop is matched to the OpenStreetMap place within 80 m of it with the closest name (`hours.match_m`). onroutemap.de uses OpenStreetMap too, so the names usually line up.
-- **Coverage.** OpenStreetMap doesn't know every shop's hours: expect roughly half of them, more for supermarkets. The others say *hours unknown*.
+- **Coverage.** OpenStreetMap doesn't know every shop's hours: expect roughly half of them, more for supermarkets. The others get a dotted blank instead, to write their hours in by hand: check the ones you plan to stop at (the shop's website, a map app) and fill them in after printing.
 - **It takes a while the first time.** The hours are looked up online, through the [Overpass API](https://wiki.openstreetmap.org/wiki/Overpass_API) or, when its servers are busy, [Nominatim](https://nominatim.org), which allows one request per second. For a 200 km route, count from half a minute to a few minutes.
 - **Then it's instant.** Answers are cached on your computer for 30 days (`hours.max_age_days`), so rendering the same route again needs no internet. Use `--refresh` to look them up again.
 - **If the lookup fails**, you get a warning and a road book without the missing hours. Run it again later.
