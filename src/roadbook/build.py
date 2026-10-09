@@ -15,6 +15,8 @@ from .parse import read_gpx
 from .places import lookup as find_places
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
+from .render import printable_area
+from .routemap import make as make_map
 from .snap import snap_pois
 from .summits import lookup as name_climbs
 from .towns import group as group_by_town
@@ -25,6 +27,7 @@ if TYPE_CHECKING:
 
     from .model import ClimbPage, Track
     from .osm import Report
+    from .routemap import RouteMap
 
 log = logging.getLogger(__name__)
 
@@ -132,6 +135,14 @@ def _climb_pages(
     return made, find_places(made, track, cfg["climb_pages"], cfg["towns"]["max_age_days"], offline=offline)
 
 
+def _route_map(track: Track, cfg: dict[str, Any], *, offline: bool) -> tuple[RouteMap | None, Report | None]:
+    """The map page, if asked for, on a page of the road book's size, with the tiles it could have."""
+    if not cfg["map"]["enabled"]:
+        return None, None
+    area, landscape = printable_area(cfg["render"]["page"]), cfg["render"]["layout"] == "line"  # as the other pages
+    return make_map(track, cfg["map"], area, landscape=landscape, offline=offline)
+
+
 def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Roadbook:
     """The road book of `gpx_path` with the settings `cfg`. Offline, the OpenStreetMap lookups only read their cache:
     a preview, quick and quiet on the network; their reports count what they left unasked."""
@@ -168,6 +179,7 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         else None
     )
     pages, places = _climb_pages(climbs, stops, profile, track, cfg, offline=offline)
+    route_map, tiles = _route_map(track, cfg, offline=offline)
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -211,4 +223,6 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         ride=ride,
         climb_pages=pages,
         places=places,
+        route_map=route_map,
+        tiles=tiles,
     )

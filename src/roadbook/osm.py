@@ -47,6 +47,7 @@ class Report:
     sources: list[str] = field(default_factory=list)  # the services that answered the others
     failed: bool = False  # some could not be looked up at all
     unasked: int = 0  # of `asked`, left unanswered by an offline lookup, which only reads the cache
+    service: str = "OpenStreetMap"  # who is asked, for the warning when it does not answer
 
     def answered_by(self, source: str) -> None:
         if source not in self.sources:

@@ -9,6 +9,7 @@ if TYPE_CHECKING:
     from .opening import Ride, Verdict, Window
     from .osm import Report
     from .profile import Profile
+    from .routemap import RouteMap
 
 
 @dataclass
@@ -145,3 +146,5 @@ class Roadbook:
     ride: Ride | None = None
     climb_pages: list[ClimbPage] = field(default_factory=list)  # empty unless asked for
     places: Report | None = None  # None when the places on the climbs were not looked up
+    route_map: RouteMap | None = None  # None when no map was asked for
+    tiles: Report | None = None  # the map's tiles: None without a map

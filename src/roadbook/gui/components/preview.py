@@ -25,7 +25,7 @@ DEBOUNCE_S = 0.6  # how long they must stand still before the preview is built a
 ZOOMS = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
 FITS = (0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0)  # what Fit picks from, never above true size
 PX_PER_MM = 96 / 25.4  # CSS pixels
-HIDE = {"strips": ".details, .climb-pages", "sheet": ".sheet"}  # each tab hides the other one's part of the road book
+HIDE = {"strips": ".map-page, .details, .climb-pages", "sheet": ".sheet"}  # each tab hides the other one's part
 
 
 def framed(html: str, tab: str, zoom: float | None, widest_mm: float) -> str:
@@ -56,7 +56,7 @@ def widest(cfg: dict[str, Any]) -> float:
 def notes(shot: Preview) -> list[str]:
     """What the preview leaves out, and why: the lookups not cached yet, then what the build warned of."""
     said = [
-        f"{what}: {r.unasked} {items} not looked up yet. The preview only uses names and hours already found;"
+        f"{what}: {r.unasked} {items} not looked up yet. The preview only uses what is already cached;"
         " making the road book looks them up."
         for what, attr, _, items in LOOKUPS
         if (r := getattr(shot.book, attr)) is not None and r.unasked
@@ -113,7 +113,7 @@ class PreviewPanel:
         """Show the tab and zoom picked, without building again."""
         if self.frame is None or self.shot is None:
             return
-        sheets = ('<div class="details">', '<div class="climb-pages">')
+        sheets = ('<div class="map-page">', '<div class="details">', '<div class="climb-pages">')
         if self.tab == "sheet" and not any(s in self.shot.html for s in sheets):
             html = f"<p style='font-family: sans-serif'>No reference sheet: turn on “{st.DETAILS.text(self.form.cfg)}”"
             html += " in the advanced settings.</p>"

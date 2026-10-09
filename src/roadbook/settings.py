@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from .opening import parse_break
 from .render import LAYOUT_WIDTH
+from .tiles import STYLES
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -123,7 +124,7 @@ def timed(cfg: Config) -> bool:
 
 def refresh(cfg: Config) -> None:
     """--refresh: every answer cached from earlier runs counts as too old, so all are looked up again."""
-    for section in ("hours", "towns", "climb_names"):
+    for section in ("hours", "towns", "climb_names", "map"):
         cfg[section]["max_age_days"] = 0
 
 
@@ -335,11 +336,30 @@ CLIMB_PAGES_FROM = Setting(
     choices=("HC", "1", "2", "3", "4"),
     when=lambda cfg: bool(CLIMB_PAGES.get(cfg)),
 )
+MAP = Setting(
+    "--map",
+    "Add a page with a map of the whole route, its stops, towns and climbs, from OpenStreetMap-based tiles"
+    " (default: on; needs internet the first time).",
+    "A map of the route (needs internet the first time)",
+    "map",
+    "enabled",
+    bool,
+)
+MAP_STYLE = Setting(
+    "--map-style",
+    "The map's look: osm (plain), cyclosm (for cycling), topo (relief and contours) or satellite (default osm).",
+    "Map style",
+    "map",
+    "style",
+    choices=tuple(STYLES),
+    when=lambda cfg: bool(MAP.get(cfg)),
+)
 OUT = Setting("--out", "Output .html (default: next to the GPX).", "Output file", group=RUN)
 PDF = Setting("--pdf", "Also export a PDF via headless Edge/Chrome.", "Also export a PDF?", kind=bool, group=RUN)
 REFRESH = Setting(
     "--refresh",
-    "Look up opening hours, towns, climb names and the places on climbs again, instead of using the cached answers.",
+    "Look up opening hours, towns, climb names, the places on climbs and the map's tiles again, instead of using the"
+    " cached ones.",
     "Look everything up again online",
     kind=bool,
     group=RUN,
@@ -370,6 +390,8 @@ SETTINGS = (
     CLIMB_NAMES,
     CLIMB_PAGES,
     CLIMB_PAGES_FROM,
+    MAP,
+    MAP_STYLE,
     OUT,
     PDF,
     REFRESH,

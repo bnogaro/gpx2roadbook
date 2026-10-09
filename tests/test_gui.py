@@ -19,12 +19,14 @@ from nicegui.testing.user_simulation import user_simulation
 
 import roadbook.gui
 import roadbook.gui.app
+from roadbook.api import Preview
 from roadbook.config import load_config
-from roadbook.gui.components.preview import framed, widest
+from roadbook.gui.components.preview import framed, notes, widest
 from roadbook.gui.models import memory
 from roadbook.gui.models.form import Form, Row
 from roadbook.gui.pages import main
 from roadbook.gui.pages.main import is_here, page
+from roadbook.model import Roadbook
 from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -148,6 +150,15 @@ def test_fit_picks_the_largest_zoom_the_widest_piece_has_room_for() -> None:
     assert "@media (min-width: 378px) { html { zoom: 1; } }" in fitted  # 100 mm, true size, once it has room
     assert "zoom: 1.25" not in fitted  # never above true size
     assert "@media" not in framed("<head></head>", "strips", 0.5, 100)
+
+
+def test_the_map_shows_with_the_reference_sheet_and_says_which_tiles_it_lacks() -> None:
+    html = '<head></head><div class="sheet"></div><div class="map-page"></div>'
+    hidden = lambda tab: framed(html, tab, 1.0, 50).split("{ display: none; }")[0]  # noqa: E731
+    assert ".map-page" in hidden("strips")
+    assert ".map-page" not in hidden("sheet")
+    book = Roadbook("t", 1, 0, 0, [], [], [], 0, 0, tiles=Report(asked=12, cached=4, unasked=8))
+    assert notes(Preview(book, html))[0].startswith("Map: 8 tiles not looked up yet.")
 
 
 def test_only_this_computer_is_here() -> None:
