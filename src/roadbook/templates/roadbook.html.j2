@@ -89,6 +89,8 @@
   .details .stop b { font-variant-numeric: tabular-nums; }
   .details .off { color: #777; }
   .details .oh { color: #333; font-variant-numeric: tabular-nums; }
+  /* hours unknown: a dotted blank, tall enough to write them in by pen once checked */
+  .details .write-in { display: inline-block; width: 26mm; height: 4.2mm; border-bottom: 0.25mm dotted #555; vertical-align: bottom; }
   .details .closed, .details .verdict { font-weight: 700; }
   .details .col { color: #92400e; }
   .details .eta { font-variant-numeric: tabular-nums; color: #333; }
@@ -153,7 +155,7 @@
   {% for s in details %}
   <div class="stop"><b>km {{ s.km }}{% if s.town %} · {{ s.town }}{% endif %}{% if s.col %} · {% if s.grade %}<span class="swatch" style="background: {{ s.grade }}"></span>{% endif %}<span class="col">{{ s.col }}</span>{% endif %}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
     {% for emoji, pois in s.groups %}
-    <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% elif p.hours_class == 'write-in' %} <span class="write-in" title="hours unknown"></span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endfor %}
   </div>
   {% endfor %}

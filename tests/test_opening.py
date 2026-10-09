@@ -137,7 +137,7 @@ def test_the_reference_sheet_shows_the_ride_day() -> None:
     assert "opening hours on Wed 14 Oct 2026" in html
     assert f'Intermarché Super <span class="off">(265 m)</span> <span class="oh">09:00{EN}19:30</span>' in html
     assert '<span class="off">9h-19h</span>' in html  # not OSM syntax: shown as written, muted
-    assert '<span class="off">hours unknown</span>' in html
+    assert '<span class="write-in" title="hours unknown"></span>' in html  # a blank to write them in
     # the watermark follows the OpenStreetMap credit
     assert re.search(r'<p class="credit">[^<]*</p>\s*<p class="colophon">Made with gpx2roadbook ', html)
 

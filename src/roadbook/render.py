@@ -236,7 +236,8 @@ def _shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
     Its hours are those of `day` if given and readable, else the value as OSM gives it.
     """
     if not p.opening_hours:
-        return {"verdict": "", "hours": "hours unknown", "hours_class": "off"}
+        # a blank to write them in by hand, once checked elsewhere (the shop's site, a map app) before the ride
+        return {"verdict": "", "hours": "", "hours_class": "write-in"}
     v = p.verdict
     word = (f"⚠ {v.note}" if v.state == "tight" else _VERDICT.get(v.state, "")) if v else ""
     found = on_day(p.opening_hours, p.lat, p.lon, day) if day else None
