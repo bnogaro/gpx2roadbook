@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import html
 import itertools
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Callable, Sequence
 
     from .model import Climb
     from .profile import Profile
@@ -93,3 +95,129 @@ def gutter_svg(  # noqa: PLR0913  the grade colours come on top of the geometry
         f"{dots}"
         f"</svg>"
     )
+
+
+# A climb page's card (mm): rotated labels above, the profile, the km scale below
+CARD_LABELS_H, CARD_PLOT_H, CARD_AXIS_H = 22.0, 38.0, 5.0  # the most each may take
+CARD_BARE_H = 3.0  # the labels' band with no label in it
+LABEL_MM_PER_CHAR, LABEL_MM_PER_EMOJI = 1.25, 2.4  # a rotated label's length, per character, at its font size
+EXAGGERATION = 2.0  # heights drawn this many times steeper than the km: the same on every card, so grades compare
+CARD_LEFT, CARD_RIGHT = 2.0, 10.0  # the summit's altitude takes the right margin
+MARK_GAP = 2.8  # marks closer than this share one label
+ALT_GAP = 7.0  # an altitude label needs this much room from the last one
+LABEL_CHARS = 26  # a longer label is cut, rather than run past the card's top
+
+
+def _ink(colour: str) -> str:
+    """Black or white, whichever reads better on `colour` ("#rrggbb")."""
+    r, g, b = (int(colour[i : i + 2], 16) for i in (1, 3, 5))
+    return "#111" if 0.299 * r + 0.587 * g + 0.114 * b > 150 else "#fff"  # noqa: PLR2004  half way, by eye
+
+
+def climb_svg(
+    sections: Sequence[tuple[float, float, float, float]],
+    marks: Sequence[tuple[float, str]],
+    width_mm: float,
+    *,
+    grades: Scale = (),
+) -> str:
+    """A climb's profile, a section at a time: (start km, end km, elevation at each), foot first, as race books draw
+    it. Each section is a slab coloured by its grade, the grade written in it; the altitude at the kilometres, the km
+    from the foot below. `marks`, (km, text), hang above on a line to the road: the places and stops on the way.
+    """
+    foot, top = sections[0][0], sections[-1][1]
+    e_lo, e_hi = sections[0][2], max(max(s[2], s[3]) for s in sections)
+    floor = math.floor((e_lo - 0.08 * max(e_hi - e_lo, 1.0)) / 50) * 50  # some ground under the foot
+    rise, run = max(e_hi - floor, 1.0), max(top - foot, 1e-6) * 1000  # metres
+    # across the page, unless that makes it too tall: then narrower, the slope as steep as on every other card
+    plot_w = width_mm - CARD_LEFT - CARD_RIGHT
+    plot_h = plot_w / run * EXAGGERATION * rise
+    if plot_h > CARD_PLOT_H:
+        plot_w, plot_h = plot_w * CARD_PLOT_H / plot_h, CARD_PLOT_H
+    merged = _merge_marks(marks, lambda km: (km - foot) / (run / 1000) * plot_w)
+    labels = [m[1] if len(m[1]) <= LABEL_CHARS else m[1][: LABEL_CHARS - 1] + "…" for m in merged]
+    labels_h = min(CARD_LABELS_H, 2 + max(map(_label_mm, labels))) if labels else CARD_BARE_H
+    base = labels_h + plot_h
+
+    def x(km: float) -> float:
+        return CARD_LEFT + (km - foot) / max(top - foot, 1e-9) * plot_w
+
+    def y(ele: float) -> float:
+        return base - (ele - floor) / rise * plot_h
+
+    def ele_at(km: float) -> float:
+        for k0, k1, e0, e1 in sections:
+            if km <= k1:
+                return e0 + (e1 - e0) * (max(km, k0) - k0) / max(k1 - k0, 1e-9)
+        return sections[-1][3]
+
+    out: list[str] = []
+    last_alt = -ALT_GAP
+    for n, (k0, k1, e0, e1) in enumerate(sections):
+        x0, x1 = x(k0), x(k1)
+        grade = (e1 - e0) / max((k1 - k0) * 1000, 1e-9) * 100
+        fill = grade_colour(grade, grades) if grades else CLIMB
+        out.append(
+            f'<polygon points="{x0:.2f},{base} {x0:.2f},{y(e0):.2f} {x1:.2f},{y(e1):.2f} {x1:.2f},{base}" '
+            f'fill="{fill}" stroke="#fff" stroke-width="0.25"/>'
+        )
+        size = min(2.6, (x1 - x0) * 0.45)
+        out.append(
+            f'<text x="{(x0 + x1) / 2:.2f}" y="{base - 1.2:.2f}" font-size="{size:.2f}" font-weight="700" '
+            f'text-anchor="middle" fill="{_ink(fill)}">{grade:.1f}</text>'
+        )
+        km = "0" if n == 0 else f"{k0 - foot:g}"
+        out.append(f'<text x="{x0:.2f}" y="{base + 3.4:.2f}" font-size="2" text-anchor="middle">{km}</text>')
+        if x0 - last_alt >= ALT_GAP and n:  # the foot's altitude is written apart, larger
+            out.append(
+                f'<text x="{x0:.2f}" y="{y(e0) - 0.8:.2f}" font-size="1.8" fill="#555" text-anchor="middle">'
+                f"{e0:.0f}</text>"
+            )
+            last_alt = x0
+    out.append(
+        f'<text x="{x(top):.2f}" y="{base + 3.4:.2f}" font-size="2" text-anchor="middle">{top - foot:.1f}</text>'
+    )
+    out.append(
+        f'<text x="{x(foot) + 0.6:.2f}" y="{y(e_lo) - 1:.2f}" font-size="2.2" font-weight="700">{e_lo:.0f} m</text>'
+    )
+    e_top = sections[-1][3]
+    out.append(
+        f'<text x="{x(top) + 0.8:.2f}" y="{y(e_top) + 0.8:.2f}" font-size="2.4" font-weight="700">{e_top:.0f} m</text>'
+    )
+    out.append(f'<line x1="{CARD_LEFT}" y1="{base}" x2="{x(top):.2f}" y2="{base}" stroke="#444" stroke-width="0.25"/>')
+    for (km, _), label in zip(merged, labels, strict=True):
+        xm, ym = x(km), y(ele_at(km))
+        out.append(
+            f'<line x1="{xm:.2f}" y1="{ym - 0.4:.2f}" x2="{xm:.2f}" y2="{labels_h - 0.6:.2f}" stroke="#555" '
+            'stroke-width="0.15" stroke-dasharray="0.6 0.5"/>'
+        )
+        out.append(f'<circle cx="{xm:.2f}" cy="{ym:.2f}" r="0.5" fill="#111"/>')
+        out.append(
+            f'<text transform="translate({xm + 0.7:.2f} {labels_h - 1:.2f}) rotate(-90)" font-size="2.2">'
+            f"{html.escape(label)}</text>"
+        )
+    height, width_mm = base + CARD_AXIS_H, CARD_LEFT + plot_w + CARD_RIGHT
+    return (
+        f'<svg class="climb-profile" viewBox="0 0 {width_mm:g} {height:g}" '
+        f'width="{width_mm:g}mm" height="{height:g}mm">{"".join(out)}</svg>'
+    )
+
+
+def _label_mm(text: str) -> float:
+    """About how long a label runs, mm: an emoji twice a letter; joiners and variation selectors nothing."""
+    unseen = {0x200D, *range(0xFE00, 0xFE10)}
+    return sum(
+        0 if ord(c) in unseen else LABEL_MM_PER_EMOJI if ord(c) >= 0x2190 else LABEL_MM_PER_CHAR  # noqa: PLR2004  arrows on
+        for c in text
+    )
+
+
+def _merge_marks(marks: Sequence[tuple[float, str]], x: Callable[[float], float]) -> list[tuple[float, str]]:
+    """The marks in km order, those too close to read apart merged into one label, at the first one's km."""
+    merged: list[tuple[float, str]] = []
+    for km, text in sorted(marks):
+        if merged and x(km) - x(merged[-1][0]) < MARK_GAP:
+            merged[-1] = (merged[-1][0], f"{merged[-1][1]} · {text}")
+        else:
+            merged.append((km, text))
+    return merged

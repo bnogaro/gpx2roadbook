@@ -6,10 +6,11 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def _no_name_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Town and climb names are on by default, and looked up online: tests stay offline unless they put in a fake
-    network."""
+    """Town and climb names are on by default, and looked up online, as are the places on climbs with climb pages:
+    tests stay offline unless they put in a fake network."""
     monkeypatch.setattr("roadbook.build.name_towns", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("roadbook.build.name_climbs", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("roadbook.build.find_places", lambda *_args, **_kwargs: None)
 
 
 @pytest.fixture(autouse=True)

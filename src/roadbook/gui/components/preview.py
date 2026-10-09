@@ -25,7 +25,7 @@ DEBOUNCE_S = 0.6  # how long they must stand still before the preview is built a
 ZOOMS = (0.5, 0.75, 1.0, 1.25, 1.5, 2.0)
 FITS = (0.25, 0.33, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0)  # what Fit picks from, never above true size
 PX_PER_MM = 96 / 25.4  # CSS pixels
-HIDE = {"strips": ".details", "sheet": ".sheet"}  # each tab hides the other one's part of the road book
+HIDE = {"strips": ".details, .climb-pages", "sheet": ".sheet"}  # each tab hides the other one's part of the road book
 
 
 def framed(html: str, tab: str, zoom: float | None, widest_mm: float) -> str:
@@ -113,7 +113,8 @@ class PreviewPanel:
         """Show the tab and zoom picked, without building again."""
         if self.frame is None or self.shot is None:
             return
-        if self.tab == "sheet" and '<div class="details">' not in self.shot.html:
+        sheets = ('<div class="details">', '<div class="climb-pages">')
+        if self.tab == "sheet" and not any(s in self.shot.html for s in sheets):
             html = f"<p style='font-family: sans-serif'>No reference sheet: turn on “{st.DETAILS.text(self.form.cfg)}”"
             html += " in the advanced settings.</p>"
         else:

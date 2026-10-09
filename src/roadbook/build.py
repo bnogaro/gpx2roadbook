@@ -5,12 +5,14 @@ import logging
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
+from .climb_pages import pages as climb_pages
 from .climbs import find_climbs
 from .hours import lookup as find_hours
 from .kinds import KINDS
 from .model import Climb, Item, Poi, Roadbook, Stop
 from .opening import Ride, verdict
 from .parse import read_gpx
+from .places import lookup as find_places
 from .pois import classify, cluster, emoji_counts, filter_pois
 from .profile import Profile
 from .snap import snap_pois
@@ -20,6 +22,9 @@ from .towns import lookup as name_towns
 
 if TYPE_CHECKING:
     from pathlib import Path
+
+    from .model import ClimbPage, Track
+    from .osm import Report
 
 log = logging.getLogger(__name__)
 
@@ -114,6 +119,19 @@ def _log_climbs(climbs: list[Climb], min_gain_m: float) -> None:
         )
 
 
+def _climb_pages(
+    climbs: list[Climb], stops: list[Stop], profile: Profile, track: Track, cfg: dict[str, Any], *, offline: bool
+) -> tuple[list[ClimbPage], Report | None]:
+    """The climb pages, if asked for, and the places on their climbs' roads when town names are on."""
+    if not cfg["climb_pages"]["enabled"]:
+        return [], None
+    c = cfg["climbs"]
+    made = climb_pages(climbs, stops, profile, cfg["climb_pages"], c["categories"], c["snap_m"])
+    if not (made and cfg["towns"]["enabled"]):
+        return made, None
+    return made, find_places(made, track, cfg["climb_pages"], cfg["towns"]["max_age_days"], offline=offline)
+
+
 def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Roadbook:
     """The road book of `gpx_path` with the settings `cfg`. Offline, the OpenStreetMap lookups only read their cache:
     a preview, quick and quiet on the network; their reports count what they left unasked."""
@@ -146,9 +164,10 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
     _judge(stops, ride, profile)
     climb_names = (
         name_climbs(climbs, track, cfg["climb_names"], offline=offline)
-        if named and cfg["climb_names"]["enabled"]
+        if (named or cfg["climb_pages"]["enabled"]) and cfg["climb_names"]["enabled"]  # each page is titled by it
         else None
     )
+    pages, places = _climb_pages(climbs, stops, profile, track, cfg, offline=offline)
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
@@ -190,4 +209,6 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         towns=towns,
         climb_names=climb_names,
         ride=ride,
+        climb_pages=pages,
+        places=places,
     )

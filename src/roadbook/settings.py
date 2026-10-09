@@ -317,11 +317,29 @@ CLIMB_NAMES = Setting(
     "enabled",
     bool,
 )
+CLIMB_PAGES = Setting(
+    "--climb-pages",
+    "Append climb pages: each climb's profile a kilometre at a time, with its grades and the places on the way"
+    " (default: off).",
+    "Climb pages, a profile per climb",
+    "climb_pages",
+    "enabled",
+    bool,
+)
+CLIMB_PAGES_FROM = Setting(
+    "--climb-pages-from",
+    "The easiest category that gets a climb page: HC, 1, 2, 3 or 4 (default 3).",
+    "Climb pages for the climbs of category, or harder",
+    "climb_pages",
+    "from_category",
+    choices=("HC", "1", "2", "3", "4"),
+    when=lambda cfg: bool(CLIMB_PAGES.get(cfg)),
+)
 OUT = Setting("--out", "Output .html (default: next to the GPX).", "Output file", group=RUN)
 PDF = Setting("--pdf", "Also export a PDF via headless Edge/Chrome.", "Also export a PDF?", kind=bool, group=RUN)
 REFRESH = Setting(
     "--refresh",
-    "Look up opening hours, towns and climb names again, instead of using the cached answers.",
+    "Look up opening hours, towns, climb names and the places on climbs again, instead of using the cached answers.",
     "Look everything up again online",
     kind=bool,
     group=RUN,
@@ -350,6 +368,8 @@ SETTINGS = (
     CLIMB,
     SUMMIT_ROWS,
     CLIMB_NAMES,
+    CLIMB_PAGES,
+    CLIMB_PAGES_FROM,
     OUT,
     PDF,
     REFRESH,

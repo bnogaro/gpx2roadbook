@@ -114,7 +114,7 @@ async def test_the_preview_follows_the_settings_from_the_cache_only(
     assert set(offline_calls) == {True}  # never online
     await user.should_see("Towns: 2 stops not looked up yet")
     assert not (tmp_path / "ride.roadbook.html").is_file()  # a preview writes nothing
-    assert ".details { display: none; }" in _srcdoc(user)
+    assert ".details, .climb-pages { display: none; }" in _srcdoc(user)
     await user.should_see("Fit")  # the width of the pane, at most true size
     assert "@media (min-width:" in _srcdoc(user)
     user.find(marker="zoom-in").click()  # a step up from true size

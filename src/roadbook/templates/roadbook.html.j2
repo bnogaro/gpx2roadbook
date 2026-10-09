@@ -99,7 +99,19 @@
   .details .stop .swatch { margin-left: 0; }
   .details .credit + .colophon { margin-top: 0.8mm; }
   .details .colophon a { color: inherit; text-decoration: none; }
-  @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; } }
+
+  /* ---------- climb pages ---------- */
+  .climb-pages { break-before: page; font-size: 7pt; }
+  .climb-pages h1 { font-size: 11pt; margin: 0 0 2mm; }
+  .climb-card { break-inside: avoid; margin-bottom: 4mm; }
+  .climb-card .title { font-size: 8pt; }
+  .climb-card .title .name { font-weight: 700; color: #92400e; }
+  .climb-card .title .at { color: #555; font-variant-numeric: tabular-nums; }
+  .climb-card .swatch { margin-left: 0; }
+  .climb-profile { display: block; font-variant-numeric: tabular-nums; }
+  .climb-pages .key { color: #777; font-size: 6pt; margin: 3mm 0 0; }
+  @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; }
+                  .climb-profile { max-width: 100%; height: auto; } }
 </style>
 </head>
 <body>
@@ -162,6 +174,18 @@
   {% if grade_key %}<p class="key">Climbs by grade:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
   {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours and book.hours.found %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
   <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
+</div>
+{% endif %}
+{% if climb_cards %}
+<div class="climb-pages">
+  <h1>{{ book.title }} — climbs</h1>
+  {% for c in climb_cards %}
+  <div class="climb-card">
+    <div class="title">{% if c.grade %}<span class="swatch" style="background: {{ c.grade }}"></span>{% endif %}<span class="name">{{ c.name }}</span> · {{ c.stats }} · <span class="at">{{ c.km }}</span></div>
+    {{ c.svg | safe }}
+  </div>
+  {% endfor %}
+  {% if grade_key %}<p class="key">Grade of each km:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
 </div>
 {% endif %}
 </body>

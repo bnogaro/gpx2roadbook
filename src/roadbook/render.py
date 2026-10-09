@@ -16,12 +16,12 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from .kinds import KINDS, climb_of
 from .model import Glyph
 from .opening import Ride, on_day
-from .svg import grade_colour, gutter_svg
+from .svg import climb_svg, grade_colour, gutter_svg
 
 if TYPE_CHECKING:
     import datetime as dt
 
-    from .model import Climb, Item, Poi, Roadbook, Stop
+    from .model import Climb, ClimbPage, Item, Poi, Roadbook, Stop
     from .opening import Window
 
 log = logging.getLogger(__name__)
@@ -37,6 +37,15 @@ GUTTER_MIN_SPAN_M = 300.0  # a strip's profile spans at least this much elevatio
 HEAD_H = 3.2  # a heading line above a row: a busy stop's town, a climb's name
 FRAME_PAD = 0.8  # under a town's row, so its frame's bottom line clears the emojis
 OVERRUN = 6.0  # mm the route's last row (the finish) may run a strip past its length, rather than start one alone
+
+PAGE_MM = {
+    "A3": (297.0, 420.0),
+    "A4": (210.0, 297.0),
+    "A5": (148.0, 210.0),
+    "LETTER": (215.9, 279.4),
+    "LEGAL": (215.9, 355.6),
+}  # width, height, portrait; another size gets A4's
+PAGE_MARGIN = 8.0  # the template's @page margin
 
 PDF_TIMEOUT_S = 120  # a few seconds is usual; a browser stuck on a dialog would otherwise never return
 
@@ -331,6 +340,42 @@ def _grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
     return list(zip(labels, [c for _, c in grades], strict=True))
 
 
+def _printable_width(page: str, orientation: str) -> float:
+    """The width a page leaves inside its margins, mm."""
+    w, h = PAGE_MM.get(page.upper(), PAGE_MM["A4"])
+    return (h if orientation == "landscape" else w) - 2 * PAGE_MARGIN
+
+
+def _climb_cards(
+    book: Roadbook, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+) -> list[dict[str, Any]]:
+    """One card per climb page: its title, and its profile with the places and stops on the way marked."""
+    return [_climb_card(page, categories, grades, width) for page in book.climb_pages]
+
+
+def _climb_card(
+    page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+) -> dict[str, Any]:
+    c, order = page.climb, list(categories)
+
+    def emojis(s: Stop) -> str:
+        kinds = sorted({_category(p) for p in s.pois}, key=order.index)
+        return "".join(categories[k]["emoji"] for k in kinds)
+
+    on_it = lambda km: min(max(km, c.start_km), c.end_km)  # noqa: E731  a stop at the foot or top, on its edge
+    marks = [*page.places, *((on_it(s.km), emojis(s)) for s in page.stops)]
+    sections = [(s.start_km, s.end_km, s.ele_start, s.ele_end) for s in page.sections]
+    stats = [f"Cat {c.label}"] if c.label else []
+    stats += [f"{c.length_km:.1f} km at {c.avg_grade:.1f} %", f"max {c.max_grade:.1f} %", f"↗️{c.gain_m:.0f} m"]
+    return {
+        "name": c.name or f"Climb at km {c.start_km:.1f}",
+        "stats": " · ".join(stats),
+        "km": f"km {c.start_km:.1f} → {c.end_km:.1f}",
+        "grade": grade_colour(c.avg_grade, grades) if grades else "",
+        "svg": climb_svg(sections, marks, width, grades=grades),
+    }
+
+
 def _credit(book: Roadbook) -> str:
     """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or "".
 
@@ -342,6 +387,7 @@ def _credit(book: Roadbook) -> str:
             ("opening hours", book.hours),
             ("town names", book.towns),
             ("climb names", book.climb_names),
+            ("place names", book.places),
         )
         if done is not None and done.found
     ]
@@ -429,6 +475,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     details = (
         _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades) if r["details"] else []
     )
+    climb_cards = _climb_cards(book, cfg["categories"], grades, _printable_width(r["page"], orientation))
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -439,6 +486,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         page=r["page"],
         orientation=orientation,
         details=details,
+        climb_cards=climb_cards,
         ride=_ride_title(book),
         credit=_credit(book),
         grade_key=_grade_key(grades) if book.climbs and grades else [],
