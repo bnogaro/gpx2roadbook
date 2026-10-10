@@ -148,3 +148,4 @@ class Roadbook:
     places: Report | None = None  # None when the places on the climbs were not looked up
     route_map: RouteMap | None = None  # None when no map was asked for
     tiles: Report | None = None  # the map's tiles: None without a map
+    terrain: Report | None = None  # the terrain tiles of the map's contour lines: None without them

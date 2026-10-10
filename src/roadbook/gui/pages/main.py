@@ -44,6 +44,7 @@ ADVANCED = (
     st.CLIMB_PAGES_FROM,
     st.MAP,
     st.MAP_STYLE,
+    st.MAP_CONTOURS,
 )
 
 

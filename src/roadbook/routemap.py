@@ -2,8 +2,8 @@
 
 A picture made once, with the road book: the tiles (tiles.py) in Web Mercator at the zoom that fits the route to the
 page, and over them, drawn as SVG so they print crisp, the route, each POI at its place as its emoji, the towns named
-for the busy stops, the climbs' names at their summits, start, finish, and a km marker every few km. The tiles go in
-as data URIs: the HTML stays one file, which prints offline.
+for the busy stops, the climbs' names at their summits, start, finish, and a km marker every few km; under them all,
+the contour lines (contours.py). The tiles go in as data URIs: the HTML stays one file, which prints offline.
 
 The zoom is the one that draws the tiles nearest their size on a screen (96 dpi), so their own names print about as
 legible as they read there: a route fits an A4 page in a dozen to forty tiles, on a page turned whichever way shows it
@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
+from . import contours
 from .tiles import OSM
 from .tiles import fetch as fetch_tiles
 from .tiles import style as tile_style
@@ -92,6 +93,7 @@ class RouteMap:
     track: Track
     landscape: bool = False  # the page it is printed on
     tiles: dict[Key, bytes] = field(default_factory=dict)  # a tile missing is left blank
+    terrain: dict[Key, bytes] = field(default_factory=dict)  # the heights of its contour lines, if any (contours.py)
 
     def mm(self, lat: Any, lon: Any) -> tuple[np.ndarray, np.ndarray]:  # noqa: ANN401  a float or an array
         """Where points lie on the map, mm from its top left corner."""
@@ -188,6 +190,18 @@ class Placer:
     def keep_clear(self, x: np.ndarray, y: np.ndarray) -> None:
         """Spots the labels to come had better not hide, at SPOT_COST each: those the next ones will be placed on."""
         self.spots = np.column_stack([x, y])
+
+    def free(self, x0: float, y0: float, x1: float, y1: float) -> bool:
+        """Whether a box, and SPACE around it, is on the map clear of the route and of every label placed."""
+        x0, y0, x1, y1 = x0 - SPACE / 2, y0 - SPACE / 2, x1 + SPACE / 2, y1 + SPACE / 2
+        if x0 < 0 or y0 < 0 or x1 > self.width or y1 > self.height:
+            return False
+        b, (px, py) = self.boxes, self.route.T
+        if (
+            (np.minimum(x1, b[:, 2]) > np.maximum(x0, b[:, 0])) & (np.minimum(y1, b[:, 3]) > np.maximum(y0, b[:, 1]))
+        ).any():
+            return False
+        return not ((px >= x0) & (px <= x1) & (py >= y0) & (py <= y1)).any()
 
     def take(self, x0: float, y0: float, x1: float, y1: float) -> None:
         """Keep a box from the labels to come: a mark of fixed place, the scale, the credit."""
@@ -358,6 +372,7 @@ def svg(m: RouteMap, book: Roadbook, categories: dict[str, Any], every_km: float
     A km marker every `every_km` km; 0 picks one to suit the scale (km_every).
     """
     route = _route(m)
+    relief = contours.lines(m)
     placer = Placer(m.width, m.height, route)
     layers = _Layers()
     foot = _scale_and_credit(m, book, placer)
@@ -398,12 +413,14 @@ def svg(m: RouteMap, book: Roadbook, categories: dict[str, Any], every_km: float
     for emoji, x, y, count in pois:
         cx, cy = _near(placer, layers, x, y, EMOJI * 1.15 + (EMOJI * 0.5 if count > 1 else 0), EMOJI * 1.15)
         layers.emojis.append(_emoji(cx, cy, emoji, count=count))
+    if relief:  # the heights last, wherever there is room left
+        contours.label(relief, placer)
 
     tiles = _tiles(m)
     return (
         f'<svg class="route-map" viewBox="0 0 {m.width:.2f} {m.height:.2f}" width="{m.width:.2f}mm" '
         f'height="{m.height:.2f}mm" font-size="{NAME}">'
-        f'<rect width="{m.width:.2f}" height="{m.height:.2f}" fill="#eceae4"/>{tiles}'
+        f'<rect width="{m.width:.2f}" height="{m.height:.2f}" fill="#eceae4"/>{tiles}{contours.svg(relief)}'
         f'<polyline points="{_points(route)}" fill="none" stroke="{CASING}" stroke-width="{CASING_W}" '
         f'stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.9"/>'
         f'<polyline class="map-route" points="{_points(route)}" fill="none" stroke="{ROUTE}" stroke-width="{ROUTE_W}" '
@@ -467,6 +484,15 @@ def _tiles(m: RouteMap) -> str:
     return "".join(out)
 
 
+def _wrap(text: str, size: float, room: float) -> list[str]:
+    """A credit on one line, or on two cut at the middle-most dot if it is wider than `room`."""
+    if _text_w(text, size) * 0.9 <= room:
+        return [text]
+    parts = text.split(" · ")
+    cut = min(range(1, len(parts)), key=lambda i: abs(len(" · ".join(parts[:i])) - len(text) / 2), default=1)
+    return [" · ".join(parts[:cut]), " · ".join(parts[cut:])]
+
+
 def _scale_and_credit(m: RouteMap, book: Roadbook, placer: Placer) -> str:
     """A scale bar at the bottom left, and the tiles' credit at the bottom right, on white; their room is taken."""
     _, s = tile_style(m.style)
@@ -476,11 +502,9 @@ def _scale_and_credit(m: RouteMap, book: Roadbook, placer: Placer) -> str:
         credit += f" · Names {OSM}"
     size, line = 1.7, 1.7 * 1.3
     room = m.width - 2 - SCALE_BAR - 8
-    lines = [credit]
-    if _text_w(credit, size) * 0.9 > room:  # two lines, cut at the middle-most dot
-        parts = credit.split(" · ")
-        cut = min(range(1, len(parts)), key=lambda i: abs(len(" · ".join(parts[:i])) - len(credit) / 2), default=1)
-        lines = [" · ".join(parts[:cut]), " · ".join(parts[cut:])]
+    lines = _wrap(credit, size, room)
+    if m.terrain and book.terrain:
+        lines += _wrap(contours.credit(book.terrain.made_from), size, room)
     w = max(_text_w(t, size) * 0.9 for t in lines) + 1.2
     h = line * len(lines) + 0.8
     x0, y0 = m.width - w, m.height - h

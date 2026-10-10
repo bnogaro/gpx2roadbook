@@ -24,6 +24,7 @@ LOOKUPS = (  # what the summary says of each OpenStreetMap lookup, as the CLI do
     ("Climb names", "climb_names", "climbs named", "climbs"),
     ("Places on climbs", "places", "climbs with places found", "climbs"),
     ("Map", "tiles", "tiles", "tiles"),
+    ("Contours", "terrain", "terrain tiles", "terrain tiles"),
 )
 
 

@@ -73,6 +73,7 @@ place_m = 250        # with town names on: the towns, villages and hamlets this 
 [map]
 enabled = true       # a page with a map of the whole route after the strips (needs internet the first time; cached)
 style = "osm"        # osm | cyclosm | topo | satellite: see the README for where each comes from
+contours = true      # contour lines, from Mapzen's Terrain Tiles (not on topo, which has its own)
 km_every = 0         # a km marker on the route every this many km; 0 = picked to suit the map's scale
 max_age_days = 30    # fetch a tile again once the cached one is this old (unchanged, it is not downloaded again)
 

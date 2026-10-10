@@ -203,6 +203,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         str | None,
         typer.Option(*st.MAP_STYLE.decls, help=st.MAP_STYLE.help),
     ] = None,
+    map_contours: Annotated[
+        bool | None,
+        typer.Option(*st.MAP_CONTOURS.decls, help=st.MAP_CONTOURS.help),
+    ] = None,
     date: Annotated[
         datetime | None,
         typer.Option(*st.DATE.decls, formats=["%Y-%m-%d"], help=st.DATE.help),
@@ -277,6 +281,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.CLIMB_PAGES_FROM, climb_pages_from),
         (st.MAP, map_),
         (st.MAP_STYLE, map_style),
+        (st.MAP_CONTOURS, map_contours),
         (st.DATE, start_date or (date and date.date().isoformat())),
         (st.START, start_time),
         (st.SPEED, speed),
@@ -339,3 +344,4 @@ def _summary(book: Roadbook) -> None:
     _echo_lookup("Climb names", book.climb_names, "climbs named", "climbs")
     _echo_lookup("Places on climbs", book.places, "climbs with places found", "climbs")
     _echo_lookup("Map", book.tiles, "tiles", "tiles")
+    _echo_lookup("Contours", book.terrain, "terrain tiles", "terrain tiles")

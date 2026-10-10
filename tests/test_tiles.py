@@ -11,28 +11,31 @@ import pytest
 
 from roadbook.api import lookup_line
 from roadbook.osm import USER_AGENT
-from roadbook.tiles import DEFAULT, STYLES, fetch, get_tile, style
+from roadbook.tiles import DEFAULT, SOURCES, STYLES, TERRAIN, fetch, get_tile, style
 
 PNG = b"\x89PNG\r\n\x1a\n tile"
 KEYS = [(10, 514, 376), (10, 515, 376), (10, 514, 377)]
 
 
 class FakeServer:
-    """Answers each tile with an image and an ETag, or "unchanged" to the copy it gave, or fails; records the asks."""
+    """Answers each tile with an image, an ETag and what it was made from, or "unchanged" to the copy it gave, or
+    fails; records the asks."""
 
-    def __init__(self, *, down: bool = False, etag: str | None = '"v1"') -> None:
+    def __init__(self, *, down: bool = False, etag: str | None = '"v1"', made_from: str | None = None) -> None:
         self.down = down
         self.etag = etag
+        self.made_from = made_from
         self.asked: list[tuple[str, str | None, float | None]] = []
 
-    def __call__(self, url: str, etag: str | None, since: float | None) -> tuple[bytes | None, str | None]:
+    def __call__(self, url: str, etag: str | None, since: float | None) -> tuple[bytes | None, dict[str, str]]:
         self.asked.append((url, etag, since))
         if self.down:
             msg = "down"
             raise OSError(msg)
         if (etag and etag == self.etag) or (since and not self.etag):
-            return None, None
-        return PNG + url.encode(), self.etag
+            return None, {}
+        headers = {"etag": self.etag} if self.etag else {}
+        return PNG + url.encode(), headers | ({SOURCES[TERRAIN].note: self.made_from} if self.made_from else {})
 
 
 def test_tiles_are_fetched_once_then_come_from_the_cache(tmp_path: Path) -> None:
@@ -106,6 +109,21 @@ def test_a_tile_that_cannot_be_kept_is_used_all_the_same(tmp_path: Path, caplog:
     assert "tile not kept" in caplog.text
 
 
+def test_a_terrain_tile_says_what_it_was_made_from_cached_or_not(tmp_path: Path) -> None:
+    server = FakeServer(made_from="eudem/eudem_dem_5deg_n45e000.tif, srtm/N45E005.tif")
+    keys = [(8, 131, 90), (8, 131, 91)]
+    found, report = fetch(TERRAIN, keys, 30, folder=tmp_path, get=server)
+    assert server.asked[0][0] == "https://s3.amazonaws.com/elevation-tiles-prod/geotiff/8/131/90.tif"
+    assert set(found) == set(keys)
+    assert report.sources == ["AWS Terrain Tiles"]
+    assert report.made_from == ["eudem/eudem_dem_5deg_n45e000.tif, srtm/N45E005.tif"]  # once for both tiles
+    assert (tmp_path / "8" / "131" / "90.note").is_file()
+    _, report = fetch(TERRAIN, keys, 30, folder=tmp_path, get=server, offline=True)
+    assert (report.cached, report.made_from) == (2, ["eudem/eudem_dem_5deg_n45e000.tif, srtm/N45E005.tif"])
+    _, report = fetch("osm", KEYS[:1], 30, folder=tmp_path, get=FakeServer())
+    assert report.made_from == []  # the map's own tiles don't say
+
+
 def test_an_unknown_style_falls_back_to_the_default(caplog: pytest.LogCaptureFixture) -> None:
     assert style("watercolour") == (DEFAULT, STYLES[DEFAULT])
     assert "no style 'watercolour'" in caplog.text
@@ -149,9 +167,9 @@ def test_get_tile_names_the_tool_and_says_which_copy_it_has(
 
     monkeypatch.setattr("urllib.request.urlopen", urlopen)
     caplog.set_level(logging.DEBUG, logger="roadbook.http")
-    assert get_tile("https://tiles.example/1/2/3.png", None, None) == (PNG, '"abc"')
-    assert get_tile("https://tiles.example/1/2/3.png", '"abc"', 0.0) == (PNG, '"abc"')
-    assert get_tile("https://tiles.example/1/2/3.png", None, 0.0) == (PNG, '"abc"')
+    for etag, since in ((None, None), ('"abc"', 0.0), (None, 0.0)):
+        image, headers = get_tile("https://tiles.example/1/2/3.png", etag, since)
+        assert (image, headers["etag"], headers["content-type"]) == (PNG, '"abc"', "image/png")
     assert sent[0] == {"User-agent": USER_AGENT}
     assert sent[1]["If-none-match"] == '"abc"'
     assert sent[2]["If-modified-since"] == "Thu, 01 Jan 1970 00:00:00 GMT"
@@ -161,7 +179,7 @@ def test_get_tile_names_the_tool_and_says_which_copy_it_has(
 @pytest.mark.parametrize(
     ("answer", "result"),
     [
-        (urllib.error.HTTPError("u", 304, "Not Modified", email.message.Message(), io.BytesIO()), (None, None)),
+        (urllib.error.HTTPError("u", 304, "Not Modified", email.message.Message(), io.BytesIO()), (None, {})),
         (urllib.error.HTTPError("u", 404, "Not Found", email.message.Message(), io.BytesIO()), OSError),
         (OSError("timed out"), OSError),
         (_Answer(b"<html>", "text/html"), OSError),  # an error page, or a captive portal's

@@ -48,10 +48,15 @@ class Report:
     failed: bool = False  # some could not be looked up at all
     unasked: int = 0  # of `asked`, left unanswered by an offline lookup, which only reads the cache
     service: str = "OpenStreetMap"  # who is asked, for the warning when it does not answer
+    made_from: list[str] = field(default_factory=list)  # what the answers say they come from: a terrain tile's surveys
 
     def answered_by(self, source: str) -> None:
         if source not in self.sources:
             self.sources.append(source)
+
+    def made_of(self, note: str | None) -> None:
+        if note and note not in self.made_from:
+            self.made_from.append(note)
 
 
 def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:

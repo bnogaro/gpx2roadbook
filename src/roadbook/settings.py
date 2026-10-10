@@ -354,6 +354,16 @@ MAP_STYLE = Setting(
     choices=tuple(STYLES),
     when=lambda cfg: bool(MAP.get(cfg)),
 )
+MAP_CONTOURS = Setting(
+    "--map-contours",
+    "Draw contour lines on the map, with their heights, from Mapzen's Terrain Tiles (default: on; the topo style has"
+    " its own).",
+    "Contour lines on the map",
+    "map",
+    "contours",
+    bool,
+    when=lambda cfg: bool(MAP.get(cfg)) and MAP_STYLE.get(cfg) != "topo",
+)
 OUT = Setting("--out", "Output .html (default: next to the GPX).", "Output file", group=RUN)
 PDF = Setting("--pdf", "Also export a PDF via headless Edge/Chrome.", "Also export a PDF?", kind=bool, group=RUN)
 REFRESH = Setting(
@@ -392,6 +402,7 @@ SETTINGS = (
     CLIMB_PAGES_FROM,
     MAP,
     MAP_STYLE,
+    MAP_CONTOURS,
     OUT,
     PDF,
     REFRESH,
