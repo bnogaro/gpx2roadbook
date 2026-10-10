@@ -260,6 +260,7 @@ def test_the_satellite_map_credits_the_names_to_openstreetmap() -> None:
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_map_page_comes_between_the_strips_and_the_reference_sheet(tiles: FakeTiles) -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     book = build(HILLY, cfg)
     assert book.route_map is not None
     assert book.tiles is not None
@@ -278,7 +279,7 @@ def test_the_map_page_comes_between_the_strips_and_the_reference_sheet(tiles: Fa
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_cli_takes_the_map_options_and_sums_up_its_tiles(tiles: FakeTiles, tmp_path: Path) -> None:
     out = tmp_path / "rb.html"
-    result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), "--map-style", "satellite"])
+    result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), "--map-style", "satellite", "--booklet", "off"])
     assert result.exit_code == 0, result.output
     n = len(tiles.asked[0][1])
     assert tiles.asked[0][0] == "satellite"

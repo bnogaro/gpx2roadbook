@@ -33,9 +33,9 @@ def _session(
 
 
 def test_pressing_enter_throughout_keeps_the_defaults() -> None:
-    # layout, paper, checkpoints, towns, opening hours, ride date (none: no start or speed asked), categories, PDF,
-    # output, advanced
-    _, out, pdf, cfg, same = _session(ENTER * 6 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
+    # layout, paper, booklet, checkpoints, towns, opening hours, ride date (none: no start or speed asked),
+    # categories, PDF, output, advanced
+    _, out, pdf, cfg, same = _session(ENTER * 7 + ENTER + "n" + ENTER + ENTER, gpx=HILLY)
     assert (out, pdf) == (HILLY.with_suffix(".roadbook.html"), False)
     assert cfg == load_config()
     assert same.replace('"', "").replace("'", "") == f"roadbook {HILLY}"
@@ -53,6 +53,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
         + ENTER  # layout: line
         + DOWN
         + ENTER  # paper: A5
+        + ENTER  # booklet: A5, as by default
         + CLEAR
         + "x"
         + ENTER  # not a number: the prompt stays
@@ -124,7 +125,7 @@ def test_a_session_picks_from_menus_and_reaches_the_command() -> None:
 
 def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
     # line layout: width 0 stands for 16 mm, longest stop 0 for 3 x gap; Enter on their offered values keeps them 0
-    keys = DOWN + ENTER + ENTER * 6 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
+    keys = DOWN + ENTER + ENTER * 7 + "n" + ENTER + SPACE + DOWN * 3 + SPACE + ENTER + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY)
     assert cfg["render"]["width_mm"] == 0
     assert cfg["stops"]["max_span_m"] == 0
@@ -134,7 +135,7 @@ def test_an_automatic_value_accepted_as_offered_stays_automatic() -> None:
 
 def test_arrival_times_are_asked_for_without_opening_hours() -> None:
     keys = (
-        ENTER * 5  # layout, paper, checkpoints, towns, opening hours: left off
+        ENTER * 6  # layout, paper, booklet, checkpoints, towns, opening hours: left off
         + "2026-10-17"
         + ENTER  # ride date
         + "07:00"
@@ -159,14 +160,14 @@ def test_arrival_times_are_asked_for_without_opening_hours() -> None:
 
 
 def test_a_break_from_the_command_line_is_offered_and_kept() -> None:
-    keys = ENTER * 5 + "2026-10-17" + ENTER + "07:00" + ENTER + CLEAR + "28" + ENTER + ENTER + ENTER + "n" + ENTER * 2
+    keys = ENTER * 6 + "2026-10-17" + ENTER + "07:00" + ENTER + CLEAR + "28" + ENTER + ENTER + ENTER + "n" + ENTER * 2
     _, _, _, cfg, same = _session(keys, gpx=HILLY, flags={("ride", "breaks"): [[95.0, 45.0]]})
     assert cfg["ride"]["breaks"] == [[95, 45]]  # offered as "95:45", and Enter keeps it
     assert "--break 95:45" in same
 
 
 def test_flags_given_with_i_are_the_defaults_and_stay_in_the_command() -> None:
-    keys = ENTER * 7 + "n" + ENTER + ENTER
+    keys = ENTER * 8 + "n" + ENTER + ENTER
     _, _, _, cfg, same = _session(keys, gpx=HILLY, flags={("stops", "gap_m"): 800})
     assert cfg["stops"]["gap_m"] == 800
     assert "--gap 800" in same

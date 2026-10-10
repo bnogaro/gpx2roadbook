@@ -20,8 +20,14 @@ def test_a_run_writes_the_road_book_next_to_the_gpx(tmp_path: Path) -> None:
     result = api.run(gpx, load_config())
     assert result.html == tmp_path / "ride.roadbook.html" == api.default_out(gpx)
     assert "<html" in result.html.read_text(encoding="utf-8")
+    assert result.booklet == tmp_path / "ride.booklet.html"  # by default, its own file beside it
+    assert 'class="booklet"' in result.booklet.read_text(encoding="utf-8")
     assert result.book.length_km > 0
-    assert (result.pdf, result.pdf_error, result.warnings) == (None, None, [])
+    assert (result.pdf, result.booklet_pdf, result.pdf_error, result.warnings) == (None, None, None, [])
+    cfg = load_config()
+    cfg["booklet"]["format"] = "off"
+    assert api.run(gpx, cfg, out=tmp_path / "off.html").booklet is None
+    assert not (tmp_path / "off.booklet.html").exists()
 
 
 def test_a_pdf_that_fails_leaves_the_html_and_says_why(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -75,6 +81,8 @@ def test_a_preview_builds_offline_and_writes_nothing(tmp_path: Path, monkeypatch
     assert asked == [True]
     assert shot.book.towns == Report(asked=3, cached=1, unasked=2)
     assert "<html" in shot.html
+    assert shot.booklet is not None
+    assert 'class="booklet"' in shot.booklet
     assert shot.warnings == []
     assert list(tmp_path.iterdir()) == [gpx]
 
@@ -83,5 +91,17 @@ def test_a_pdf_asked_for_comes_next_to_the_html(tmp_path: Path, monkeypatch: pyt
     printed: list[tuple[Path, Path]] = []
     monkeypatch.setattr(api, "html_to_pdf", lambda html, pdf: printed.append((html, pdf)))
     result = api.run(FLAT, load_config(), out=tmp_path / "rb.html", pdf=True)
-    assert printed == [(tmp_path / "rb.html", tmp_path / "rb.pdf")]
-    assert (result.pdf, result.pdf_error) == (tmp_path / "rb.pdf", None)
+    assert printed == [
+        (tmp_path / "rb.html", tmp_path / "rb.pdf"),
+        (tmp_path / "rb.booklet.html", tmp_path / "rb.booklet.pdf"),
+    ]
+    assert (result.pdf, result.booklet_pdf, result.pdf_error) == (
+        tmp_path / "rb.pdf",
+        tmp_path / "rb.booklet.pdf",
+        None,
+    )
+
+
+def test_the_booklet_goes_beside_the_road_book() -> None:
+    assert api.booklet_out(Path("rides/ride.roadbook.html")) == Path("rides/ride.booklet.html")
+    assert api.booklet_out(Path("my book.html")) == Path("my book.booklet.html")

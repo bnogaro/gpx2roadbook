@@ -39,6 +39,7 @@ class Poi:
     hint_km: float | None = None  # route km stated by the exporter, if any
     km: float = 0.0  # route km after snapping onto our own track
     offset_m: float = 0.0  # distance from the route
+    side: int = 0  # the side of the road it is on, as the rider goes: -1 left, 1 right, 0 on the road itself
     category: str | None = None
     opening_hours: str | None = None  # OSM `opening_hours` value, when looked up and known
     osm_id: str | None = None  # the OSM element it came from, "node/123"
@@ -140,6 +141,7 @@ class Roadbook:
     poi_total: int
     poi_kept: int
     profile: Profile | None = None
+    track: Track | None = None
     hours: Report | None = None  # None when opening hours were not looked up
     towns: Report | None = None  # None when town names were not looked up
     climb_names: Report | None = None  # None when climb names were not looked up

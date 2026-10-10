@@ -66,6 +66,22 @@ class RunPanel:
             else:
                 ui.button("Open", icon="open_in_new", on_click=self.open_html).props("outline").mark("open")
                 ui.button("PDF", icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
+            with ui.row().classes("gap-2") as self.booklet:  # only when a booklet was made
+                if remote:
+                    ui.button("Booklet", icon="menu_book", on_click=self.download_booklet).props("outline").mark(
+                        "download-booklet"
+                    )
+                    ui.button("Booklet PDF", icon="picture_as_pdf", on_click=self.download_booklet_pdf).props(
+                        "outline"
+                    ).mark("booklet-pdf")
+                else:
+                    ui.button("Booklet", icon="menu_book", on_click=self.open_booklet).props("outline").mark(
+                        "open-booklet"
+                    )
+                    ui.button("Booklet PDF", icon="picture_as_pdf", on_click=self.make_booklet_pdf).props(
+                        "outline"
+                    ).mark("booklet-pdf")
+            if not remote:
                 ui.button("Folder", icon="folder_open", on_click=self.open_folder).props("outline").mark("folder")
         self.actions.visible = False
         with ui.row().classes("w-full items-center no-wrap gap-2") as self.same:
@@ -119,11 +135,14 @@ class RunPanel:
                     if said[1]:
                         ui.notify(said[1], type="warning", multi_line=True)
             ui.label(f"Wrote {result.html}").classes("text-positive").mark("wrote")
+            if result.booklet:
+                ui.label(f"Wrote {result.booklet}").classes("text-positive").mark("wrote-booklet")
         for warning in result.warnings:
             ui.notify(warning, type="warning", multi_line=True)
         if result.pdf_error:
             ui.notify(f"PDF not written: {result.pdf_error}", type="negative", multi_line=True)
         self.actions.visible = True
+        self.booklet.visible = result.booklet is not None
         self.command.set_text(self.form.command())
         self.same.visible = True
 
@@ -131,20 +150,32 @@ class RunPanel:
         if self.result:
             await run.io_bound(webbrowser.open, self.result.html.as_uri())
 
+    async def open_booklet(self) -> None:
+        if self.result and self.result.booklet:
+            await run.io_bound(webbrowser.open, self.result.booklet.as_uri())
+
     async def make_pdf(self) -> None:
         """Print the road book to a PDF next to it, with Edge or Chrome, and open it."""
         if pdf := await self.pdf():
             await run.io_bound(webbrowser.open, pdf.as_uri())
 
-    async def pdf(self) -> Path | None:
-        """The PDF next to the road book, printed with Edge or Chrome unless the run already made it."""
+    async def make_booklet_pdf(self) -> None:
+        """Print the booklet to a PDF next to it, imposed to fold, and open it."""
+        if pdf := await self.pdf(booklet=True):
+            await run.io_bound(webbrowser.open, pdf.as_uri())
+
+    async def pdf(self, *, booklet: bool = False) -> Path | None:
+        """The PDF next to the road book, or its booklet, printed with Edge or Chrome unless the run already made it."""
         if not self.result:
             return None
-        if self.result.pdf is not None:
-            return self.result.pdf
-        pdf = self.result.html.with_suffix(".pdf")
+        html, made = (self.result.booklet, self.result.booklet_pdf) if booklet else (self.result.html, self.result.pdf)
+        if html is None:
+            return None
+        if made is not None:
+            return made
+        pdf = html.with_suffix(".pdf")
         try:
-            await run.io_bound(html_to_pdf, self.result.html, pdf)
+            await run.io_bound(html_to_pdf, html, pdf)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # no browser, or it failed
             ui.notify(f"PDF not written: {exc}", type="negative", multi_line=True)
             return None
@@ -156,6 +187,14 @@ class RunPanel:
 
     async def download_pdf(self) -> None:
         if pdf := await self.pdf():
+            await _download(pdf, "application/pdf")
+
+    async def download_booklet(self) -> None:
+        if self.result and self.result.booklet:
+            await _download(self.result.booklet, "text/html")
+
+    async def download_booklet_pdf(self) -> None:
+        if pdf := await self.pdf(booklet=True):
             await _download(pdf, "application/pdf")
 
     async def open_folder(self) -> None:

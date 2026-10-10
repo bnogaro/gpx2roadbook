@@ -145,19 +145,26 @@ def frame(
 
 
 def make(
-    track: Track, cfg: dict[str, Any], area: tuple[float, float], *, landscape: bool = False, offline: bool = False
+    track: Track,
+    cfg: dict[str, Any],
+    area: tuple[float, float],
+    *,
+    landscape: bool = False,
+    turn: bool = True,
+    offline: bool = False,
 ) -> tuple[RouteMap, Report]:
     """The map of `track` on a page leaving `area` (width, height, upright) mm inside its margins, with its tiles:
     those not cached are fetched, unless `offline`.
 
     The page is turned as the road book's other pages are (`landscape`), unless turned the other way it shows the
-    route TURN times larger: a route running east to west fills a landscape page better.
+    route TURN times larger: a route running east to west fills a landscape page better. Not if it may not `turn`:
+    a booklet's centre spread is landscape whatever the route.
     """
     name, s = tile_style(str(cfg["style"]))
     x, y = world(track.lat, track.lon)
     upright, turned = (area[0], area[1] - TITLE_H), (area[1], area[0] - TITLE_H)
     own, other = (turned, upright) if landscape else (upright, turned)
-    if _fit(x, y, other) > TURN * _fit(x, y, own):
+    if turn and _fit(x, y, other) > TURN * _fit(x, y, own):
         own, landscape = other, not landscape
     zoom, left, top, scale, height = frame(x, y, own, s.max_zoom)
     m = RouteMap(name, zoom, left, top, scale, own[0], height, track, landscape)

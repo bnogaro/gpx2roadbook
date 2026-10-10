@@ -207,6 +207,26 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         bool | None,
         typer.Option(*st.MAP_CONTOURS.decls, help=st.MAP_CONTOURS.help),
     ] = None,
+    booklet: Annotated[
+        str | None,
+        typer.Option(*st.BOOKLET.decls, help=st.BOOKLET.help),
+    ] = None,
+    water_hours: Annotated[
+        float | None,
+        typer.Option(*st.WATER_GAP_H.decls, help=st.WATER_GAP_H.help),
+    ] = None,
+    water_km: Annotated[
+        float | None,
+        typer.Option(*st.WATER_GAP_KM.decls, help=st.WATER_GAP_KM.help),
+    ] = None,
+    food_hours: Annotated[
+        float | None,
+        typer.Option(*st.FOOD_GAP_H.decls, help=st.FOOD_GAP_H.help),
+    ] = None,
+    food_km: Annotated[
+        float | None,
+        typer.Option(*st.FOOD_GAP_KM.decls, help=st.FOOD_GAP_KM.help),
+    ] = None,
     date: Annotated[
         datetime | None,
         typer.Option(*st.DATE.decls, formats=["%Y-%m-%d"], help=st.DATE.help),
@@ -282,6 +302,11 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.MAP, map_),
         (st.MAP_STYLE, map_style),
         (st.MAP_CONTOURS, map_contours),
+        (st.BOOKLET, booklet),
+        (st.WATER_GAP_H, water_hours),
+        (st.WATER_GAP_KM, water_km),
+        (st.FOOD_GAP_H, food_hours),
+        (st.FOOD_GAP_KM, food_km),
         (st.DATE, start_date or (date and date.date().isoformat())),
         (st.START, start_time),
         (st.SPEED, speed),
@@ -326,12 +351,12 @@ def _make(gpx: Path, cfg: dict, out: Path | None, *, pdf: bool) -> None:
         typer.echo(str(exc), err=True)
         raise typer.Exit(1) from exc
     _summary(result.book)
-    typer.echo(f"Wrote {result.html}")
+    for made in (result.html, result.booklet, result.pdf, result.booklet_pdf):
+        if made:
+            typer.echo(f"Wrote {made}")
     if result.pdf_error:
         typer.echo(f"PDF not written: {result.pdf_error}", err=True)
         raise typer.Exit(1)
-    if result.pdf:
-        typer.echo(f"Wrote {result.pdf}")
 
 
 def _summary(book: Roadbook) -> None:

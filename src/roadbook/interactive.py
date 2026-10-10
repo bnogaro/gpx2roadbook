@@ -20,7 +20,16 @@ if TYPE_CHECKING:
 
 
 # what the prompts ask, in their order; the layout, categories, breaks, PDF and output come with their own prompts
-COMMON = [st.PAGE, st.CHECKPOINT_EVERY, st.TOWNS, st.HOURS, st.DATE, st.START, st.SPEED]  # then the breaks: _breaks()
+COMMON = [
+    st.PAGE,
+    st.BOOKLET,
+    st.CHECKPOINT_EVERY,
+    st.TOWNS,
+    st.HOURS,
+    st.DATE,
+    st.START,
+    st.SPEED,
+]  # then the breaks: _breaks()
 ADVANCED = [
     st.WIDTH,
     st.LENGTH,
@@ -38,6 +47,10 @@ ADVANCED = [
     st.MAP,
     st.MAP_STYLE,
     st.MAP_CONTOURS,
+    st.WATER_GAP_H,
+    st.WATER_GAP_KM,
+    st.FOOD_GAP_H,
+    st.FOOD_GAP_KM,
 ]
 
 

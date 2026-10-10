@@ -9,6 +9,7 @@ from .climb_pages import pages as climb_pages
 from .climbs import find_climbs
 from .contours import add as add_contours
 from .hours import lookup as find_hours
+from .imposition import chosen as booklet_format
 from .kinds import KINDS
 from .model import Climb, Item, Poi, Roadbook, Stop
 from .opening import Ride, verdict
@@ -139,12 +140,16 @@ def _climb_pages(
 def _route_map(
     track: Track, cfg: dict[str, Any], *, offline: bool
 ) -> tuple[RouteMap | None, Report | None, Report | None]:
-    """The map page, if asked for, on a page of the road book's size, with the tiles it could have, and the terrain
-    of its contour lines; the reports of both."""
+    """The map page, if asked for, with the tiles it could have, and the terrain of its contour lines; the reports
+    of both. It goes across the booklet's centre spread, or on a page of the road book's size without one."""
     if not cfg["map"]["enabled"]:
         return None, None, None
-    area, landscape = printable_area(cfg["render"]["page"]), cfg["render"]["layout"] == "line"  # as the other pages
-    m, tiles = make_map(track, cfg["map"], area, landscape=landscape, offline=offline)
+    if f := booklet_format(cfg):
+        width, height = f.spread  # landscape whatever the route: given upright, turned
+        m, tiles = make_map(track, cfg["map"], (height, width), landscape=True, turn=False, offline=offline)
+    else:
+        area, landscape = printable_area(cfg["render"]["page"]), cfg["render"]["layout"] == "line"  # as the others
+        m, tiles = make_map(track, cfg["map"], area, landscape=landscape, offline=offline)
     return m, tiles, add_contours(m, cfg["map"], offline=offline)
 
 
@@ -169,11 +174,13 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
     ride = Ride.from_cfg(cfg["ride"])
     if ride.start is None and (cfg["ride"]["start"] or cfg["ride"]["speed_kmh"]):  # a slip that would go unnoticed
         log.warning("No arrival times: they need a ride date, a start time and a speed (--date, --start, --speed).")
-    # hours show on the reference sheet, and on the strip with an arrival estimate: else don't spend minutes on them
-    wanted = cfg["hours"]["enabled"] and (cfg["render"]["details"] or ride.start is not None)
+    # hours show on the reference sheet or in the booklet, and on the strip with an arrival estimate: else don't
+    # spend minutes on them
+    sheet = cfg["render"]["details"] or booklet_format(cfg) is not None
+    wanted = cfg["hours"]["enabled"] and (sheet or ride.start is not None)
     hours = find_hours(kept, cfg["hours"], offline=offline) if wanted else None
-    # names go above rows on the strip, and on the reference sheet; a ribbon of tokens has no room for them
-    named = cfg["render"]["layout"] == "strip" or cfg["render"]["details"]
+    # names go above rows on the strip, on the reference sheet and in the booklet; a ribbon has no room for them
+    named = cfg["render"]["layout"] == "strip" or sheet
     towns = name_towns(stops, cfg["towns"], offline=offline) if named and cfg["towns"]["enabled"] else None
     if towns is not None:  # a town's stops make one, so judged on arrival as one
         stops = group_by_town(stops, cfg["towns"]["group_km"])
@@ -222,6 +229,7 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         poi_total=len(pois),
         poi_kept=len(kept),
         profile=profile,
+        track=track,
         hours=hours,
         towns=towns,
         climb_names=climb_names,

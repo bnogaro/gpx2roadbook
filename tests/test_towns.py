@@ -231,6 +231,7 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
 ) -> None:
     http = _named(monkeypatch, tmp_path)
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["towns"]["enabled"] = False
     plain = render_html(build(HILLY, cfg), cfg)
     cfg["towns"]["enabled"] = True
@@ -281,7 +282,7 @@ def test_towns_are_named_by_default_unless_turned_off(monkeypatch: pytest.Monkey
     assert build(HILLY, cfg).towns is None
     # a ribbon of tokens has no room for them, and without the reference sheet they would show nowhere
     cfg["towns"]["enabled"] = True
-    cfg["render"]["layout"], cfg["render"]["details"] = "line", False
+    cfg["render"]["layout"], cfg["render"]["details"], cfg["booklet"]["format"] = "line", False, "off"
     assert build(HILLY, cfg).towns is None
     assert http.asked == []
 
