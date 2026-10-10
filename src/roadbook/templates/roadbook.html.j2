@@ -110,6 +110,13 @@
   .climb-card .swatch { margin-left: 0; }
   .climb-profile { display: block; font-variant-numeric: tabular-nums; }
   .climb-pages .key { color: #777; font-size: 6pt; margin: 3mm 0 0; }
+
+  /* ---------- map page: turned whichever way shows the route larger ---------- */
+  @page map { size: {{ page }} {{ map_orientation }}; }
+  .map-page { break-before: page; break-inside: avoid; page: map; }
+  .map-page h1 { font-size: 11pt; margin: 0 0 2mm; }
+  .route-map { display: block; }
+  @media screen { .map-page { margin: 6mm 0; } .route-map { max-width: 100%; height: auto; } }
   @media screen { body { padding: 8mm; background: #eee; } .strip, .ribbon { background: #fff; }
                   .climb-profile { max-width: 100%; height: auto; } }
 </style>
@@ -161,6 +168,12 @@
 {% endif %}
 </div>
 
+{% if route_map %}
+<div class="map-page">
+  <h1>{{ book.title }} — map</h1>
+  {{ route_map | safe }}
+</div>
+{% endif %}
 {% if details %}
 <div class="details">
   <h1>{{ book.title }} — {{ '%.0f' % book.length_km }} km · ↗️{{ '%.0f' % book.gain_m }} m ↘️{{ '%.0f' % book.loss_m }} m{% if ride %} · {{ ride }}{% endif %}</h1>

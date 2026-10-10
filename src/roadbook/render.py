@@ -16,6 +16,7 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 from .kinds import KINDS, climb_of
 from .model import Glyph
 from .opening import Ride, on_day
+from .routemap import svg as map_svg
 from .svg import climb_svg, grade_colour, gutter_svg
 
 if TYPE_CHECKING:
@@ -346,6 +347,12 @@ def _printable_width(page: str, orientation: str) -> float:
     return (h if orientation == "landscape" else w) - 2 * PAGE_MARGIN
 
 
+def printable_area(page: str) -> tuple[float, float]:
+    """The width and height a page leaves inside its margins, upright, mm."""
+    w, h = PAGE_MM.get(page.upper(), PAGE_MM["A4"])
+    return w - 2 * PAGE_MARGIN, h - 2 * PAGE_MARGIN
+
+
 def _climb_cards(
     book: Roadbook, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
 ) -> list[dict[str, Any]]:
@@ -476,6 +483,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades) if r["details"] else []
     )
     climb_cards = _climb_cards(book, cfg["categories"], grades, _printable_width(r["page"], orientation))
+    route_map = map_svg(book.route_map, book, cfg["categories"], cfg["map"]["km_every"]) if book.route_map else ""
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -487,6 +495,8 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         orientation=orientation,
         details=details,
         climb_cards=climb_cards,
+        route_map=route_map,
+        map_orientation="landscape" if book.route_map and book.route_map.landscape else "portrait",
         ride=_ride_title(book),
         credit=_credit(book),
         grade_key=_grade_key(grades) if book.climbs and grades else [],

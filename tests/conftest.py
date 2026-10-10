@@ -3,6 +3,8 @@ from collections.abc import Iterator
 
 import pytest
 
+from roadbook.osm import Report
+
 
 @pytest.fixture(autouse=True)
 def _no_name_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -11,6 +13,14 @@ def _no_name_lookups(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("roadbook.build.name_towns", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("roadbook.build.name_climbs", lambda *_args, **_kwargs: None)
     monkeypatch.setattr("roadbook.build.find_places", lambda *_args, **_kwargs: None)
+
+
+@pytest.fixture(autouse=True)
+def _no_tiles(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The map is on by default, its tiles and its contour lines' terrain fetched online and kept in the user's cache:
+    tests get none, unless they put in a fake network and a cache of their own."""
+    monkeypatch.setattr("roadbook.routemap.fetch_tiles", lambda *_args, **_kwargs: ({}, Report()))
+    monkeypatch.setattr("roadbook.contours.fetch_tiles", lambda *_args, **_kwargs: ({}, Report()))
 
 
 @pytest.fixture(autouse=True)

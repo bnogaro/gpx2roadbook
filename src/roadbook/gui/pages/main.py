@@ -42,6 +42,9 @@ ADVANCED = (
     st.CLIMB_NAMES,
     st.CLIMB_PAGES,
     st.CLIMB_PAGES_FROM,
+    st.MAP,
+    st.MAP_STYLE,
+    st.MAP_CONTOURS,
 )
 
 

@@ -50,10 +50,11 @@ jobs:
       - run: uv build
       - name: Smoke test the wheel in a clean environment
         # renders a sample end to end, so a missing template or default.toml in the wheel fails here, not for users;
-        # offline (--no-towns): it tests the wheel, not OpenStreetMap, and the flat sample has no climbs to name
+        # offline (--no-towns, --no-map): it tests the wheel, not OpenStreetMap nor the tile servers, and the flat
+        # sample has no climbs to name
         run: |
           uvx --isolated --from ./dist/*.whl roadbook --help
-          uvx --isolated --from ./dist/*.whl roadbook samples/paris_le_mans.gpx --no-towns -o "$RUNNER_TEMP/smoke.html"
+          uvx --isolated --from ./dist/*.whl roadbook samples/paris_le_mans.gpx --no-towns --no-map -o "$RUNNER_TEMP/smoke.html"
           test -s "$RUNNER_TEMP/smoke.html"
       - name: Smoke test the GUI extra
         # --help returns before NiceGUI is imported, so import the window's module too: a missing page or component

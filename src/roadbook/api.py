@@ -79,7 +79,7 @@ def lookup_line(what: str, r: Report | None, found: str, items: str) -> tuple[st
         return None
     where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
     line = f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else "")
-    failure = f"{what}: OpenStreetMap did not answer for some {items}; run again later." if r.failed else None
+    failure = f"{what}: {r.service} did not answer for some {items}; run again later." if r.failed else None
     return line, failure
 
 
