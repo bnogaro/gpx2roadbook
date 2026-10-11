@@ -15,7 +15,7 @@ from __future__ import annotations
 import itertools
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any, ClassVar, Literal
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
 
@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from roadbook.config import Settings
     from roadbook.imposition import Format
     from roadbook.model import Climb, Poi, Roadbook, Stop
+    from roadbook.render import ClimbCard
 
 PT = 25.4 / 72  # mm a point
 OFF_ROUTE_M = 30  # a place further than this from the route says how far
@@ -345,25 +346,23 @@ class Content:
         if p.category not in self.hours_for:
             return Shop(emoji, name, where(p)), []
         h = shop_hours(p, day)
-        closed = h["hours_class"] == "closed" or (p.verdict is not None and p.verdict.state == "closed")
-        hours, under = h["hours"], []
-        if text_mm(h["hours"], self.f.font) > HOURS_SHARE * self.width:
-            parts = h["hours"].split(" · ")
-            under = [
-                Hours(t, h["hours_class"]) for t in wrap(parts, " · ", self.width - WIDE_HOURS_INDENT, self.f.font)
-            ]
+        closed = h.hours_class == "closed" or (p.verdict is not None and p.verdict.state == "closed")
+        hours, under = h.hours, []
+        if text_mm(h.hours, self.f.font) > HOURS_SHARE * self.width:
+            parts = h.hours.split(" · ")
+            under = [Hours(t, h.hours_class) for t in wrap(parts, " · ", self.width - WIDE_HOURS_INDENT, self.f.font)]
             hours = ""
-        line = Shop(emoji, name, where(p), verdict=h["verdict"], hours=hours, cls=h["hours_class"], closed=closed)
+        line = Shop(emoji, name, where(p), verdict=h.verdict, hours=hours, cls=h.hours_class, closed=closed)
         return line, under
 
     # ------------------------------------------------------------ the climbs
 
-    def climb(self, c: Climb, card: dict[str, Any] | None) -> Block:
+    def climb(self, c: Climb, card: ClimbCard | None) -> Block:
         """A climb where it starts: its name and category, where it ends, its figures, and its profile if it has a
         climb page."""
         stats = f"{c.length_km:.1f} km at {c.avg_grade:.1f} % · max {c.max_grade:.0f} % · ↗{c.gain_m:.0f} m"
         rows = [Row(f"{c.start_km:.1f}", Col(c.name or "Climb", c.label)), Row(f"→ {c.end_km:.1f}", Text(stats))]
-        svg = card["svg"] if card else ""
+        svg = card.svg if card else ""
         grade = grade_colour(c.avg_grade, self.grades) if self.grades else ""
         h = rows_h(self.f, len(rows)) + (svg_height(svg) + 1 if svg else 0)
         return Block("climb", c.start_km, h, rows, grade=grade, svg=svg, end=c.end_km)
