@@ -11,7 +11,9 @@ import pytest
 from typer.testing import CliRunner
 
 from roadbook import settings as st
-from roadbook.booklet import Block, Booklet, Clock, render_booklet, text_mm, where, wrap
+from roadbook.booklet import Block, Booklet, Clock, Content, render_booklet, text_mm, where, wrap
+from roadbook.booklet.content import Count, Hours, Line, More, Shop, Town
+from roadbook.booklet.layout import CoverPage, MapPage, StopsPage
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import load_config
@@ -141,26 +143,36 @@ def _booklet(book: Roadbook, f: str = "a5", **booklet: Any) -> Booklet:  # noqa:
     return Booklet(book, cfg, FORMATS[f])
 
 
-def _rights(block: Block) -> list[dict[str, Any]]:
-    return [r["right"] for r in block.rows if r["right"]]
+def _content(book: Roadbook, f: str = "a5", **booklet: Any) -> Content:  # noqa: ANN401  [booklet] settings
+    return _booklet(book, f, **booklet).content
+
+
+def _rights(block: Block) -> list[Line]:
+    return [r.right for r in block.rows if r.right]
+
+
+def _shops(lines: list[Line]) -> list[Shop]:
+    assert all(isinstance(line, Shop) for line in lines)
+    return [line for line in lines if isinstance(line, Shop)]
 
 
 def test_water_and_toilets_are_counted_the_nearest_named() -> None:
     s = Stop([_poi(10, "water", "Fontaine", 200), _poi(10.1, "water", "Cimetière", 40, side=-1), _poi(10.2, "toilets")])
-    (count, toilets) = _rights(_booklet(_book([s])).stop(s, after=4.0))
-    assert count == {"kind": "count", "emoji": "🚰", "n": 2, "name": "Cimetière", "where": "← 40 m"}
-    assert (toilets["n"], toilets["where"]) == (1, "→")
-    block = _booklet(_book([s])).stop(s, after=4.0)
-    assert [r["left"] for r in block.rows] == ["10.0", "+6.0"]  # its km, and how far from the stop before
+    (count, toilets) = _rights(_content(_book([s])).stop(s, after=4.0))
+    assert count == Count("🚰", 2, "Cimetière", "← 40 m")
+    assert isinstance(toilets, Count)
+    assert (toilets.n, toilets.where) == (1, "→")
+    block = _content(_book([s])).stop(s, after=4.0)
+    assert [r.left for r in block.rows] == ["10.0", "+6.0"]  # its km, and how far from the stop before
 
 
 def test_each_shop_on_its_line_the_nearest_first_the_rest_counted() -> None:
     shops = [_poi(20, "bakery", f"B{i}", off=100 * i) for i in (3, 1, 2, 4)]
     s = Stop(shops)
-    lines = _rights(_booklet(_book([s]), max_per_kind=2).stop(s, after=None))
-    assert [line.get("name") for line in lines] == ["B1", "B2", None]
-    assert lines[2] == {"kind": "more", "emoji": "🥖", "n": 2}
-    assert len(_rights(_booklet(_book([s]), max_per_kind=0).stop(s, after=None))) == 4  # 0: all of them
+    *shown, more = _rights(_content(_book([s]), max_per_kind=2).stop(s, after=None))
+    assert [line.name for line in _shops(shown)] == ["B1", "B2"]
+    assert more == More("🥖", 2)
+    assert len(_rights(_content(_book([s]), max_per_kind=0).stop(s, after=None))) == 4  # 0: all of them
 
 
 def test_a_shop_closed_when_the_rider_passes_comes_last_stepped_back() -> None:
@@ -168,21 +180,24 @@ def test_a_shop_closed_when_the_rider_passes_comes_last_stepped_back() -> None:
     open_ = _poi(30.1, "grocery", "Open", 50, opening_hours="Mo-Su 06:00-22:00", verdict=Verdict("open"))
     s = Stop([closed, open_], window=Window(_t("09:00"), _t("10:00")))
     book = _book([s], hours=Report(asked=2, found=2), ride=Ride(date=SUNDAY))
-    lines = _rights(_booklet(book).stop(s, after=None))
-    assert lines[0]["kind"] == "town"  # the arrival time heads it
-    assert lines[0]["eta"] == f"~09:00{EN}10:00"
-    assert [(line["name"], line["closed"]) for line in lines[1:]] == [("Open", False), ("Shut", True)]
-    assert (lines[2]["verdict"], lines[2]["hours"]) == ("closed", f"06:00{EN}07:00")
+    head, *lines = _rights(_content(book).stop(s, after=None))
+    assert isinstance(head, Town)  # the arrival time heads it
+    assert head.eta == f"~09:00{EN}10:00"
+    shops = _shops(lines)
+    assert [(line.name, line.closed) for line in shops] == [("Open", False), ("Shut", True)]
+    assert (shops[1].verdict, shops[1].hours) == ("closed", f"06:00{EN}07:00")
 
 
 def test_hours_too_long_for_the_line_go_under_it() -> None:
     week = "; ".join(f"{d} 07:00-12:30,15:30-19:30" for d in ("Mo", "Tu", "We", "Th", "Fr", "Sa"))
     s = Stop([_poi(40, "bakery", "Long hours", opening_hours=week)])
-    lines = _rights(_booklet(_book([s], hours=Report(asked=1, found=1)), "a6").stop(s, after=None))
-    assert lines[0]["hours"] == ""
-    assert [line["kind"] for line in lines[1:]] == ["hours"] * (len(lines) - 1)
-    assert len(lines) > 2
-    assert " · ".join(line["text"] for line in lines[1:]).startswith(f"Mo 07:00{EN}12:30, 15:30{EN}19:30 · Tu")
+    shop, *under = _rights(_content(_book([s], hours=Report(asked=1, found=1)), "a6").stop(s, after=None))
+    assert isinstance(shop, Shop)
+    assert shop.hours == ""
+    assert all(isinstance(line, Hours) for line in under)
+    assert len(under) > 1
+    texts = [line.text for line in under if isinstance(line, Hours)]
+    assert " · ".join(texts).startswith(f"Mo 07:00{EN}12:30, 15:30{EN}19:30 · Tu")
 
 
 def test_where_says_the_side_and_how_far_once_it_is_more_than_a_few_steps() -> None:
@@ -203,13 +218,13 @@ def test_text_is_wrapped_at_its_parts_never_through_one() -> None:
 
 def test_a_long_stretch_with_nowhere_to_drink_or_eat_is_warned_of_after_its_last_stop() -> None:
     stops = [Stop([_poi(5, "bakery")]), Stop([_poi(20, "water")]), Stop([_poi(90, "grocery")])]
-    gaps = _booklet(_book(stops, km=100), water_gap_km=60, food_gap_km=50).gaps()
-    assert [(b.km, b.data["text"]) for b in gaps] == [
+    gaps = _content(_book(stops, km=100), water_gap_km=60, food_gap_km=50).gaps()
+    assert [(b.km, b.text) for b in gaps] == [
         (5.0, "⚠ 85 km without food: next at km 90.0"),
         (20.0, "⚠ 70 km without water: next at km 90.0"),  # a shop sells water too: none from 20 to 90
     ]
-    gaps = _booklet(_book(stops, km=150), water_gap_km=60, food_gap_km=50).gaps()
-    assert gaps[-1].data["text"] == "⚠ 60 km without water or food: to the finish"
+    gaps = _content(_book(stops, km=150), water_gap_km=60, food_gap_km=50).gaps()
+    assert gaps[-1].text == "⚠ 60 km without water or food: to the finish"
     assert all(b.keep == "prev" for b in gaps)  # on the page of the stop it follows
 
 
@@ -219,14 +234,14 @@ def test_a_shop_closed_when_passing_or_unknown_at_night_does_not_count() -> None
     dark = Stop([_poi(60, "bakery")])  # hours unknown, at night
     lit = Stop([_poi(70, "fuel", verdict=Verdict("open"))])  # open 24 h
     ride = Ride(date=night.date(), start=night - dt.timedelta(hours=3), speed_kmh=30)
-    b = _booklet(_book([closed, dark, lit], ride=ride), water_gap_h=2, food_gap_h=2)
+    b = _content(_book([closed, dark, lit], ride=ride), water_gap_h=2, food_gap_h=2)
     assert not b.supplies(closed, {"grocery"})
     assert b.clock.dark(60)
     assert not b.supplies(dark, {"bakery"})
     assert b.supplies(lit, {"fuel"})
     assert b.supplies(Stop([_poi(80, "water")]), {"water"})  # a tap is there at night too
     # a speed: the stretch is measured as the rider drinks and eats, in hours
-    assert [g.data["text"] for g in b.gaps()] == ["⚠ 2h20 (70 km) without water or food: next at km 70.0"]
+    assert [g.text for g in b.gaps()] == ["⚠ 2h20 (70 km) without water or food: next at km 70.0"]
 
 
 def test_with_a_speed_a_stretch_is_as_long_as_it_takes_to_ride_its_climbing_included() -> None:
@@ -235,12 +250,12 @@ def test_with_a_speed_a_stretch_is_as_long_as_it_takes_to_ride_its_climbing_incl
     stops = [Stop([_poi(40, "bakery")]), Stop([_poi(80, "bakery")])]
     book = Roadbook("Ride", 100, 800, 800, [], stops, [], 0, 0, profile=Profile(track), track=track)
     book.ride = Ride(speed_kmh=20, climb_min_per_100m=5)  # no date nor start: the speed is enough
-    gaps = _booklet(book, water_gap_h=2.6, food_gap_h=0).gaps()
+    gaps = _content(book, water_gap_h=2.6, food_gap_h=0).gaps()
     # 40 km at 20 km/h, and 5 min for each 100 m climbed: 2h40, over the limit; the 40 km down after it, 2h, not
-    assert [g.data["text"] for g in gaps] == ["⚠ 2h40 (40 km) without water: next at km 40.0"]
+    assert [g.text for g in gaps] == ["⚠ 2h40 (40 km) without water: next at km 40.0"]
     book.ride = None  # no speed: in km, 50 km by default
-    assert [g.data["text"] for g in _booklet(book).gaps()] == []
-    assert [g.data["text"] for g in _booklet(book, water_gap_km=40).gaps()] == [
+    assert [g.text for g in _content(book).gaps()] == []
+    assert [g.text for g in _content(book, water_gap_km=40).gaps()] == [
         "⚠ 40 km without water: next at km 40.0",
         "⚠ 40 km without water: next at km 80.0",
     ]
@@ -249,8 +264,8 @@ def test_with_a_speed_a_stretch_is_as_long_as_it_takes_to_ride_its_climbing_incl
 def test_a_timed_ride_marks_sunset_sunrise_and_each_new_day() -> None:
     start = _t("15:00")
     ride = Ride(date=start.date(), start=start, speed_kmh=20)  # 400 km: through the night, to the next afternoon
-    b = _booklet(_book([], km=400, ride=ride))
-    bands = [(blk.kind, blk.data["text"]) for blk in b.days_and_nights()]
+    b = _content(_book([], km=400, ride=ride))
+    bands = [(blk.kind, blk.text) for blk in b.days_and_nights()]
     kinds = [k for k, _ in bands]
     assert kinds == ["sun", "day", "sun"]
     assert bands[0][1].startswith("🌇 Sunset ~")
@@ -262,7 +277,7 @@ def test_a_timed_ride_marks_sunset_sunrise_and_each_new_day() -> None:
     assert t is not None
     assert sun is not None
     assert t >= sun[1] > t - dt.timedelta(hours=1 / 20)  # within the km it falls in
-    assert _booklet(_book([], km=400)).days_and_nights() == []  # untimed: no times to place them at
+    assert _content(_book([], km=400)).days_and_nights() == []  # untimed: no times to place them at
 
 
 def test_the_clock_is_untimed_without_a_start() -> None:
@@ -296,7 +311,7 @@ def _mapped(stops: list[Stop], f: str = "a5", **booklet: Any) -> Booklet:  # noq
 def test_a_spread_with_a_stop_off_the_road_has_a_mini_map_on_its_left_page() -> None:
     far = [Stop([_poi(k, "bakery", off=200), _poi(k + 0.1, "water")]) for k in range(2, 98, 3)]
     b = _mapped(far)
-    spreads = b.paginate(b.blocks())
+    spreads = b.spreads()
     assert len(spreads) > 1
     assert all(sp.mapped for sp in spreads)
     cap, small = A5.blocks_h, A5.blocks_h - A5.minimap - A5.gap
@@ -308,7 +323,7 @@ def test_a_spread_with_a_stop_off_the_road_has_a_mini_map_on_its_left_page() -> 
         assert a.km[1] >= z.km[0]
     assert spreads[-1].km[1] == 100
     unmapped = _mapped([Stop([_poi(k, "water")]) for k in range(2, 98, 3)])  # on the road: no map needed
-    assert not any(sp.mapped for sp in unmapped.paginate(unmapped.blocks()))
+    assert not any(sp.mapped for sp in unmapped.spreads())
 
 
 def test_the_overview_marks_where_each_spread_starts() -> None:
@@ -317,26 +332,29 @@ def test_the_overview_marks_where_each_spread_starts() -> None:
     b.map_svg = lambda pages: marked.append(pages) or "<svg/>"  # ty: ignore[invalid-assignment]
     pages = b.pages()
     mid = centre(len(pages))
-    assert (pages[mid]["kind"], pages[mid]["svg"], pages[mid + 1]["kind"]) == ("map", "<svg/>", "map-right")
+    the_map = pages[mid]
+    assert isinstance(the_map, MapPage)
+    assert (the_map.kind, the_map.svg, pages[mid + 1].kind) == ("map", "<svg/>", "map-right")
     (marks,) = marked
-    lefts = [p for p in pages if p["kind"] == "stops" and not p["recto"]]
-    assert marks == [(p["starts"], f"p. {p['n']}") for p in lefts]
+    stops = [p for p in pages if isinstance(p, StopsPage)]
+    lefts = [p for p in stops if not p.recto]
+    assert marks == [(p.starts, f"p. {p.n}") for p in lefts]
     labels = [label for _, label in marks]
     assert labels[0] == "p. 2"
     assert f"p. {mid + 1}" not in labels  # the map's own pages hold no stops
-    assert all("minimap" in p for p in lefts)
-    assert not any("minimap" in p for p in pages if p["kind"] == "stops" and p["recto"])
-    assert b.back()["maps"].startswith("Maps: © OpenStreetMap contributors")  # their full credit, on the back
+    assert all(p.starts is not None for p in lefts)
+    assert not any(p.starts is not None or p.minimap for p in stops if p.recto)
+    assert b.back().maps.startswith("Maps: © OpenStreetMap contributors")  # their full credit, on the back
 
 
 def test_a_stop_too_tall_for_a_page_goes_on_over_the_next_continued() -> None:
     s = Stop([_poi(50, "fastfood", f"F{i}") for i in range(80)], town="Rambouillet")
     b = _booklet(_book([s]), "a6", max_per_kind=0)
-    parts = b.split(b.stop(s, after=None), A6.blocks_h)
+    parts = b.split(b.content.stop(s, after=None), A6.blocks_h)
     assert len(parts) > 1
     assert all(p.h <= A6.blocks_h for p in parts)
-    assert parts[1].rows[0]["right"]["town"] == "Rambouillet (continued)"
-    names = [r["right"]["name"] for p in parts for r in p.rows if r["right"]["kind"] == "shop"]
+    assert parts[1].rows[0].right == Town("Rambouillet (continued)")
+    names = [r.right.name for p in parts for r in p.rows if isinstance(r.right, Shop)]
     assert names == [f"F{i}" for i in range(80)]  # each once, in order
 
 
@@ -350,31 +368,32 @@ def test_the_booklet_has_its_cover_first_its_map_in_the_middle_and_its_credits_l
     book.items = [Item("checkpoint", 50, 0, label="Lunch")]
     b = _booklet(book, food_gap_km=0)
     pages = b.pages()
-    kinds = [p["kind"] for p in pages]
+    kinds = [p.kind for p in pages]
     assert len(pages) % 4 == 0
     assert kinds[0] == "cover"
     assert kinds[-1] == "back"
     assert "map" not in kinds  # no map on this book
     assert kinds[1 : 1 + kinds.count("stops")] == ["stops"] * kinds.count("stops")
     assert set(kinds[1 + kinds.count("stops") : -1]) <= {"notes"}
-    assert [p["n"] for p in pages] == list(range(1, len(pages) + 1))
-    first = pages[1]
-    assert first["km"].startswith("km 0.0 → ")
-    assert first["blocks"][0].kind == "start"
-    texts = [x.data.get("text", "") for p in pages if p["kind"] == "stops" for x in p["blocks"]]
+    assert [p.n for p in pages] == list(range(1, len(pages) + 1))
+    cover, first = pages[:2]
+    assert isinstance(first, StopsPage)
+    assert first.km.startswith("km 0.0 → ")
+    assert first.blocks[0].kind == "start"
+    texts = [x.text for p in pages if isinstance(p, StopsPage) for x in p.blocks]
     assert "📍 Lunch · km 50.0" in texts
-    cover = pages[0]
-    assert [lst["title"] for lst in cover["lists"]] == ["Checkpoints", "Climbs"]
+    assert isinstance(cover, CoverPage)
+    assert [lst.title for lst in cover.lists] == ["Checkpoints", "Climbs"]
 
 
 def test_a_cover_with_more_climbs_than_room_says_how_many_more_are_inside() -> None:
     book = _book([], km=400, climbs=[_climb(k) for k in range(5, 400, 6)])
     cover = _booklet(book, "a6", water_gap_km=0, food_gap_km=0).cover()
-    (climbs,) = cover["lists"]
-    assert climbs["items"][-1].startswith("… and ")
-    assert climbs["items"][-1].endswith(" more inside")
-    shown = len(climbs["items"]) - 1
-    assert climbs["items"][-1] == f"… and {66 - shown} more inside"
+    (climbs,) = cover.lists
+    assert climbs.items[-1].startswith("… and ")
+    assert climbs.items[-1].endswith(" more inside")
+    shown = len(climbs.items) - 1
+    assert climbs.items[-1] == f"… and {66 - shown} more inside"
 
 
 # --- in the road book
@@ -427,7 +446,7 @@ def test_each_spread_s_mini_map_is_made_with_the_book(name: str) -> None:
     book = build(HILLY, cfg)
     f = FORMATS[name.lower()]
     b = Booklet(book, cfg, f)
-    mapped = [sp.km for sp in b.paginate(b.blocks()) if sp.mapped]
+    mapped = [sp.km for sp in b.spreads() if sp.mapped]
     assert mapped
     assert list(book.minimaps) == mapped
     for (a, z), m in book.minimaps.items():
