@@ -13,3 +13,7 @@ build/
 samples/*.html
 samples/*.pdf
 out/
+
+# Claude Code: agents' worktrees and personal settings
+.claude/worktrees/
+.claude/settings.local.json
