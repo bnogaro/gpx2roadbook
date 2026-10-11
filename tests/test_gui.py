@@ -92,6 +92,7 @@ async def test_picking_a_gpx_and_making_the_road_book(user: User, tmp_path: Path
     await user.should_see(marker="wrote-booklet")
     assert (tmp_path / "ride.booklet.html").is_file()
     await user.should_see(marker="open-booklet")
+    await user.should_see("Strips PDF")  # the road book holds the strips alone: its buttons say so
     await user.should_see("690 POIs")
     await user.should_see(marker="command")
     command = next(iter(user.find(marker="command").elements)).text  # ty: ignore[unresolved-attribute]  # a label

@@ -61,11 +61,14 @@ class RunPanel:
         self.summary = ui.column().classes("w-full gap-0").mark("summary")
         with ui.row().classes("gap-2") as self.actions:
             if remote:  # opening a file here would open it on this computer, not on the device
-                ui.button("Download", icon="download", on_click=self.download_html).props("outline").mark("download")
-                ui.button("PDF", icon="picture_as_pdf", on_click=self.download_pdf).props("outline").mark("pdf")
+                # named once a run says what the road book holds: done()
+                self.html_button = ui.button(icon="view_week", on_click=self.download_html).props("outline")
+                self.html_button.mark("download")
+                self.pdf_button = ui.button(icon="picture_as_pdf", on_click=self.download_pdf).props("outline")
+                self.pdf_button.mark("pdf")
             else:
-                ui.button("Open", icon="open_in_new", on_click=self.open_html).props("outline").mark("open")
-                ui.button("PDF", icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
+                self.html_button = ui.button(icon="view_week", on_click=self.open_html).props("outline").mark("open")
+                self.pdf_button = ui.button(icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
             with ui.row().classes("gap-2") as self.booklet:  # only when a booklet was made
                 if remote:
                     ui.button("Booklet", icon="menu_book", on_click=self.download_booklet).props("outline").mark(
@@ -143,6 +146,10 @@ class RunPanel:
             ui.notify(f"PDF not written: {result.pdf_error}", type="negative", multi_line=True)
         self.actions.visible = True
         self.booklet.visible = result.booklet is not None
+        # with a booklet, the road book is the strips alone; without, the reference sheet and the map are in it too
+        name = "Strips" if result.booklet is not None else "Road book"
+        self.html_button.set_text(name)
+        self.pdf_button.set_text(f"{name} PDF")
         self.command.set_text(self.form.command())
         self.same.visible = True
 

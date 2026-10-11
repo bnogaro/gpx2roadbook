@@ -90,7 +90,7 @@ roadbook-gui                # or: roadbook-gui --browser
 - **Browse** for the GPX. The road book goes next to it, unless you change the output file.
 - Set the options. Hover over one to see what it does. The usual ones are on top, the rest under **Advanced settings**. Options that depend on others show up when they apply: the start time once you set a ride date, then the speed and planned breaks.
 - The **preview** follows your changes, at true size when it fits (**Fit**), or zoomed in or out. The booklet has a tab of its own, or the reference sheet and the map without one. It uses only the town names, climb names, hours and map tiles already looked up, and says when some are missing: they come with the first **Make the road book**.
-- **Make the road book** writes the HTML and the booklet (and their PDFs if asked), shows the summary, and lets you open them, print them to PDF, or open their folder. It also shows the same `roadbook …` command, to copy.
+- **Make the road book** writes the HTML and the booklet (and their PDFs if asked), shows the summary, and lets you open them, **Strips** and **Booklet**, print them to PDF, or open their folder. Without a booklet, the road book holds the reference sheet and the map too, and its buttons say **Road book**. It also shows the same `roadbook …` command, to copy.
 
 The window remembers your settings for next time, in `gui.toml` in your user config folder (`%LOCALAPPDATA%\gpx2roadbook` on Windows, `~/.config/gpx2roadbook` on Linux, `~/Library/Application Support/gpx2roadbook` on macOS). The gear menu at the top right resets them to the defaults, or saves them as a file for `roadbook --config` (see [Customising](#customising)). That's a handy way to share an event's setup with the other riders.
 
