@@ -15,7 +15,19 @@ from roadbook.config import load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
-from roadbook.render import FRAME_PAD, HEAD_H, MAIN_H, RowLayout, _add_heads, _details, _row, credit, render_html
+from roadbook.render import (
+    FRAME_PAD,
+    HEAD_H,
+    MAIN_H,
+    Head,
+    Row,
+    RowLayout,
+    _add_heads,
+    _details,
+    _row,
+    credit,
+    render_html,
+)
 from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -256,14 +268,14 @@ def test_no_climbs_no_request(tmp_path: Path) -> None:
 STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
 
 
-def _heads(*items: Item) -> list[dict[str, Any]]:
+def _heads(*items: Item) -> list[Row]:
     book = Roadbook("t", 100, 0, 0, list(items), [], [], 0, 0)
     rows = [_row(it, book, STRIP) for it in items]
-    plain = [r["h"] for r in rows]
-    _add_heads(rows, book)
+    plain = [r.h for r in rows]
+    rows = _add_heads(rows, book)
     for r, h in zip(rows, plain, strict=True):
-        framed = FRAME_PAD if r.get("town") else 0  # a town's row has room under it for its frame
-        assert r["h"] == pytest.approx(h + HEAD_H * len(r["heads"]) + framed)
+        framed = FRAME_PAD if r.town else 0  # a town's row has room under it for its frame
+        assert r.h == pytest.approx(h + HEAD_H * len(r.heads) + framed)
     return rows
 
 
@@ -274,20 +286,20 @@ def _climb_item(name: str | None, stop: Stop | None = None) -> Item:
 
 def test_a_named_climb_gets_a_line_above_its_row() -> None:
     named, unnamed = _heads(_climb_item("Col de Portet d'Aspet"), _climb_item(None))
-    assert named["heads"] == [{"cls": "col", "text": "Col de Portet d'Aspet"}]
-    assert unnamed["heads"] == []
+    assert named.heads == (Head("col", "Col de Portet d'Aspet"),)
+    assert unnamed.heads == ()
 
 
 def test_only_the_climbs_foot_row_is_named() -> None:
     foot = _climb_item("Col de Portet d'Aspet")
     top = Item("summit", 29.9, 1069, climb=foot.climb, stop=Stop([Poi("a", "", 0, 0, km=29.9)]))
-    assert [r["heads"] for r in _heads(foot, top)][1] == []
+    assert [r.heads for r in _heads(foot, top)][1] == ()
 
 
 def test_a_climb_starting_in_a_named_town_gets_both_lines() -> None:
     stop = Stop([Poi("a", "", 0, 0, km=25.6)], town="Saint-Béat")
     (row,) = _heads(_climb_item("Col de Menté", stop))
-    assert [h["text"] for h in row["heads"]] == ["Saint-Béat", "Col de Menté"]  # where you are, then what comes
+    assert [h.text for h in row.heads] == ["Saint-Béat", "Col de Menté"]  # where you are, then what comes
 
 
 # --- the reference sheet
@@ -299,10 +311,10 @@ def test_the_reference_sheet_lists_named_climbs_among_the_stops() -> None:
     climbs = [Climb(25.6, 29.9, 408, 9.6, 12, "2", name="Col de Portet d'Aspet"), Climb(40, 41, 90, 5, 6, "")]
     book = Roadbook("t", 100, 0, 0, [], [stop, after], climbs, 0, 0)
     entries = _details(book, load_config()["categories"], 1000, [])
-    assert [e["km"] for e in entries] == ["25.6", "25.6 → 29.9", "27.0"]  # a stop at its foot first; unnamed: none
+    assert [e.km for e in entries] == ["25.6", "25.6 → 29.9", "27.0"]  # a stop at its foot first; unnamed: none
     entry = entries[1]
-    assert entry["col"] == "Col de Portet d'Aspet"
-    assert entry["groups"][0][1][0]["name"] == "Cat 2 · 4.3 km at 9.6 % · ↗️408 m"
+    assert entry.col == "Col de Portet d'Aspet"
+    assert entry.groups[0][1][0].name == "Cat 2 · 4.3 km at 9.6 % · ↗️408 m"
 
 
 def test_the_credit_names_what_came_from_osm() -> None:

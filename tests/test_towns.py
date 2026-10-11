@@ -13,7 +13,7 @@ from roadbook.cli import app
 from roadbook.config import load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
-from roadbook.render import FRAME_PAD, HEAD_H, RowLayout, _add_heads, _paginate, _row, render_html
+from roadbook.render import FRAME_PAD, HEAD_H, Row, RowLayout, _add_heads, _paginate, _row, render_html
 from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -169,18 +169,18 @@ STRIP = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=
 BOOK = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
 
 
-def _stop_row(emojis: str, *, km_end: float = 60.0, dist: float = 1.5) -> tuple[Item, dict[str, Any]]:
+def _stop_row(emojis: str, *, km_end: float = 60.0, dist: float = 1.5) -> tuple[Item, Row]:
     stop = Stop([Poi("a", "", LAT, LON, km=60.0), Poi("b", "", LAT, LON, km=km_end)])
     it = Item("stop", 60.0, 0, emojis=[Glyph(e) for e in emojis], stop=stop, dist_to_next=dist)
     return it, _row(it, BOOK, STRIP)
 
 
-def _town(row: dict[str, Any]) -> str:
+def _town(row: Row) -> str:
     """The town a row's heading lines name, or ""."""
-    return next((h["text"] for h in row["heads"] if h["cls"] == "town"), "")
+    return next((h.text for h in row.heads if h.cls == "town"), "")
 
 
-def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]]:
+def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[Row]:
     items, rows = [], []
     for town in towns:
         it, row = _stop_row(emojis)
@@ -188,26 +188,25 @@ def _named_rows(*towns: str | None, emojis: str = "🚰") -> list[dict[str, Any]
         it.stop.town = town
         items.append(it)
         rows.append(row)
-    _add_heads(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0))
-    return rows
+    return _add_heads(rows, Roadbook("t", 100, 0, 0, items, [], [], 0, 0))
 
 
 def test_a_named_stop_gets_a_line_above_its_row() -> None:
     _, plain = _stop_row("🚰")
     [row] = _named_rows("Le Mas-d'Azil")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
+    assert (_town(row), row.h) == ("Le Mas-d'Azil", plain.h + HEAD_H + FRAME_PAD)
 
 
 def test_a_full_row_still_gets_its_town_in_full() -> None:
     _, plain = _stop_row("🚰🚻🥖☕🛒⛽🍔")
     [row] = _named_rows("Le Mas-d'Azil", emojis="🚰🚻🥖☕🛒⛽🍔")
-    assert (_town(row), row["h"]) == ("Le Mas-d'Azil", plain["h"] + HEAD_H + FRAME_PAD)
+    assert (_town(row), row.h) == ("Le Mas-d'Azil", plain.h + HEAD_H + FRAME_PAD)
 
 
 def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
     rows = _named_rows("Foix", "Foix", None, "Pau", "Foix")
     assert [_town(r) for r in rows] == ["Foix", "", "", "Pau", "Foix"]
-    assert [r["h"] for r in rows][1:3] == [rows[2]["h"]] * 2  # no line where the town isn't named
+    assert [r.h for r in rows][1:3] == [rows[2].h] * 2  # no line where the town isn't named
 
 
 # --- end to end, on a sample, with a fake Nominatim
@@ -296,8 +295,8 @@ def test_towns_are_named_by_default_unless_turned_off(monkeypatch: pytest.Monkey
     ],
 )
 def test_only_the_last_row_may_overrun_a_strip(heights: list[float], pages: list[list[float]]) -> None:
-    got = _paginate([{"h": h} for h in heights], 100, "h")
-    assert [[r["h"] for r in p] for p in got] == pages
+    got = _paginate(heights, 100, lambda h: h)  # each row stands for its height
+    assert got == pages
 
 
 class OneTownEach(FakeNominatim):
