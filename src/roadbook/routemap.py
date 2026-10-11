@@ -31,6 +31,7 @@ from .tiles import style as tile_style
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from .config import Category, MapSettings
     from .model import Roadbook, Stop, Track
     from .osm import Report
     from .tiles import Key
@@ -153,7 +154,7 @@ def frame(
 
 def make(
     track: Track,
-    cfg: dict[str, Any],
+    settings: MapSettings,
     area: tuple[float, float],
     *,
     landscape: bool = False,
@@ -167,7 +168,7 @@ def make(
     route TURN times larger: a route running east to west fills a landscape page better. Not if it may not `turn`:
     a booklet's centre spread is landscape whatever the route.
     """
-    name, s = tile_style(str(cfg["style"]))
+    name, s = tile_style(settings.style)
     x, y = world(track.lat, track.lon)
     upright, turned = (area[0], area[1] - TITLE_H), (area[1], area[0] - TITLE_H)
     own, other = (turned, upright) if landscape else (upright, turned)
@@ -184,16 +185,16 @@ def make(
         f"{m.m_per_mm * 1000:,.0f}",
         len(keys),
     )
-    m.tiles, report = fetch_tiles(name, keys, cfg["max_age_days"], offline=offline)
+    m.tiles, report = fetch_tiles(name, keys, settings.max_age_days, offline=offline)
     return m, report
 
 
 def section(
-    track: Track, cfg: dict[str, Any], area: tuple[float, float], km: tuple[float, float], *, offline: bool = False
+    track: Track, settings: MapSettings, area: tuple[float, float], km: tuple[float, float], *, offline: bool = False
 ) -> tuple[RouteMap, Report]:
     """A map of the route from one km to another, north up, filling `area` (width, height, mm), with its tiles: the
     mini-map of a booklet's spread. The route goes on past its ends, as far as the map shows."""
-    name, s = tile_style(str(cfg["style"]))
+    name, s = tile_style(settings.style)
     a, b = km
     on = (track.dist >= a * 1000) & (track.dist <= b * 1000)
     lat, lon = (track.lat[on], track.lon[on]) if on.sum() > 1 else zip(track.at(a), track.at(b), strict=True)
@@ -202,7 +203,7 @@ def section(
     m = RouteMap(name, zoom, left, top, scale, area[0], height, track)
     keys = list(dict.fromkeys(m.key(*c) for c in m.cells()))
     log.debug("Map of km %.1f to %.1f: zoom %d, 1:%s, %d tiles", a, b, zoom, f"{m.m_per_mm * 1000:,.0f}", len(keys))
-    m.tiles, report = fetch_tiles(name, keys, cfg["max_age_days"], offline=offline)
+    m.tiles, report = fetch_tiles(name, keys, settings.max_age_days, offline=offline)
     return m, report
 
 
@@ -390,7 +391,7 @@ class _Layers:
         return "".join(self.leaders + self.emojis + self.marks + self.names)
 
 
-def _pois(m: RouteMap, stops: list[Stop], categories: dict[str, Any]) -> list[tuple[str, float, float, int]]:
+def _pois(m: RouteMap, stops: list[Stop], categories: dict[str, Category]) -> list[tuple[str, float, float, int]]:
     """(emoji, x, y, count) for every kept POI, by category in their order: those of a kind closer than MERGE on
     paper as one, at their middle."""
     order = list(categories)
@@ -407,14 +408,14 @@ def _pois(m: RouteMap, stops: list[Stop], categories: dict[str, Any]) -> list[tu
             same.append((x, y))
             continue
         last[str(p.category)] = [(x, y)]
-        groups.append((categories[str(p.category)]["emoji"], last[str(p.category)]))
+        groups.append((categories[str(p.category)].emoji, last[str(p.category)]))
     return [(e, sum(x for x, _ in pts) / len(pts), sum(y for _, y in pts) / len(pts), len(pts)) for e, pts in groups]
 
 
 def svg(  # noqa: PLR0913  what the map shows, on top of what it is
     m: RouteMap,
     book: Roadbook,
-    categories: dict[str, Any],
+    categories: dict[str, Category],
     every_km: float = 0,
     *,
     span: tuple[float, float] | None = None,

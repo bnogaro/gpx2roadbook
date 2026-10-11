@@ -31,7 +31,7 @@ Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.p
 - `render.py` + `templates/`: the strips and reference sheet (Jinja, typed view-model dataclasses)
 - `booklet/`: `content.py` (what goes in), `layout.py` (spreads, pages), `__init__.py` (HTML, mini-maps); `imposition.py` holds the A5/A6 formats and sheet order
 - `routemap.py`, `contours.py`: the SVG map
-- `default.toml` + `config.py`: the settings, loaded as a dict and edited/saved as one; `settings.py` describes them for the GUI form and the interactive CLI
+- `default.toml` + `config.py`: the settings, a dict where they are edited and saved (CLI flags, GUI, `--config` files), converted once by `api.run`/`api.preview` into the frozen `config.Settings`, whose sections (`MapSettings`, `BookletSettings`…) the run's functions take; `settings.py` describes them for the GUI form and the interactive CLI
 - `gui/`: NiceGUI window (native via pywebview); `scripts/app.py` is the frozen app's entry point
 
 ## Conventions and gotchas

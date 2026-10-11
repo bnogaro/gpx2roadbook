@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from .config import ClimbNamesSettings
     from .model import Climb, Track
     from .osm import Http
 
@@ -60,10 +61,10 @@ def _is_name(name: str) -> bool:
     return any(c.isalpha() for c in name)
 
 
-def choose(top: Point, places: list[Place], cfg: dict[str, Any]) -> str | None:
-    """The name for a climb whose summit is at `top`: a pass or saddle within `cfg["pass_m"]` if any, else a peak
-    within `cfg["peak_m"]`; the closest of its kind. None if there is neither."""
-    radius = {"pass": cfg["pass_m"], "peak": cfg["peak_m"]}
+def choose(top: Point, places: list[Place], settings: ClimbNamesSettings) -> str | None:
+    """The name for a climb whose summit is at `top`: a pass or saddle within `settings.pass_m` if any, else a peak
+    within `settings.peak_m`; the closest of its kind. None if there is neither."""
+    radius = {"pass": settings.pass_m, "peak": settings.peak_m}
     near = [
         (RANK[p.kind], d, p.name)
         for p in places
@@ -88,15 +89,15 @@ def _from_overpass(element: dict[str, Any]) -> Place | None:
     return Place(tags.get("name", ""), kind, where["lat"], where["lon"]) if kind else None
 
 
-def _nominatim(top: Point, cfg: dict[str, Any], http: Http, sleep: Callable[[float], None]) -> list[Place]:
+def _nominatim(top: Point, settings: ClimbNamesSettings, http: Http, sleep: Callable[[float], None]) -> list[Place]:
     """Named passes, saddles, then peaks around `top`, from Nominatim; raises OSError if it does not answer."""
-    radius = max(cfg["pass_m"], cfg["peak_m"])
+    radius = max(settings.pass_m, settings.peak_m)
     dlat = radius / M_PER_DEG
     dlon = dlat / max(0.1, math.cos(math.radians(top[0])))
     box = f"{top[1] - dlon},{top[0] + dlat},{top[1] + dlon},{top[0] - dlat}"  # choose() trims it to a circle
     places: list[Place] = []
     for q, kind in NOMINATIM_TAGS:
-        if kind == "peak" and choose(top, places, cfg):
+        if kind == "peak" and choose(top, places, settings):
             break  # a pass is near: no peak could win over it
         params = {"q": q, "format": "jsonv2", "bounded": "1", "limit": "10", "viewbox": box}
         places += nominatim("search", params, http, sleep, partial(_from_nominatim, kind))
@@ -111,15 +112,15 @@ def default_cache_path() -> Path:
     return cache_path("climb_names.json")
 
 
-def _key(top: Point, cfg: dict[str, Any]) -> str:
+def _key(top: Point, settings: ClimbNamesSettings) -> str:
     # ~10 m, and the radii: an answer chosen with other radii may not be the same
-    return f"{top[0]:.4f},{top[1]:.4f},{cfg["pass_m"]:g},{cfg["peak_m"]:g}"
+    return f"{top[0]:.4f},{top[1]:.4f},{settings.pass_m:g},{settings.peak_m:g}"
 
 
 def lookup(  # noqa: PLR0913  the network's seams for the tests, and offline, come on top of what to name
     climbs: list[Climb],
     track: Track,
-    cfg: dict[str, Any],
+    settings: ClimbNamesSettings,
     *,
     cache_path: Path | None = None,
     http: Http = _http,
@@ -133,13 +134,13 @@ def lookup(  # noqa: PLR0913  the network's seams for the tests, and offline, co
     """
     started = time.perf_counter()
     log.info("Climb names: %d climbs to name", len(climbs))
-    max_age = None if offline else cfg["max_age_days"]
+    max_age = None if offline else settings.max_age_days
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, max_age, field="name")
     report = Report(asked=len(climbs))
     tops = {id(c): track.at(c.end_km) for c in climbs}
     todo: list[Climb] = []
     for c in climbs:
-        known, name = cache.get(_key(tops[id(c)], cfg))
+        known, name = cache.get(_key(tops[id(c)], settings))
         if known:
             report.cached += 1
             c.name = name
@@ -151,20 +152,20 @@ def lookup(  # noqa: PLR0913  the network's seams for the tests, and offline, co
 
     def answer(c: Climb, places: list[Place], source: str) -> None:
         top = tops[id(c)]
-        c.name = choose(top, places, cfg)
-        cache.put(_key(top, cfg), c.name)
+        c.name = choose(top, places, settings)
+        cache.put(_key(top, settings), c.name)
         _log_name(c, source)
         report.answered_by(source)
 
     if todo:
         log.info("Climb names: %d cached; asking Overpass about the other %d", report.cached, len(todo))
-        query = _overpass_query([tops[id(c)] for c in todo], max(cfg["pass_m"], cfg["peak_m"]))
+        query = _overpass_query([tops[id(c)] for c in todo], max(settings.pass_m, settings.peak_m))
         try:
             places = overpass(query, http, _from_overpass)
         except OSError:
             log.info("Climb names: asking Nominatim about %d climbs, one request a second", len(todo))
             report.failed = one_by_one(
-                todo, lambda c: _nominatim(tops[id(c)], cfg, http, sleep), lambda c, ps: answer(c, ps, "Nominatim")
+                todo, lambda c: _nominatim(tops[id(c)], settings, http, sleep), lambda c, ps: answer(c, ps, "Nominatim")
             )
         else:
             for c in todo:

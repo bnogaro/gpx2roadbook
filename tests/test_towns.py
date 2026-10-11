@@ -1,5 +1,6 @@
 import re
 import urllib.parse
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -10,7 +11,7 @@ from typer.testing import CliRunner
 from roadbook import build as build_module
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import Settings, TownsSettings, load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
 from roadbook.render import FRAME_PAD, HEAD_H, Row, RowLayout, _add_heads, _paginate, _row, render_html
@@ -18,7 +19,7 @@ from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 REVERSE = f"{NOMINATIM}/reverse"
-CFG = load_config()["towns"]
+CFG = Settings.of(load_config()).towns
 LAT, LON = 42.9858, 1.1466  # Saint-Girons, km 60.0 of entrainement_ubf.gpx
 
 SAINT_GIRONS = {
@@ -55,7 +56,7 @@ def _stop(n: int, lat: float = LAT, lon: float = LON, km: float = 60.0) -> Stop:
 
 
 def _lookup(stops: list[Stop], tmp_path: Path, http: FakeNominatim, **cfg: Any) -> Report:  # noqa: ANN401
-    return lookup(stops, {**CFG, **cfg}, cache_path=tmp_path / "towns.json", http=http, sleep=http.sleeps.append)
+    return lookup(stops, replace(CFG, **cfg), cache_path=tmp_path / "towns.json", http=http, sleep=http.sleeps.append)
 
 
 def _stop_of(*categories: str) -> Stop:
@@ -138,7 +139,7 @@ def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None
     _lookup([_stop(8)], tmp_path, FakeNominatim())
     http = FakeNominatim()
     named, unasked, edge = _stop(8), _stop(8, lat=LAT + 0.05), _stop(1, km=60.5)  # edge: small, near the named one
-    cfg = {**CFG, "max_age_days": 0}
+    cfg = replace(CFG, max_age_days=0)
     report = lookup([named, edge, unasked], cfg, cache_path=tmp_path / "towns.json", http=http, offline=True)
     assert (named.town, unasked.town, edge.town) == ("Saint-Girons", None, None)
     assert (report.cached, report.unasked, report.failed, http.asked) == (1, 1, False, [])
@@ -215,9 +216,9 @@ def test_the_same_town_is_not_named_again_on_the_next_row() -> None:
 def _named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, answer: Any = None) -> FakeNominatim:  # noqa: ANN401
     http = FakeNominatim(answer)
 
-    def fake(stops: list[Stop], cfg: dict[str, Any], *, offline: bool) -> Report:
+    def fake(stops: list[Stop], cfg: TownsSettings, *, offline: bool) -> Report:
         # the fake puts every spot in one town: no edge, which test_a_town_takes_the_small_stops_at_its_edges covers
-        cfg = {**cfg, "edge_km": 0}
+        cfg = replace(cfg, edge_km=0)
         return lookup(stops, cfg, cache_path=tmp_path / "towns.json", http=http, sleep=lambda _: None, offline=offline)
 
     monkeypatch.setattr(build_module, "name_towns", fake)
@@ -232,9 +233,9 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["towns"]["enabled"] = False
-    plain = render_html(build(HILLY, cfg), cfg)
+    plain = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     cfg["towns"]["enabled"] = True
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     named = {(s.km, s.km_end) for s in book.stops if s.town}
     # Saint-Girons, Le Mas-d'Azil and Auterive; Saint-Béat (km 4.3) and Saint-Lary (km 35.4) for their village shops;
     # fountains, cemeteries and lone bakeries are not asked. Saint-Girons' two busy stops, both asked, make one
@@ -242,7 +243,7 @@ def test_on_the_sample_the_big_stops_are_named_on_a_line_of_their_own(
     assert {4.3, 35.4} <= {round(a, 1) for a, _ in named}
     assert len(http.asked) == 6
     assert len(named) == len(busy(book.stops, CFG)) == 5
-    html = render_html(book, cfg)
+    html = render_html(book, Settings.of(cfg))
     assert "<b>km 60.0 → 61.5 · Saint-Girons</b>" in html
     # on a line above its row; the fake answers Saint-Girons for all, so the strip names it once
     assert html.count('<div class="head town"><span>Saint-Girons</span></div>') == 1
@@ -274,15 +275,15 @@ def test_the_cli_says_how_many_towns_it_found(monkeypatch: pytest.MonkeyPatch, t
 def test_towns_are_named_by_default_unless_turned_off(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     http = _named(monkeypatch, tmp_path / "on")
     cfg = load_config()
-    assert build(HILLY, cfg).towns is not None
+    assert build(HILLY, Settings.of(cfg)).towns is not None
     assert len(http.asked) == 6
     http = _named(monkeypatch, tmp_path / "off")
     cfg["towns"]["enabled"] = False
-    assert build(HILLY, cfg).towns is None
+    assert build(HILLY, Settings.of(cfg)).towns is None
     # a ribbon of tokens has no room for them, and without the reference sheet they would show nowhere
     cfg["towns"]["enabled"] = True
     cfg["render"]["layout"], cfg["render"]["details"], cfg["booklet"]["format"] = "line", False, "off"
-    assert build(HILLY, cfg).towns is None
+    assert build(HILLY, Settings.of(cfg)).towns is None
     assert http.asked == []
 
 
@@ -320,7 +321,7 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     cfg["towns"]["edge_km"] = 0  # the four answers are for the busy stops
     cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns (Saint-Girons is two stops)
     cfg["render"]["length_mm"] = 209  # two strips without the town lines; with them, the finish only just overflows
-    html = render_html(build(HILLY, cfg), cfg)
+    html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
     assert [n for _, n in headers] == ["1/2", "2/2"]  # the town lines take the finish past the second strip's length
@@ -376,7 +377,7 @@ def test_a_town_takes_the_small_stops_at_its_edges(tmp_path: Path) -> None:
     assert [s.town for s in stops] == [None, "Le Mans", "Le Mans", None, None]
     assert [round(float(a["lat"]), 3) for a in http.asked] == [43.002, 43.003, 43.004, 43.001]
     assert (report.asked, report.found) == (1, 1)  # the report counts the busy stops, as the summary says
-    assert [(s.km, s.town) for s in group(stops, CFG["group_km"])] == [
+    assert [(s.km, s.town) for s in group(stops, CFG.group_km)] == [
         (8.5, None),
         (10, "Le Mans"),
         (12, None),

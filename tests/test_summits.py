@@ -1,4 +1,5 @@
 import urllib.parse
+from dataclasses import replace
 from functools import partial
 from pathlib import Path
 from typing import Any
@@ -11,7 +12,7 @@ from roadbook import build as build_module
 from roadbook import render as render_module
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
@@ -32,7 +33,7 @@ from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 SEARCH = f"{NOMINATIM}/search"
-CFG = load_config()["climb_names"]
+CFG = Settings.of(load_config()).climb_names
 M = 1 / 111_320  # a metre of latitude, in degrees
 
 # summits of entrainement_ubf.gpx, as the route has them, and what OSM has there
@@ -105,7 +106,9 @@ def _track(*tops: tuple[float, float]) -> Track:
 
 
 def _lookup(climbs: list[Climb], track: Track, tmp_path: Path, http: FakeHttp, **cfg: Any) -> Any:  # noqa: ANN401
-    return lookup(climbs, track, {**CFG, **cfg}, cache_path=tmp_path / "c.json", http=http, sleep=http.sleeps.append)
+    return lookup(
+        climbs, track, replace(CFG, **cfg), cache_path=tmp_path / "c.json", http=http, sleep=http.sleeps.append
+    )
 
 
 # --- which name
@@ -177,7 +180,7 @@ def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None
     _lookup([_climb(10)], track, tmp_path, FakeHttp())
     http = FakeHttp()
     climbs = [_climb(10), _climb(20)]
-    cfg = {**CFG, "max_age_days": 0}
+    cfg = replace(CFG, max_age_days=0)
     report = lookup(climbs, track, cfg, cache_path=tmp_path / "c.json", http=http, offline=True)
     assert [c.name for c in climbs] == ["Col de Menté", None]
     assert (report.cached, report.unasked, report.failed, http.urls) == (1, 1, False, [])
@@ -310,7 +313,7 @@ def test_the_reference_sheet_lists_named_climbs_among_the_stops() -> None:
     after = Stop([Poi("Fontaine", "", 0, 0, km=27.0, category="water")])
     climbs = [Climb(25.6, 29.9, 408, 9.6, 12, "2", name="Col de Portet d'Aspet"), Climb(40, 41, 90, 5, 6, "")]
     book = Roadbook("t", 100, 0, 0, [], [stop, after], climbs, 0, 0)
-    entries = _details(book, load_config()["categories"], 1000, [])
+    entries = _details(book, Settings.of(load_config()).categories, 1000, [])
     assert [e.km for e in entries] == ["25.6", "25.6 → 29.9", "27.0"]  # a stop at its foot first; unnamed: none
     entry = entries[1]
     assert entry.col == "Col de Portet d'Aspet"
@@ -349,11 +352,11 @@ def test_on_the_sample_the_pyrenean_cols_are_named(monkeypatch: pytest.MonkeyPat
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["climb_names"]["enabled"] = True
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     named = {round(c.start_km, 1): c.name for c in book.climbs if c.name}
     assert named == {4.8: "Col de Menté", 25.6: "Col de Portet d'Aspet", 72.4: "Col de Portel"}
     assert len(http.urls) == 1
-    html = render_html(book, cfg)
+    html = render_html(book, Settings.of(cfg))
     assert '<div class="head col"><span>Col de Menté</span></div>' in html
     # its swatch in the colour of its average grade, 9.6 %
     swatch = '<span class="swatch" style="background: #b91c1c"></span>'
@@ -372,7 +375,7 @@ def test_the_profile_stays_level_with_a_named_climbs_main_line(monkeypatch: pyte
         Item("finish", 20, 0, label="FINISH"),
     ]
     book = Roadbook("t", 20, 0, 0, items, [], [climb], 0, 0, profile=Profile(track))
-    render_html(book, load_config())
+    render_html(book, Settings.of(load_config()))
     (strip,) = anchors
     start_h = MAIN_H  # START: a main line only
     assert strip[1] == (5, pytest.approx(start_h + HEAD_H + MAIN_H / 2))  # the climb's main line, under its name
@@ -398,12 +401,12 @@ def test_climbs_are_named_by_default_unless_turned_off(monkeypatch: pytest.Monke
     http = _named(monkeypatch, tmp_path)
     cfg = load_config()
     assert cfg["climb_names"]["enabled"] is True
-    assert build(HILLY, cfg).climb_names is not None
+    assert build(HILLY, Settings.of(cfg)).climb_names is not None
     http.urls.clear()
     cfg["climb_names"]["enabled"] = False
-    assert build(HILLY, cfg).climb_names is None
+    assert build(HILLY, Settings.of(cfg)).climb_names is None
     # nowhere to show them: a ribbon of tokens, no reference sheet and no booklet
     cfg["climb_names"]["enabled"] = True
     cfg["render"]["layout"], cfg["render"]["details"], cfg["booklet"]["format"] = "line", False, "off"
-    assert build(HILLY, cfg).climb_names is None
+    assert build(HILLY, Settings.of(cfg)).climb_names is None
     assert http.urls == []

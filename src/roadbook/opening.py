@@ -10,10 +10,13 @@ import datetime as dt
 import itertools
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import TYPE_CHECKING
 
 import opening_hours
 from opening_hours import OpeningHours, State
+
+if TYPE_CHECKING:
+    from .config import RideSettings
 
 _DAY = dt.timedelta(days=1)
 # what OpeningHours() raises for a value it can't use; its type stubs leave these out (they promise SyntaxError)
@@ -28,20 +31,6 @@ class DayHours:
 
     text: str  # "07:00-12:30, 15:30-19:00" (with en dashes), "open 24 h", "closed"
     closed: bool = False  # closed all day
-
-
-def _date(value: object) -> dt.date | None:
-    """ "YYYY-MM-DD", a bare TOML date (from a --config file), or empty for none."""
-    if isinstance(value, dt.date):
-        return value
-    return dt.date.fromisoformat(value) if isinstance(value, str) and value else None
-
-
-def _time(value: object) -> dt.time | None:
-    """ "HH:MM", a bare TOML time, or empty for none."""
-    if isinstance(value, dt.time):
-        return value
-    return dt.time.fromisoformat(value) if isinstance(value, str) and value else None
 
 
 type Gain = Callable[[float, float], float]  # metres climbed between two km
@@ -70,7 +59,7 @@ def parse_break(text: str) -> list[float]:
 
 @dataclass(frozen=True)
 class Ride:
-    """The `[ride]` settings: the ride's date and, given a start time and a speed, when it reaches each km.
+    """The ride the `[ride]` settings plan: its date and, given a start time and a speed, when it reaches each km.
 
     The time to a km is its distance at `speed_kmh`, plus `climb_min_per_100m` for every 100 m climbed on the way,
     plus the planned breaks before it.
@@ -85,12 +74,13 @@ class Ride:
     breaks: tuple[tuple[float, float], ...] = ()  # (km, minutes): a break there delays every stop after it
 
     @classmethod
-    def from_cfg(cls, cfg: dict[str, Any]) -> Ride:
-        date, time, speed = _date(cfg.get("date")), _time(cfg.get("start")), float(cfg.get("speed_kmh") or 0)
+    def of(cls, settings: RideSettings) -> Ride:
+        """From the `[ride]` settings: it has a start only given a date, a start time and a speed."""
+        date, time, speed = settings.date, settings.start, settings.speed_kmh
         start = dt.datetime.combine(date, time) if date and time and speed > 0 else None
-        breaks = tuple(sorted((float(km), float(minutes)) for km, minutes in cfg.get("breaks", [])))
-        margins = float(cfg["margin_pct"]), float(cfg["margin_min"])
-        return cls(date, start, speed, *margins, float(cfg.get("climb_min_per_100m") or 0), breaks)
+        breaks = tuple(sorted(settings.breaks))
+        margins = settings.margin_pct, settings.margin_min
+        return cls(date, start, speed, *margins, settings.climb_min_per_100m, breaks)
 
     def riding_h(self, km_from: float, km_to: float, gain: Gain = _flat) -> float | None:
         """Hours riding from one km to another at the ride's speed, its climbing included, the breaks not; None without

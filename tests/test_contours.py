@@ -3,6 +3,7 @@ import math
 import re
 import struct
 import zlib
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -12,7 +13,7 @@ from typer.testing import CliRunner
 
 from roadbook import settings as st
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.contours import (
     LABEL_GAP,
     SIDE,
@@ -270,7 +271,7 @@ def test_the_index_lines_bear_their_heights_clear_of_the_route_and_labels(terrai
     track = _track(100)
     m = _map(track)
     terrain.map = m
-    report = add(m, load_config()["map"])
+    report = add(m, Settings.of(load_config()).map)
     assert report is not None
     assert report.made_from == [MADE_FROM]
     ((name, asked, max_age, offline),) = terrain.asked
@@ -293,10 +294,10 @@ def test_the_index_lines_bear_their_heights_clear_of_the_route_and_labels(terrai
 
 
 def test_no_contour_lines_unless_asked_nor_on_the_topo_style(terrain: FakeTerrain) -> None:
-    cfg = load_config()["map"]
+    cfg = Settings.of(load_config()).map
     m = _map(_track(100))
     terrain.map = m
-    assert add(m, cfg | {"contours": False}) is None
+    assert add(m, replace(cfg, contours=False)) is None
     assert add(_map(_track(100), style="topo"), cfg) is None  # it has its own
     assert terrain.asked == []
     book = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)

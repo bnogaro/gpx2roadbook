@@ -1,3 +1,4 @@
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
@@ -7,11 +8,12 @@ from typer.testing import CliRunner
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.climbs import find_climbs
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.model import Track
 from roadbook.profile import Profile
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
+CLIMBS = Settings.of(load_config()).climbs
 
 
 def _profile(*legs: tuple[float, float]) -> Profile:
@@ -27,7 +29,7 @@ def _profile(*legs: tuple[float, float]) -> Profile:
 
 
 def _climbs(*legs: tuple[float, float]) -> list[tuple[float, float]]:
-    return [(c.start_km, c.end_km) for c in find_climbs(_profile(*legs), load_config()["climbs"])]
+    return [(c.start_km, c.end_km) for c in find_climbs(_profile(*legs), CLIMBS)]
 
 
 def test_a_short_shallow_dip_merges_two_climbs() -> None:
@@ -58,7 +60,7 @@ def test_a_false_flat_is_not_merged_into_the_climb_it_leads_to() -> None:
 
 
 def test_merged_stats_run_from_foot_to_final_top() -> None:
-    (climb,) = find_climbs(_profile((2000, 100), (400, -20), (1500, 90)), load_config()["climbs"])
+    (climb,) = find_climbs(_profile((2000, 100), (400, -20), (1500, 90)), CLIMBS)
     # net gain, not the 190 m of summed ascents, and the grade that goes with it over the whole span
     assert climb.gain_m == pytest.approx(170, abs=4)
     assert climb.avg_grade == pytest.approx(climb.gain_m / (climb.length_km * 10))
@@ -69,7 +71,9 @@ def test_merged_stats_run_from_foot_to_final_top() -> None:
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_ubf_merges_the_climb_split_at_km_114_only() -> None:
-    climbs = [(round(c.start_km, 1), round(c.end_km, 1), c.label) for c in build(HILLY, load_config()).climbs]
+    climbs = [
+        (round(c.start_km, 1), round(c.end_km, 1), c.label) for c in build(HILLY, Settings.of(load_config())).climbs
+    ]
     assert (111.5, 116.2, "3") in climbs
     assert not [c for c in climbs if 111.5 < c[0] < 116.2]
     # 1.6 km and 134 m apart: two climbs
@@ -77,10 +81,10 @@ def test_ubf_merges_the_climb_split_at_km_114_only() -> None:
 
 
 def test_an_ascent_under_min_gain_is_no_climb() -> None:
-    climbs = load_config()["climbs"]
+    climbs = CLIMBS
     bump = _profile((1000, 60))  # 6% but only 60 m: under the 80 m default
     assert find_climbs(bump, climbs) == []
-    assert len(find_climbs(bump, {**climbs, "min_gain_m": 30})) == 1
+    assert len(find_climbs(bump, replace(climbs, min_gain_m=30))) == 1
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")

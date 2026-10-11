@@ -20,6 +20,7 @@ from .osm import http as _http
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from .config import ClimbPagesSettings
     from .model import ClimbPage, Track
     from .osm import Http
 
@@ -78,20 +79,20 @@ def _key(page: ClimbPage, track: Track, near_m: float) -> str:
 def lookup(  # noqa: PLR0913  the network's seams for the tests, and offline, come on top of what to look up
     pages: list[ClimbPage],
     track: Track,
-    cfg: dict[str, Any],
+    settings: ClimbPagesSettings,
     max_age_days: float,
     *,
     cache_path: Path | None = None,
     http: Http = _http,
     offline: bool = False,
 ) -> Report:
-    """Set `places` on each climb page: the named places within `cfg["place_m"]` of the road up.
+    """Set `places` on each climb page: the named places within `settings.place_m` of the road up.
 
     Never raises for a network problem: climbs left unanswered get no places, and the report says so. Offline, only
     the cache answers, whatever the age of its answers, and the report counts the climbs it leaves unasked.
     """
     started = time.perf_counter()
-    near_m = float(cfg["place_m"])
+    near_m = settings.place_m
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, None if offline else max_age_days, "places")
     report = Report(asked=len(pages))
     todo: list[ClimbPage] = []

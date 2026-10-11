@@ -24,6 +24,7 @@ from .tiles import SOURCES, TERRAIN
 from .tiles import fetch as fetch_tiles
 
 if TYPE_CHECKING:
+    from .config import MapSettings
     from .osm import Report
     from .routemap import Placer, RouteMap
     from .tiles import Key
@@ -122,12 +123,12 @@ class Grid:
     step: float
 
 
-def add(m: RouteMap, cfg: dict[str, Any], *, offline: bool = False) -> Report | None:
-    """Fetch the terrain under `m` for its contour lines, if `cfg` (the map's settings) asks for them: not on the topo
+def add(m: RouteMap, settings: MapSettings, *, offline: bool = False) -> Report | None:
+    """Fetch the terrain under `m` for its contour lines, if the map's `settings` ask for them: not on the topo
     style, which has its own. The report of its tiles; None without contour lines."""
-    if not cfg["contours"] or m.style == "topo":
+    if not settings.contours or m.style == "topo":
         return None
-    m.terrain, report = fetch_tiles(TERRAIN, keys(m), cfg["max_age_days"], offline=offline)
+    m.terrain, report = fetch_tiles(TERRAIN, keys(m), settings.max_age_days, offline=offline)
     return report
 
 

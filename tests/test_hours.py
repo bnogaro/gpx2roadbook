@@ -1,16 +1,17 @@
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
 import pytest
 
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.hours import Place, _kind, lookup, match
 from roadbook.model import Poi
 from roadbook.osm import NOMINATIM, OVERPASS
 from roadbook.render import pretty_hours
 
 LAT, LON = 42.912725, 0.6478569  # Intermarché Super, km 0.2 of entrainement_ubf.gpx
-CFG = load_config()["hours"]
+CFG = Settings.of(load_config()).hours
 
 OVERPASS_ANSWER = {
     "elements": [
@@ -68,7 +69,7 @@ class FakeHttp:
 
 
 def _lookup(pois: list[Poi], tmp_path: Path, http: FakeHttp, **cfg: Any) -> Any:  # noqa: ANN401
-    return lookup(pois, {**CFG, **cfg}, cache_path=tmp_path / "cache.json", http=http, sleep=lambda _: None)
+    return lookup(pois, replace(CFG, **cfg), cache_path=tmp_path / "cache.json", http=http, sleep=lambda _: None)
 
 
 def test_match_picks_the_closest_name_within_reach() -> None:
@@ -84,7 +85,7 @@ def test_match_picks_the_closest_name_within_reach() -> None:
 def test_match_skips_a_place_of_another_kind() -> None:
     # Netto at km 178.4 of entrainement_ubf.gpx: OSM has hours for its petrol station, not for the supermarket
     station = Place("way/153000714", "Netto", LAT, LON, "24/7", "amenity=fuel")
-    kinds = CFG["kinds"]
+    kinds = CFG.kinds
     assert match(_poi("Netto"), [station], 80, kinds["grocery"]) is None
     assert match(_poi("Netto", "fuel"), [station], 80, kinds["fuel"]) == station
     assert match(_poi("Netto"), [station], 80) == station  # a category without kinds takes any place
@@ -144,7 +145,7 @@ def test_offline_only_the_cache_answers_whatever_its_age(tmp_path: Path) -> None
     _lookup([_poi()], tmp_path, FakeHttp())
     http = FakeHttp()
     known, unasked = _poi(), _poi("Boulangerie Dupont", "bakery", lat=LAT + 0.01)
-    cfg = {**CFG, "max_age_days": 0}
+    cfg = replace(CFG, max_age_days=0)
     report = lookup([known, unasked], cfg, cache_path=tmp_path / "cache.json", http=http, offline=True)
     assert (known.opening_hours, unasked.opening_hours) == ("Mo-Sa 09:00-19:30", None)
     assert (report.cached, report.unasked, report.failed, http.urls) == (1, 1, False, [])

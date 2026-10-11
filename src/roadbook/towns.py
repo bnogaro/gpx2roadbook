@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
+    from .config import TownsSettings
     from .model import Poi
     from .osm import Http
 
@@ -29,7 +30,7 @@ ADDRESS_KEYS = ("city", "town", "village")
 CACHE_VERSION = 1
 
 
-def busy(stops: list[Stop], cfg: dict[str, Any]) -> list[Stop]:
+def busy(stops: list[Stop], settings: TownsSettings) -> list[Stop]:
     """The stops likely in a town or village: not a fountain, a cemetery tap or a lone bakery.
 
     That is `min_pois` POIs or more, or `shop_min_pois` when one of them is a village shop (`shops`: a bakery, a
@@ -38,8 +39,8 @@ def busy(stops: list[Stop], cfg: dict[str, Any]) -> list[Stop]:
     return [
         s
         for s in stops
-        if len(s.pois) >= cfg["min_pois"]
-        or (len(s.pois) >= cfg["shop_min_pois"] and any(p.category in cfg["shops"] for p in s.pois))
+        if len(s.pois) >= settings.min_pois
+        or (len(s.pois) >= settings.shop_min_pois and any(p.category in settings.shops for p in s.pois))
     ]
 
 
@@ -95,7 +96,7 @@ def group(stops: list[Stop], within_km: float) -> list[Stop]:
 
 def lookup(
     stops: list[Stop],
-    cfg: dict[str, Any],
+    settings: TownsSettings,
     *,
     cache_path: Path | None = None,
     http: Http = _http,
@@ -108,9 +109,9 @@ def lookup(
     the cache answers, whatever the age of its answers, and the report counts the stops it leaves unasked.
     """
     started = time.perf_counter()
-    wanted = busy(stops, cfg)
+    wanted = busy(stops, settings)
     log.info("Towns: %d busy stops to name", len(wanted))
-    max_age = None if offline else cfg["max_age_days"]
+    max_age = None if offline else settings.max_age_days
     cache = JsonCache(cache_path or default_cache_path(), CACHE_VERSION, max_age, field="town")
     report = Report(asked=len(wanted))
     todo: list[Stop] = []
@@ -135,9 +136,9 @@ def lookup(
         log.info("Towns: %d cached; asking Nominatim about the other %d, one a second", report.cached, len(todo))
     report.failed = one_by_one(todo, lambda s: _reverse(centre(s), http, sleep), answer)
     edges = 0
-    if cfg["group_km"] and cfg["edge_km"] and not report.failed:  # grouped, a town also takes its edges' stops
+    if settings.group_km and settings.edge_km and not report.failed:  # grouped, a town also takes its edges' stops
         ask = None if offline else lambda p: _reverse(p, http, sleep)
-        edges = _ask_edges(stops, cfg["edge_km"], cache, ask, report)
+        edges = _ask_edges(stops, settings.edge_km, cache, ask, report)
     cache.save()
     report.found = sum(1 for s in wanted if s.town)
     if todo or edges or report.failed:

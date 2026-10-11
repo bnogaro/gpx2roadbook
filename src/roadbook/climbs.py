@@ -1,45 +1,48 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .model import Climb
 
 if TYPE_CHECKING:
     import numpy as np
 
+    from .config import ClimbsSettings
     from .profile import Profile
 
 
-def _label(score: float, categories: list[list]) -> str:
+def _label(score: float, categories: tuple[tuple[str, float], ...]) -> str:
     for name, threshold in categories:  # sorted from hardest to easiest
         if score >= threshold:
-            return str(name)
+            return name
     return ""
 
 
-def _is_steep(e: np.ndarray, x: np.ndarray, span: tuple[int, int], cfg: dict[str, Any]) -> bool:
-    return e[span[1]] - e[span[0]] >= (x[span[1]] - x[span[0]]) * cfg["min_grade_pct"] / 100
+def _is_steep(e: np.ndarray, x: np.ndarray, span: tuple[int, int], settings: ClimbsSettings) -> bool:
+    return e[span[1]] - e[span[0]] >= (x[span[1]] - x[span[0]]) * settings.min_grade_pct / 100
 
 
-def _is_climb(e: np.ndarray, x: np.ndarray, span: tuple[int, int], cfg: dict[str, Any]) -> bool:
+def _is_climb(e: np.ndarray, x: np.ndarray, span: tuple[int, int], settings: ClimbsSettings) -> bool:
     gain, length = e[span[1]] - e[span[0]], x[span[1]] - x[span[0]]
-    return gain >= cfg["min_gain_m"] and length >= cfg["min_length_m"] and _is_steep(e, x, span, cfg)
+    return gain >= settings.min_gain_m and length >= settings.min_length_m and _is_steep(e, x, span, settings)
 
 
-def _merge(ups: list[tuple[int, int]], e: np.ndarray, x: np.ndarray, cfg: dict[str, Any]) -> list[tuple[int, int]]:
+def _merge(ups: list[tuple[int, int]], e: np.ndarray, x: np.ndarray, settings: ClimbsSettings) -> list[tuple[int, int]]:
     """Join ascents a rider would call one climb: a short break with a shallow dip, in metres or next to the climbs."""
 
     def joins(a: tuple[int, int], b: tuple[int, int]) -> bool:
         gap, dip = x[b[0]] - x[a[1]], e[a[1]] - e[b[0]]
-        if gap > cfg["merge_gap_m"]:
+        if gap > settings.merge_gap_m:
             return False
-        if dip <= cfg["merge_dip_m"]:
+        if dip <= settings.merge_dip_m:
             return True
         # the relative dip only joins two sides steep enough to climb: a long false flat before a col (UBF km 60-72,
         # 1.6%) would otherwise swallow it and turn "13.8 km at 6.4%" into "25.9 km at 4.1%". Steepness, not
         # min_gain_m: a short steep ramp between two climbs is part of them even if it is no climb on its own
         smaller = min(e[a[1]] - e[a[0]], e[b[1]] - e[b[0]])
-        return dip <= cfg["merge_dip_ratio"] * smaller and _is_steep(e, x, a, cfg) and _is_steep(e, x, b, cfg)
+        return (
+            dip <= settings.merge_dip_ratio * smaller and _is_steep(e, x, a, settings) and _is_steep(e, x, b, settings)
+        )
 
     merged: list[tuple[int, int]] = []
     for up in ups:
@@ -50,14 +53,14 @@ def _merge(ups: list[tuple[int, int]], e: np.ndarray, x: np.ndarray, cfg: dict[s
     return merged
 
 
-def find_climbs(profile: Profile, cfg: dict[str, Any]) -> list[Climb]:
+def find_climbs(profile: Profile, settings: ClimbsSettings) -> list[Climb]:
     e, x, t = profile.e, profile.x, profile.turns
     ups = [(t[k], t[k + 1]) for k in range(len(t) - 1) if e[t[k + 1]] > e[t[k]]]
 
     win = max(1, int(200 / profile.step))
     climbs = []
-    for i0, i1 in _merge(ups, e, x, cfg):
-        if not _is_climb(e, x, (i0, i1), cfg):
+    for i0, i1 in _merge(ups, e, x, settings):
+        if not _is_climb(e, x, (i0, i1), settings):
             continue
         # a merged climb reads like any other, foot to final top: net gain (top - foot), not the summed ascents, so
         # "4.6 km at 4.6%" is what the signposts and the gutter's line say; the dips stay in the length, so they
@@ -74,7 +77,7 @@ def find_climbs(profile: Profile, cfg: dict[str, Any]) -> list[Climb]:
                 gain_m=gain,
                 avg_grade=grade,
                 max_grade=max(peak, grade),
-                label=_label(length * grade, cfg["categories"]),
+                label=_label(length * grade, settings.categories),
             )
         )
     return climbs

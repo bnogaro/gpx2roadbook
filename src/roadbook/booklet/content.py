@@ -27,6 +27,7 @@ from roadbook.svg import grade_colour
 if TYPE_CHECKING:
     import datetime as dt
 
+    from roadbook.config import Settings
     from roadbook.imposition import Format
     from roadbook.model import Climb, Poi, Roadbook, Stop
 
@@ -240,15 +241,16 @@ class Block:
 class Content:
     """What the booklet of a road book says, in a format: its blocks, and the warnings its cover lists too."""
 
-    def __init__(self, book: Roadbook, cfg: dict[str, Any], f: Format) -> None:
-        self.book, self.cfg, self.f = book, cfg, f
-        self.b = cfg["booklet"]
-        self.categories: dict[str, Any] = cfg["categories"]
-        self.grades = tuple((float(s), str(c)) for s, c in cfg["climbs"]["grade_colours"])
+    def __init__(self, book: Roadbook, settings: Settings, f: Format) -> None:
+        self.book, self.f = book, f
+        self.b = settings.booklet
+        self.range_m = settings.render.stop_range_m  # a stop stretching at least this far shows where it ends
+        self.categories = settings.categories
+        self.grades = settings.climbs.grade_colours
         self.ride = book.ride or Ride()
         self.clock = Clock(book)
         self.width = f.body[0] - f.km_col  # the lines right of the km column
-        self.hours_for = set(cfg["hours"]["categories"]) if book.hours is not None else set()
+        self.hours_for = set(settings.hours.categories) if book.hours is not None else set()
         self.warnings = self.gaps()  # on their pages, and on the cover
 
     def blocks(self) -> list[Block]:
@@ -293,7 +295,7 @@ class Content:
         and places on the right."""
         eta = eta_text(s.window, self.ride.date) if s.window else ""
         head = Town(s.town or "", eta, self.clock.dark(s.km)) if s.town or eta else None
-        spans = s.km_end - s.km >= self.cfg["render"]["stop_range_m"] / 1000
+        spans = s.km_end - s.km >= self.range_m / 1000
         left = [
             f"{s.km:.1f}",
             f"+{s.km - after:.1f}" if after is not None else "",
@@ -313,7 +315,7 @@ class Content:
         """A stop's places, kind by kind in the categories' order: water and toilets counted, the nearest named;
         each shop on its line, the nearest first, at most `max_per_kind` of a kind; those closed when the rider
         passes after all the others."""
-        counted, most = set(self.b["counted"]), int(self.b["max_per_kind"])
+        counted, most = set(self.b.counted), self.b.max_per_kind
         day = s.window.early.date() if s.window else self.ride.date
         by_kind: dict[str, list[Poi]] = {}
         for p in s.pois:
@@ -324,7 +326,7 @@ class Content:
             pois = sorted(by_kind.get(kind, []), key=lambda p: p.offset_m)
             if not pois:
                 continue
-            emoji = self.categories[kind]["emoji"]
+            emoji = self.categories[kind].emoji
             if kind in counted:
                 near = pois[0]
                 shown.append(Count(emoji, len(pois), near.name or near.type, where(near)))
@@ -372,7 +374,7 @@ class Content:
         """Whether a stop has a place of `kinds` the rider may use: not one known to be closed when passing, nor at
         night a shop not known to be open (water and toilets, the counted kinds, are there at night too)."""
         dark = self.clock.dark(s.km)
-        counted = set(self.b["counted"])
+        counted = set(self.b.counted)
         for p in s.pois:
             state = p.verdict.state if p.verdict else None
             if p.category not in kinds or state == "closed":
@@ -394,11 +396,14 @@ class Content:
             return b - a if hours is None else hours
 
         found: dict[tuple[float, float], list[str]] = {}
-        for kind in ("water", "food"):
-            limit = float(self.b[f"{kind}_gap_{'h' if paced else 'km'}"])
+        warn = self.b
+        for kind, limit, supplied in (
+            ("water", warn.water_gap_h if paced else warn.water_gap_km, warn.water),
+            ("food", warn.food_gap_h if paced else warn.food_gap_km, warn.food),
+        ):
             if limit <= 0:
                 continue
-            kinds = set(self.b[kind])
+            kinds = set(supplied)
             at = [0.0, *(s.km for s in self.book.stops if self.supplies(s, kinds)), self.book.length_km]
             for a, b in itertools.pairwise(at):
                 if long(a, b) >= limit:

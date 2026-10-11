@@ -28,6 +28,7 @@ from .towns import lookup as name_towns
 if TYPE_CHECKING:
     from pathlib import Path
 
+    from .config import CheckpointsSettings, Settings
     from .model import ClimbPage, Track
     from .osm import Report
     from .routemap import RouteMap
@@ -35,15 +36,15 @@ if TYPE_CHECKING:
 log = logging.getLogger(__name__)
 
 
-def _checkpoints(length_km: float, cfg: dict[str, Any]) -> list[tuple[float, str]]:
+def _checkpoints(length_km: float, settings: CheckpointsSettings) -> list[tuple[float, str]]:
     cps: list[tuple[float, str]] = []
-    every = cfg["every_km"]
+    every = settings.every_km
     if every and every > 0:
         k = every
         while k < length_km - every / 4:  # skip one that would sit right on the finish
             cps.append((float(k), ""))
             k += every
-    cps += [(float(km), str(label)) for km, label in cfg["extra"]]
+    cps += settings.extra
     return sorted(cps)
 
 
@@ -89,13 +90,13 @@ def _judge(stops: list[Stop], ride: Ride, profile: Profile) -> None:
                 log.debug("km %.1f %s, there %s: %s", s.km, p.name or p.type, when, v)
 
 
-def _explain_left_out(pois: list[Poi], cfg: dict[str, Any]) -> None:
+def _explain_left_out(pois: list[Poi], shown: tuple[str, ...]) -> None:
     """Why the file's POIs that are not in the road book were left out: -v counts them, -vv names each."""
     left: list[tuple[str, str, Poi]] = []  # why, in a count of them; the detail for this one; the POI
     for p in pois:
         if p.category is None:
             left.append(("match no category", f"no category for type {p.type!r}", p))
-        elif p.category not in cfg["enabled"]:
+        elif p.category not in shown:
             left.append(("are in categories not shown", f"category {p.category} not shown", p))
     if left:
         counts = Counter(why for why, _, _ in left)
@@ -126,92 +127,95 @@ def _log_climbs(climbs: list[Climb], min_gain_m: float) -> None:
 
 
 def _climb_pages(
-    climbs: list[Climb], stops: list[Stop], profile: Profile, track: Track, cfg: dict[str, Any], *, offline: bool
+    climbs: list[Climb], stops: list[Stop], profile: Profile, track: Track, settings: Settings, *, offline: bool
 ) -> tuple[list[ClimbPage], Report | None]:
     """The climb pages, if asked for, and the places on their climbs' roads when town names are on."""
-    if not cfg["climb_pages"]["enabled"]:
+    asked = settings.climb_pages
+    if not asked.enabled:
         return [], None
-    c = cfg["climbs"]
-    made = climb_pages(climbs, stops, profile, cfg["climb_pages"], c["categories"], c["snap_m"])
-    if not (made and cfg["towns"]["enabled"]):
+    c = settings.climbs
+    made = climb_pages(climbs, stops, profile, asked, c.categories, c.snap_m)
+    if not (made and settings.towns.enabled):
         return made, None
-    return made, find_places(made, track, cfg["climb_pages"], cfg["towns"]["max_age_days"], offline=offline)
+    return made, find_places(made, track, asked, settings.towns.max_age_days, offline=offline)
 
 
 def _route_map(
-    track: Track, cfg: dict[str, Any], *, offline: bool
+    track: Track, settings: Settings, *, offline: bool
 ) -> tuple[RouteMap | None, Report | None, Report | None]:
     """The map page, if asked for, with the tiles it could have, and the terrain of its contour lines; the reports
     of both. It goes across the booklet's centre spread, or on a page of the road book's size without one."""
-    if not cfg["map"]["enabled"]:
+    asked = settings.map
+    if not asked.enabled:
         return None, None, None
-    if f := booklet_format(cfg):
+    if f := booklet_format(settings.booklet.format):
         width, height = f.spread  # landscape whatever the route: given upright, turned
-        m, tiles = make_map(track, cfg["map"], (height, width), landscape=True, turn=False, offline=offline)
+        m, tiles = make_map(track, asked, (height, width), landscape=True, turn=False, offline=offline)
     else:
-        area, landscape = printable_area(cfg["render"]["page"]), cfg["render"]["layout"] == "line"  # as the others
-        m, tiles = make_map(track, cfg["map"], area, landscape=landscape, offline=offline)
-    return m, tiles, add_contours(m, cfg["map"], offline=offline)
+        area, landscape = printable_area(settings.render.page), settings.render.layout == "line"  # as the others
+        m, tiles = make_map(track, asked, area, landscape=landscape, offline=offline)
+    return m, tiles, add_contours(m, asked, offline=offline)
 
 
-def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Roadbook:
-    """The road book of `gpx_path` with the settings `cfg`. Offline, the OpenStreetMap lookups only read their cache:
+def build(gpx_path: Path, settings: Settings, *, offline: bool = False) -> Roadbook:
+    """The road book of `gpx_path` with the `settings`. Offline, the OpenStreetMap lookups only read their cache:
     a preview, quick and quiet on the network; their reports count what they left unasked."""
     track, pois = read_gpx(gpx_path)
     log.info("Read %s: %d track points, %d waypoints", gpx_path.name, len(track.dist), len(pois))
-    profile = Profile(track, **cfg["elevation"])
+    e = settings.elevation
+    profile = Profile(track, e.step_m, e.smooth_m, e.swing_m)
     length = track.length_km
 
     snap_pois(track, pois)
-    classify(pois, cfg["categories"])
-    kept = filter_pois(pois, cfg["pois"]["enabled"])
-    _explain_left_out(pois, cfg["pois"])
-    gap_m = cfg["stops"]["gap_m"]
-    span_m = cfg["stops"]["max_span_m"] or 3 * gap_m
+    classify(pois, settings.categories)
+    kept = filter_pois(pois, settings.pois.enabled)
+    _explain_left_out(pois, settings.pois.enabled)
+    gap_m = settings.stops.gap_m
+    span_m = settings.stops.max_span_m or 3 * gap_m
     stops = cluster(kept, gap_m, span_m)
     _log_stops(stops, len(kept), gap_m, span_m)
-    climbs = find_climbs(profile, cfg["climbs"])
-    _log_climbs(climbs, cfg["climbs"]["min_gain_m"])
-    ride = Ride.from_cfg(cfg["ride"])
-    if ride.start is None and (cfg["ride"]["start"] or cfg["ride"]["speed_kmh"]):  # a slip that would go unnoticed
+    climbs = find_climbs(profile, settings.climbs)
+    _log_climbs(climbs, settings.climbs.min_gain_m)
+    ride = Ride.of(settings.ride)
+    if ride.start is None and (settings.ride.start or settings.ride.speed_kmh):  # a slip that would go unnoticed
         log.warning("No arrival times: they need a ride date, a start time and a speed (--date, --start, --speed).")
     # hours show on the reference sheet or in the booklet, and on the strip with an arrival estimate: else don't
     # spend minutes on them
-    sheet = cfg["render"]["details"] or booklet_format(cfg) is not None
-    wanted = cfg["hours"]["enabled"] and (sheet or ride.start is not None)
-    hours = find_hours(kept, cfg["hours"], offline=offline) if wanted else None
+    sheet = settings.render.details or booklet_format(settings.booklet.format) is not None
+    wanted = settings.hours.enabled and (sheet or ride.start is not None)
+    hours = find_hours(kept, settings.hours, offline=offline) if wanted else None
     # names go above rows on the strip, on the reference sheet and in the booklet; a ribbon has no room for them
-    named = cfg["render"]["layout"] == "strip" or sheet
-    towns = name_towns(stops, cfg["towns"], offline=offline) if named and cfg["towns"]["enabled"] else None
+    named = settings.render.layout == "strip" or sheet
+    towns = name_towns(stops, settings.towns, offline=offline) if named and settings.towns.enabled else None
     if towns is not None:  # a town's stops make one, so judged on arrival as one
-        stops = group_by_town(stops, cfg["towns"]["group_km"])
+        stops = group_by_town(stops, settings.towns.group_km)
     _judge(stops, ride, profile)
     climb_names = (
-        name_climbs(climbs, track, cfg["climb_names"], offline=offline)
-        if (named or cfg["climb_pages"]["enabled"]) and cfg["climb_names"]["enabled"]  # each page is titled by it
+        name_climbs(climbs, track, settings.climb_names, offline=offline)
+        if (named or settings.climb_pages.enabled) and settings.climb_names.enabled  # each page is titled by it
         else None
     )
-    pages, places = _climb_pages(climbs, stops, profile, track, cfg, offline=offline)
-    route_map, tiles, terrain = _route_map(track, cfg, offline=offline)
+    pages, places = _climb_pages(climbs, stops, profile, track, settings, offline=offline)
+    route_map, tiles, terrain = _route_map(track, settings, offline=offline)
 
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
 
     items = [item("start", 0.0, label="START")]
-    for i, (km, label) in enumerate(_checkpoints(length, cfg["checkpoints"]), 1):
+    for i, (km, label) in enumerate(_checkpoints(length, settings.checkpoints), 1):
         items.append(item("checkpoint", km, label=label or f"CP{i}"))
-    snapped = _snap_to_climbs(stops, climbs, cfg["climbs"]["snap_m"])
+    snapped = _snap_to_climbs(stops, climbs, settings.climbs.snap_m)
     absorbed = {id(s) for s in snapped.values()}
 
     def stop_kw(s: Stop | None) -> dict[str, Any]:
-        return {"stop": s, "emojis": emoji_counts(s, cfg["categories"])} if s else {}
+        return {"stop": s, "emojis": emoji_counts(s, settings.categories)} if s else {}
 
     items.extend(item("stop", s.km, **stop_kw(s)) for s in stops if id(s) not in absorbed)
     for i, c in enumerate(climbs):
         items.append(item("climb", c.start_km, climb=c, label=c.label, **stop_kw(snapped.get((i, "foot")))))
         # the gutter already shows every summit: by default a row is only worth its space when a stop sits there
         top = snapped.get((i, "summit"))
-        if top or cfg["climbs"]["summit_rows"]:
+        if top or settings.climbs.summit_rows:
             items.append(item("summit", c.end_km, climb=c, **stop_kw(top)))
     items.append(item("finish", length, label="FINISH"))
     items.sort(key=lambda it: (it.km, KINDS[it.kind].rank))
@@ -242,7 +246,7 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         terrain=terrain,
     )
     # the booklet's spreads are known once the book is: their mini-maps come last, their tiles counted with the map's
-    book.minimaps, sections = minimaps(book, cfg, offline=offline)
+    book.minimaps, sections = minimaps(book, settings, offline=offline)
     if book.tiles is not None and sections is not None:
         book.tiles.add(sections)
     return book

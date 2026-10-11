@@ -18,7 +18,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -30,6 +30,7 @@ from .content import Block, Clock, Content, duration, svg_height, text_mm, where
 from .layout import Booklet, MapRightPage, Page, Spread
 
 if TYPE_CHECKING:
+    from roadbook.config import Settings
     from roadbook.model import Roadbook
     from roadbook.routemap import RouteMap
 
@@ -60,12 +61,12 @@ class Placed:
     page: Page
 
 
-def render_booklet(book: Roadbook, cfg: dict[str, Any]) -> str | None:
+def render_booklet(book: Roadbook, settings: Settings) -> str | None:
     """The booklet's HTML: its pages imposed on A4 sides to print, in reading order on screen; None without one."""
-    f = chosen(cfg)
+    f = chosen(settings.booklet.format)
     if f is None:
         return None
-    pages = Booklet(book, cfg, f).pages()
+    pages = Booklet(book, settings, f).pages()
     printed = [
         [
             Placed(slot.x, slot.y, pages[slot.page])
@@ -82,18 +83,18 @@ def render_booklet(book: Roadbook, cfg: dict[str, Any]) -> str | None:
 
 
 def minimaps(
-    book: Roadbook, cfg: dict[str, Any], *, offline: bool = False
+    book: Roadbook, settings: Settings, *, offline: bool = False
 ) -> tuple[dict[tuple[float, float], RouteMap], Report | None]:
     """The mini-maps of the booklet's spreads that get one, by their stretch, with their tiles, and how those were
     had; none without a booklet or a map."""
-    f = chosen(cfg)
+    f = chosen(settings.booklet.format)
     if f is None or book.route_map is None or book.track is None:
         return {}, None
     made: dict[tuple[float, float], RouteMap] = {}
     report = Report()
-    for sp in Booklet(book, cfg, f).spreads():
+    for sp in Booklet(book, settings, f).spreads():
         if sp.mapped:
-            made[sp.km], got = section(book.track, cfg["map"], (f.body[0], f.minimap), sp.km, offline=offline)
+            made[sp.km], got = section(book.track, settings.map, (f.body[0], f.minimap), sp.km, offline=offline)
             report.add(got)
     log.info("Booklet: %d mini-maps, %d tiles", len(made), report.asked)
     return made, report

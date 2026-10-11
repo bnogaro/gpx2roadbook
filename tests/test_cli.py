@@ -1,7 +1,6 @@
 import subprocess
 from importlib.metadata import version
 from pathlib import Path
-from typing import Any
 
 import pytest
 import typer
@@ -9,6 +8,7 @@ from typer.testing import CliRunner
 
 from roadbook import api
 from roadbook.cli import _echo_lookup, app
+from roadbook.config import Settings
 from roadbook.osm import Report
 
 FLAT = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -65,15 +65,16 @@ def test_a_lookup_with_nothing_to_look_up_says_nothing(capsys: pytest.CaptureFix
 def test_refresh_looks_every_cached_answer_up_again(
     flags: list[str], ages: list[int], monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    used: dict[str, Any] = {}
+    used: list[Settings] = []
 
-    def build(_gpx: Path, cfg: dict[str, Any]) -> None:
-        used.update(cfg)
+    def build(_gpx: Path, settings: Settings) -> None:
+        used.append(settings)
         raise typer.Exit  # the settings are all this test needs
 
     monkeypatch.setattr(api, "build", build)
     assert CliRunner().invoke(app, [str(FLAT), *flags]).exit_code == 0
-    assert [used[s]["max_age_days"] for s in ("hours", "towns", "climb_names")] == ages
+    (s,) = used
+    assert [s.hours.max_age_days, s.towns.max_age_days, s.climb_names.max_age_days] == ages
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
