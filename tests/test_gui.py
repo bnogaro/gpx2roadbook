@@ -101,6 +101,21 @@ async def test_picking_a_gpx_and_making_the_road_book(user: User, tmp_path: Path
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+async def test_the_run_s_log_says_each_step_once_while_the_preview_builds_too(user: User, tmp_path: Path) -> None:
+    gpx = tmp_path / "ride.gpx"
+    shutil.copy(FLAT, gpx)
+    await user.open("/")
+    user.find(marker="gpx").type(str(gpx))
+    user.find(marker="make").click()  # at once: the preview of the new GPX builds while the road book is made
+    await user.should_see(marker="wrote", retries=80)
+    await user.should_see(marker="preview-frame", retries=50)
+    log = next(iter(user.find(kind=ui.log).elements))
+    lines = [line.text for line in log.default_slot.children]  # ty: ignore[unresolved-attribute]  # its labels
+    assert lines.count("Read ride.gpx: 4304 track points, 690 waypoints") == 1
+    assert len(lines) == len(set(lines))
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
 async def test_the_preview_follows_the_settings_from_the_cache_only(
     user: User, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

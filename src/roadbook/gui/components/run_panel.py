@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
 import webbrowser
 from collections import deque
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from nicegui import run, ui
 
@@ -29,14 +30,20 @@ LOOKUPS = (  # what the summary says of each OpenStreetMap lookup, as the CLI do
 
 
 class _Queue(logging.Handler):
-    """The run's log, kept for the page: the run logs from a worker thread, and the page's timer shows it."""
+    """The run's log, kept for the page: the run logs from a worker thread, and the page's timer shows it.
+
+    Only the run's own: a preview built meanwhile, on a thread of its own, logs its steps too.
+    """
 
     def __init__(self) -> None:
         super().__init__(logging.INFO)
         self.lines: deque[str] = deque()
+        self.thread: int | None = None  # the run's, once it starts
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        if record.thread != self.thread:
+            return
         indent = "    " if record.name == "roadbook.http" else "  " if record.levelno < logging.INFO else ""
         self.lines.append(indent + record.getMessage())
 
@@ -113,7 +120,7 @@ class RunPanel:
         logger.addHandler(self.queue)
         try:
             out = Path(self.form.out) if self.form.out else None
-            result = await run.io_bound(make_road_book, gpx, self.form.settings(), out=out, pdf=self.form.pdf)
+            result = await run.io_bound(self._run, gpx, self.form.settings(), out, pdf=self.form.pdf)
         except GpxError as exc:
             ui.notify(str(exc), type="negative", multi_line=True)
             return
@@ -124,6 +131,11 @@ class RunPanel:
             self.show_log()
         if result is not None:  # None: the app is shutting down
             self.done(result)
+
+    def _run(self, gpx: Path, cfg: dict[str, Any], out: Path | None, *, pdf: bool) -> Result:
+        """The run, on its worker thread: its log is this thread's."""
+        self.queue.thread = threading.get_ident()
+        return make_road_book(gpx, cfg, out=out, pdf=pdf)
 
     def done(self, result: Result) -> None:
         self.result = result
