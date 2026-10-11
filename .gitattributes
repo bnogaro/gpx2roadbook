@@ -1,0 +1,2 @@
+# bash runs the hooks: a CRLF checkout would break them
+*.sh text eol=lf
