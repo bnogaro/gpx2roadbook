@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 class Format:
     """A booklet's page, the A4 side it is printed on, and what a page holds: all in mm, but the type, in points.
 
-    The template draws each line its set height, so what fits on a page is known here (booklet.py).
+    The template draws each line its set height, so what fits on a page is known here (roadbook.booklet.layout).
     """
 
     name: str
