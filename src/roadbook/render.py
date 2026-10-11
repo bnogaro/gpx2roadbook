@@ -6,10 +6,10 @@ import re
 import shutil
 import subprocess
 import time
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from importlib.metadata import version
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
@@ -289,7 +289,7 @@ class ShopHours:
     hours_class: str  # "oh" | "off" | "closed" | "write-in"
 
 
-def _shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
+def shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
     """A shop's hours on the reference sheet: those of `day` if given and readable, else the value as OSM gives it."""
     if not p.opening_hours:
         # a blank to write them in by hand, once checked elsewhere (the shop's site, a map app) before the ride
@@ -303,11 +303,6 @@ def _shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
         return ShopHours("", found.text, "closed")
     # judged closed or tight: the day's hours are only there to say when instead, so they step back
     return ShopHours(word, found.text, "off" if word else "oh")
-
-
-def shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
-    """_shop_hours() as a dict, with keys verdict, hours and hours_class: as the booklet reads it."""
-    return asdict(_shop_hours(p, day))
 
 
 def ride_title(book: Roadbook) -> str:
@@ -380,7 +375,7 @@ def _details(
             emoji = categories[poi_category(p)].emoji
             poi = PoiLine(p.name or p.type, round(p.offset_m))
             if book.hours is not None and p.category in hours_for:
-                h = _shop_hours(p, day)
+                h = shop_hours(p, day)
                 groups.append((emoji, [replace(poi, verdict=h.verdict, hours=h.hours, hours_class=h.hours_class)]))
             elif emoji in shared:
                 shared[emoji].append(poi)
@@ -442,17 +437,10 @@ def _climb_cards(
     book: Roadbook, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
 ) -> list[ClimbCard]:
     """One card per climb page: its title, and its profile with the places and stops on the way marked."""
-    return [_climb_card(page, categories, grades, width) for page in book.climb_pages]
+    return [climb_card(page, categories, grades, width) for page in book.climb_pages]
 
 
 def climb_card(
-    page: ClimbPage, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
-) -> dict[str, Any]:
-    """_climb_card() as a dict, with keys name, stats, km, grade and svg: as the booklet reads it."""
-    return asdict(_climb_card(page, categories, grades, width))
-
-
-def _climb_card(
     page: ClimbPage, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
 ) -> ClimbCard:
     c, order = page.climb, list(categories)

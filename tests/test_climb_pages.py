@@ -218,13 +218,13 @@ def test_a_card_draws_each_section_in_its_grade_colour_with_the_marks_above() ->
     assert "Col &lt;b&gt;" in svg
 
 
-def test_the_booklet_gets_a_climb_card_as_a_dict() -> None:
+def test_a_climb_card_for_the_booklet() -> None:
     climb = Climb(1.0, 4.0, 240.0, 8.0, 10.0, "1", name="Col du Test")
     page = ClimbPage(climb, sections(climb, _profile(_track())), [])
-    card = climb_card(page, load_config()["categories"], (), 190)
-    assert list(card) == ["name", "stats", "km", "grade", "svg"]
-    assert (card["name"], card["km"], card["grade"]) == ("Col du Test", "km 1.0 → 4.0", "")
-    assert "<svg" in card["svg"]
+    card = climb_card(page, Settings.of(load_config()).categories, (), 190)
+    assert (card.name, card.km, card.grade) == ("Col du Test", "km 1.0 → 4.0", "")
+    assert card.stats.startswith("Cat 1 · 3.0 km at 8.0 %")
+    assert "<svg" in card.svg
 
 
 def _size(svg: str) -> tuple[float, float]:

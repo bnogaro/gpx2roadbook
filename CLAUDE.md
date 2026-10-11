@@ -40,4 +40,5 @@ Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.p
 - Refactors must not change output: diff `api.preview(...)` HTML over `samples/*.gpx`, before and after, under several settings (defaults, A6, booklet off, hours with a speed, climb pages on, topo map).
 - A PR that changes a default strip's or the map's look regenerates `docs/img/strip-example.png` / `map.png`.
 - GUI work: read and follow the installed `nicegui/llms.md`.
+- A feature that changes `render.py` or `routemap.py` splits it first, in its own commit of that PR: #103, #104.
 - On Windows, `uv sync` fails while `roadbook-gui.exe` runs (the file is locked): use another env (`UV_PROJECT_ENVIRONMENT=…`) or `uv run --no-sync`.
