@@ -1,5 +1,6 @@
 import math
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from typer.testing import CliRunner
 from roadbook import settings as st
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import M_PER_DEG, Report
 from roadbook.render import printable_area, render_html
@@ -113,7 +114,7 @@ def test_a_short_route_shows_more_around_it_rather_than_blown_up_tiles() -> None
 def test_the_map_turns_its_page_when_that_shows_the_route_larger(
     tiles: FakeTiles, *, east: bool, landscape: bool, turned: bool
 ) -> None:
-    m, _ = make(_track(150, east=east), load_config()["map"], A4, landscape=landscape)
+    m, _ = make(_track(150, east=east), Settings.of(load_config()).map, A4, landscape=landscape)
     assert m.landscape == (landscape != turned)
     assert m.width == (A4[1] if m.landscape else A4[0])
     assert m.height <= (A4[0] if m.landscape else A4[1]) - TITLE_H
@@ -125,12 +126,12 @@ def test_a_route_a_little_wider_than_tall_keeps_the_pages_way() -> None:
     track.lon = 5.0 + track.dist / track.dist[-1] * 1.1 * 0.9 / math.cos(math.radians(45))  # ...and 1.1 times that east
     x, y = world(track.lat, track.lon)
     assert np.ptp(x) / np.ptp(y) == pytest.approx(1.1, abs=0.02)
-    m, _ = make(track, load_config()["map"], A4, landscape=False)
+    m, _ = make(track, Settings.of(load_config()).map, A4, landscape=False)
     assert not m.landscape  # a landscape page would show it a little larger: not enough to turn it
 
 
 def test_each_tile_under_the_map_is_asked_for_once(tiles: FakeTiles) -> None:
-    cfg = load_config()["map"] | {"style": "topo"}
+    cfg = replace(Settings.of(load_config()).map, style="topo")
     m, report = make(_track(80), cfg, A4, offline=True)
     ((name, keys, max_age, offline),) = tiles.asked
     assert (name, max_age, offline) == ("topo", 30, True)
@@ -209,7 +210,7 @@ def _texts(svg_text: str, cls: str) -> list[str]:
 
 def test_the_map_shows_the_route_its_pois_towns_and_climbs() -> None:
     track = _track(100)
-    cats = load_config()["categories"]
+    cats = Settings.of(load_config()).categories
     stops = [
         Stop([_poi(track, 30, "water"), _poi(track, 30.2, "water"), _poi(track, 30.3, "bakery")], town="Sault"),
         Stop([_poi(track, 31, "toilets")], town="Sault"),  # the same town, close by: named once
@@ -231,7 +232,7 @@ def test_the_map_shows_the_route_its_pois_towns_and_climbs() -> None:
     assert _texts(out, "map-town") == ["Sault", "Sault"]
     assert _texts(out, "map-climb") == ["Col de la Croix"]  # an unnamed climb has no label
     # the two waters at km 30 make one emoji, with their count; each stop's kinds are there
-    assert sorted(_texts(out, "map-poi")) == sorted([cats[c]["emoji"] for c in ("water", "bakery", "toilets", "water")])
+    assert sorted(_texts(out, "map-poi")) == sorted([cats[c].emoji for c in ("water", "bakery", "toilets", "water")])
     assert re.search(r'font-weight="700" [^>]*>2</text>', out)
     assert "© OpenStreetMap contributors" in _texts(out, "map-credit")[0]
     assert re.fullmatch(r"\d+ km", _texts(out, "map-scale")[0])
@@ -239,12 +240,12 @@ def test_the_map_shows_the_route_its_pois_towns_and_climbs() -> None:
 
 def test_a_mini_map_shows_its_stretch_only_and_the_overview_no_pois() -> None:
     track = _track(100)
-    cats = load_config()["categories"]
+    cats = Settings.of(load_config()).categories
     stops = [Stop([_poi(track, 30, "bakery")], town="Here"), Stop([_poi(track, 80, "water")], town="There")]
     book = _book(track, stops, [Climb(40, 52, 600, 5, 8, "2", name="Col"), Climb(85, 90, 300, 6, 8, "3", name="Far")])
     m = _map(track)
     mini = svg(m, book, cats, every_km=10, span=(0, 60))
-    assert _texts(mini, "map-poi") == [cats["bakery"]["emoji"]]
+    assert _texts(mini, "map-poi") == [cats["bakery"].emoji]
     assert _texts(mini, "map-town") == ["Here"]
     assert _texts(mini, "map-climb") == ["Col"]
     assert _texts(mini, "map-start") == ["🟢"]
@@ -260,7 +261,7 @@ def test_a_mini_map_shows_its_stretch_only_and_the_overview_no_pois() -> None:
 
 def test_a_mini_map_fills_its_box_and_its_credit_fits_on_a_line(tiles: FakeTiles) -> None:
     track = _track(100, east=True)
-    m, report = section(track, load_config()["map"], (90, 42), (20, 60))
+    m, report = section(track, Settings.of(load_config()).map, (90, 42), (20, 60))
     assert (m.width, m.height) == (90, 42)
     x, y = m.mm(*track.at(20))
     x1, _ = m.mm(*track.at(60))
@@ -292,7 +293,7 @@ def test_a_mini_map_draws_only_its_stretch_of_a_loop() -> None:
 
 def test_a_map_without_tiles_still_shows_the_route() -> None:
     track = _track(50)
-    out = svg(_map(track, tiles={}), _book(track, [], []), load_config()["categories"])
+    out = svg(_map(track, tiles={}), _book(track, [], []), Settings.of(load_config()).categories)
     assert "<image " not in out
     assert 'class="map-route"' in out
     assert 'fill="#eceae4"' in out  # the blank under the missing tiles
@@ -316,19 +317,19 @@ def test_the_satellite_map_credits_the_names_to_openstreetmap() -> None:
 def test_the_map_page_comes_between_the_strips_and_the_reference_sheet(tiles: FakeTiles) -> None:
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     assert book.route_map is not None
     assert book.tiles is not None
     assert book.tiles.found == len(tiles.asked[0][1])
-    html = render_html(book, cfg)
+    html = render_html(book, Settings.of(cfg))
     assert (
         html.index('<div class="sheet">') < html.index('<div class="map-page">') < html.index('<div class="details">')
     )
     assert "@page map { size: A4 portrait; }" in html
     cfg["map"]["enabled"] = False
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     assert (book.route_map, book.tiles) == (None, None)
-    assert '<div class="map-page">' not in render_html(book, cfg)
+    assert '<div class="map-page">' not in render_html(book, Settings.of(cfg))
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")

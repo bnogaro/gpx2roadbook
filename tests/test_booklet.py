@@ -16,7 +16,7 @@ from roadbook.booklet.content import Count, Hours, Line, More, Shop, Town
 from roadbook.booklet.layout import CoverPage, MapPage, StopsPage
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.imposition import FORMATS, centre, chosen, page_count, sides
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.opening import Ride, Verdict, Window
@@ -70,16 +70,16 @@ def test_the_format_follows_the_setting(caplog: pytest.LogCaptureFixture) -> Non
     cfg = load_config()
     assert cfg["booklet"]["format"] == "A5"  # as the GUI offers it, and the paper sizes are written
     assert st.BOOKLET.choices == ("A5", "A6", "off")
-    assert chosen(cfg) is A5
+    assert chosen(cfg["booklet"]["format"]) is A5
     cfg["booklet"]["format"] = "a6"  # whatever the case
-    assert chosen(cfg) is A6
+    assert chosen(cfg["booklet"]["format"]) is A6
     cfg["booklet"]["format"] = "off"
-    assert chosen(cfg) is None
+    assert chosen(cfg["booklet"]["format"]) is None
     assert not st.booklet(cfg)
     cfg["booklet"]["format"] = "Off"
     assert not st.booklet(cfg)
     cfg["booklet"]["format"] = "A4"
-    assert chosen(cfg) is A5
+    assert chosen(cfg["booklet"]["format"]) is A5
     assert "no format 'A4' (A5, A6 or off)" in caplog.text
 
 
@@ -106,7 +106,9 @@ def test_a_place_is_on_the_left_or_right_of_the_road_as_the_rider_goes() -> None
 
 
 def test_the_arrival_time_at_a_km_is_inside_its_window() -> None:
-    ride = Ride.from_cfg(load_config()["ride"] | {"date": "2026-10-11", "start": "07:00", "speed_kmh": 20})
+    cfg = load_config()
+    cfg["ride"] |= {"date": "2026-10-11", "start": "07:00", "speed_kmh": 20}
+    ride = Ride.of(Settings.of(cfg).ride)
     at, window = ride.at(50), ride.window(50, 50)
     assert at == _t("09:30")
     assert window is not None
@@ -140,7 +142,7 @@ def _book(stops: list[Stop], km: float = 100, climbs: list[Climb] | None = None,
 def _booklet(book: Roadbook, f: str = "a5", **booklet: Any) -> Booklet:  # noqa: ANN401  [booklet] settings
     cfg = load_config()
     cfg["booklet"] |= booklet
-    return Booklet(book, cfg, FORMATS[f])
+    return Booklet(book, Settings.of(cfg), FORMATS[f])
 
 
 def _content(book: Roadbook, f: str = "a5", **booklet: Any) -> Content:  # noqa: ANN401  [booklet] settings
@@ -405,8 +407,8 @@ def test_the_booklet_prints_imposed_on_a4_and_reads_in_order_on_screen(name: str
     cfg = load_config()
     cfg["booklet"]["format"] = name
     cfg["ride"] |= {"date": "2026-10-11", "start": "07:30", "speed_kmh": 24}
-    book = build(HILLY, cfg)
-    html = render_booklet(book, cfg)
+    book = build(HILLY, Settings.of(cfg))
+    html = render_booklet(book, Settings.of(cfg))
     assert html is not None
     f = FORMATS[name]
     assert f"@page {{ size: {f.sheet[0]}mm {f.sheet[1]}mm; margin: 0; }}" in html
@@ -418,22 +420,22 @@ def test_the_booklet_prints_imposed_on_a4_and_reads_in_order_on_screen(name: str
     assert orders == [k for k in range(1, n + 1) if k != n // 2 + 1]  # each once on screen; the map takes two
     assert "Start · Sun 11 Oct 07:30" in html
     assert "flip on the short edge" in html if name == "a5" else "flip on the long edge" in html
-    main = render_html(book, cfg)
+    main = render_html(book, Settings.of(cfg))
     assert '<div class="details">' not in main  # the reference sheet is in the booklet
     cfg["booklet"]["format"] = "off"
-    assert render_booklet(book, cfg) is None
-    assert '<div class="details">' in render_html(book, cfg)
+    assert render_booklet(book, Settings.of(cfg)) is None
+    assert '<div class="details">' in render_html(book, Settings.of(cfg))
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_map_is_drawn_for_the_centre_spread() -> None:
     cfg = load_config()
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     assert book.route_map is not None
     assert book.route_map.landscape
     assert book.route_map.width == A5.spread[0]
     cfg["booklet"]["format"] = "a6"
-    m = build(HILLY, cfg).route_map
+    m = build(HILLY, Settings.of(cfg)).route_map
     assert m is not None
     assert m.width == A6.spread[0]
 
@@ -443,9 +445,9 @@ def test_the_map_is_drawn_for_the_centre_spread() -> None:
 def test_each_spread_s_mini_map_is_made_with_the_book(name: str) -> None:
     cfg = load_config()
     cfg["booklet"]["format"] = name
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     f = FORMATS[name.lower()]
-    b = Booklet(book, cfg, f)
+    b = Booklet(book, Settings.of(cfg), f)
     mapped = [sp.km for sp in b.spreads() if sp.mapped]
     assert mapped
     assert list(book.minimaps) == mapped
@@ -456,11 +458,11 @@ def test_each_spread_s_mini_map_is_made_with_the_book(name: str) -> None:
         assert 0 < x < m.width
         assert 0 < y < m.height
         assert z > a
-    html = render_booklet(book, cfg)
+    html = render_booklet(book, Settings.of(cfg))
     assert html is not None
     assert html.count('<div class="mm">') == len(mapped)
     cfg["map"]["enabled"] = False
-    assert build(HILLY, cfg).minimaps == {}
+    assert build(HILLY, Settings.of(cfg)).minimaps == {}
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")

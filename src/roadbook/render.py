@@ -22,8 +22,9 @@ from .svg import climb_svg, grade_colour, gutter_svg
 
 if TYPE_CHECKING:
     import datetime as dt
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection
 
+    from .config import Category, Settings
     from .model import Climb, ClimbPage, Item, Poi, Roadbook, Stop
     from .opening import Window
 
@@ -112,7 +113,7 @@ def poi_category(p: Poi) -> str:
 
 @dataclass(frozen=True)
 class RowLayout:
-    """What every row of one render shares, worked out once by render_html() from cfg["render"]."""
+    """What every row of one render shares, worked out once by render_html() from the [render] settings."""
 
     avail: float  # mm left for emojis on a row's main line
     max_emojis: int
@@ -359,9 +360,9 @@ class SheetEntry:
 
 def _details(
     book: Roadbook,
-    categories: dict[str, Any],
+    categories: dict[str, Category],
     range_m: float,
-    hours_for: list[str],
+    hours_for: Collection[str],
     grades: tuple[tuple[float, str], ...] = (),
 ) -> list[SheetEntry]:
     """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line.
@@ -376,7 +377,7 @@ def _details(
         groups: list[tuple[str, list[PoiLine]]] = []
         shared: dict[str, list[PoiLine]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(poi_category(p)), p.km)):
-            emoji = categories[poi_category(p)]["emoji"]
+            emoji = categories[poi_category(p)].emoji
             poi = PoiLine(p.name or p.type, round(p.offset_m))
             if book.hours is not None and p.category in hours_for:
                 h = _shop_hours(p, day)
@@ -438,27 +439,27 @@ class ClimbCard:
 
 
 def _climb_cards(
-    book: Roadbook, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+    book: Roadbook, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
 ) -> list[ClimbCard]:
     """One card per climb page: its title, and its profile with the places and stops on the way marked."""
     return [_climb_card(page, categories, grades, width) for page in book.climb_pages]
 
 
 def climb_card(
-    page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+    page: ClimbPage, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
 ) -> dict[str, Any]:
     """_climb_card() as a dict, with keys name, stats, km, grade and svg: as the booklet reads it."""
     return asdict(_climb_card(page, categories, grades, width))
 
 
 def _climb_card(
-    page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+    page: ClimbPage, categories: dict[str, Category], grades: tuple[tuple[float, str], ...], width: float
 ) -> ClimbCard:
     c, order = page.climb, list(categories)
 
     def emojis(s: Stop) -> str:
         kinds = sorted({poi_category(p) for p in s.pois}, key=order.index)
-        return "".join(categories[k]["emoji"] for k in kinds)
+        return "".join(categories[k].emoji for k in kinds)
 
     on_it = lambda km: min(max(km, c.start_km), c.end_km)  # noqa: E731  a stop at the foot or top, on its edge
     marks = [*page.places, *((on_it(s.km), emojis(s)) for s in page.stops)]
@@ -546,27 +547,27 @@ def _gutters(
     return out
 
 
-def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
-    r = cfg["render"]
-    layout = r["layout"]
-    grades = tuple((float(start), str(colour)) for start, colour in cfg["climbs"]["grade_colours"])
-    width = r["width_mm"] or LAYOUT_WIDTH[layout]
-    length = r["length_mm"]
+def render_html(book: Roadbook, settings: Settings) -> str:
+    r = settings.render
+    layout = r.layout
+    grades = settings.climbs.grade_colours
+    width = r.width_mm or LAYOUT_WIDTH[layout]
+    length = r.length_mm
 
     # strip: what is left of the row once the km column is taken.
     # line: tokens may grow; cap so a single stop can't eat the whole ribbon.
     avail = width - KM_COL - 3 * PAD if layout == "strip" else 40.0
-    gutter = r["gutter_mm"] if layout == "strip" and book.profile is not None else 0
+    gutter = r.gutter_mm if layout == "strip" and book.profile is not None else 0
     avail -= gutter
     if layout == "strip":  # the ↓ distance to the next row takes the end of the main line
         avail -= DIST_W
     row_layout = RowLayout(
         avail=avail,
-        max_emojis=r["max_emojis"] or 99,
+        max_emojis=r.max_emojis or 99,
         sep=" " if gutter else " · ",  # the gutter eats ~5 mm; drop the dots so stats still fit beside it
-        range_m=r["stop_range_m"],
+        range_m=r.stop_range_m,
         # tokens of the line layout grow sideways instead
-        emoji_lines=r["emoji_lines"] if layout == "strip" else 1,
+        emoji_lines=r.emoji_lines if layout == "strip" else 1,
         wrap_avail=avail + (DIST_W if layout == "strip" else 0),
         grades=grades,
     )
@@ -592,17 +593,19 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         used = sum(size(r) for r in s.rows)
         log.debug("%s %d: km %s to %s, %d rows, %.1f of %.1f mm", noun, n, s.first, s.last, len(s.rows), used, capacity)
 
-    sheet = booklet_format(cfg) is None  # else the reference sheet, the climb pages and the map go in the booklet
+    sheet = (
+        booklet_format(settings.booklet.format) is None
+    )  # else the reference sheet, the climb pages and the map go in the booklet
     details = (
-        _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades)
-        if r["details"] and sheet
+        _details(book, settings.categories, r.stop_range_m, settings.hours.categories, grades)
+        if r.details and sheet
         else []
     )
     climb_cards = (
-        _climb_cards(book, cfg["categories"], grades, _printable_width(r["page"], orientation)) if sheet else []
+        _climb_cards(book, settings.categories, grades, _printable_width(r.page, orientation)) if sheet else []
     )
     route_map = (
-        map_svg(book.route_map, book, cfg["categories"], cfg["map"]["km_every"]) if book.route_map and sheet else ""
+        map_svg(book.route_map, book, settings.categories, settings.map.km_every) if book.route_map and sheet else ""
     )
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
@@ -611,7 +614,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         strips=strips,
         width=width,
         length=length,
-        page=r["page"],
+        page=r.page,
         orientation=orientation,
         details=details,
         climb_cards=climb_cards,

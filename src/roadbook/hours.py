@@ -21,9 +21,10 @@ from .osm import http as _http
 from .pois import norm
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Collection
     from pathlib import Path
 
+    from .config import HoursSettings
     from .model import Poi
     from .osm import Http
 
@@ -63,7 +64,7 @@ def _similarity(a: str, b: str) -> float:
     return difflib.SequenceMatcher(None, a, b).ratio()
 
 
-def match(poi: Poi, places: list[Place], match_m: float, kinds: list[str] | None = None) -> Place | None:
+def match(poi: Poi, places: list[Place], match_m: float, kinds: Collection[str] | None = None) -> Place | None:
     """The place within `match_m` of `poi` whose name is closest to the POI's (its type, if unnamed).
 
     With `kinds`, only a place of one of those kinds counts: a supermarket is not the petrol station of the same
@@ -148,23 +149,23 @@ def default_cache_path() -> Path:
 
 def lookup(
     pois: list[Poi],
-    cfg: dict[str, Any],
+    settings: HoursSettings,
     *,
     cache_path: Path | None = None,
     http: Http = _http,
     sleep: Callable[[float], None] = time.sleep,
     offline: bool = False,
 ) -> Report:
-    """Set `opening_hours` and `osm_id` on the POIs of the `cfg["categories"]` that OSM knows hours for.
+    """Set `opening_hours` and `osm_id` on the POIs of the `settings.categories` that OSM knows hours for.
 
     Never raises for a network problem: POIs left unanswered keep no hours, and the report says so. Offline, only
     the cache answers, whatever the age of its answers, and the report counts the POIs it leaves unasked.
     """
     started = time.perf_counter()
-    match_m = cfg["match_m"]
-    wanted = [p for p in pois if p.category in cfg["categories"]]
+    match_m = settings.match_m
+    wanted = [p for p in pois if p.category in settings.categories]
     log.info("Opening hours: %d shops to look up", len(wanted))
-    cache = Cache(cache_path or default_cache_path(), None if offline else cfg["max_age_days"])
+    cache = Cache(cache_path or default_cache_path(), None if offline else settings.max_age_days)
     report = Report(asked=len(wanted))
 
     todo: list[Poi] = []
@@ -180,7 +181,7 @@ def lookup(
         report.unasked, todo = len(todo), []
 
     def answer(p: Poi, places: list[Place], source: str) -> None:
-        place = match(p, places, match_m, cfg["kinds"].get(p.category or ""))
+        place = match(p, places, match_m, settings.kinds.get(p.category or ""))
         cache.put(p, place)
         _apply(p, place)
         _log_match(p, place, source)

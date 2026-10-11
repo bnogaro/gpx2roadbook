@@ -3,9 +3,14 @@ from __future__ import annotations
 import itertools
 import re
 import unicodedata
-from typing import Any
+from typing import TYPE_CHECKING
 
 from .model import Glyph, Poi, Stop
+
+if TYPE_CHECKING:
+    from collections.abc import Collection
+
+    from .config import Category
 
 _SHORT_TERM = 3  # longest match term (in characters) that must match a whole word
 
@@ -15,17 +20,17 @@ def norm(s: str) -> str:
     return unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode().lower()
 
 
-def _compile(categories: dict[str, Any]) -> list[tuple[str, re.Pattern]]:
+def _compile(categories: dict[str, Category]) -> list[tuple[str, re.Pattern]]:
     out = []
     for name, spec in categories.items():
-        terms = [re.escape(norm(m)) for m in spec["match"]]
+        terms = [re.escape(norm(m)) for m in spec.match]
         # short terms must match a whole word ("bar", "wc"); longer ones a word prefix ("toilet" -> "toilettes")
         parts = [rf"\b{t}\b" if len(t) <= _SHORT_TERM else rf"\b{t}" for t in terms]
         out.append((name, re.compile("|".join(parts))))
     return out
 
 
-def classify(pois: list[Poi], categories: dict[str, Any]) -> None:
+def classify(pois: list[Poi], categories: dict[str, Category]) -> None:
     rules = _compile(categories)
     for p in pois:
         for text in (norm(p.type), norm(p.name)):
@@ -35,7 +40,7 @@ def classify(pois: list[Poi], categories: dict[str, Any]) -> None:
                 break
 
 
-def filter_pois(pois: list[Poi], enabled: list[str]) -> list[Poi]:
+def filter_pois(pois: list[Poi], enabled: Collection[str]) -> list[Poi]:
     """The POIs of the categories shown, in route order. How far from the route they may be is the exporter's call:
     onroutemap.de asks for it when it finds them."""
     return sorted((p for p in pois if p.category in enabled), key=lambda p: p.km)
@@ -75,7 +80,7 @@ def cluster(pois: list[Poi], gap_m: float, max_span_m: float) -> list[Stop]:
     return [Stop(piece) for run in runs for piece in _split(run, max_span_m)]
 
 
-def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[Glyph]:
+def emoji_counts(stop: Stop, categories: dict[str, Category]) -> list[Glyph]:
     """Distinct emojis of a stop in category priority order, topped by how many POIs share each, if several.
 
     An emoji is dimmed when every POI it stands for is a shop known to be closed while the rider may pass.
@@ -88,7 +93,7 @@ def emoji_counts(stop: Stop, categories: dict[str, Any]) -> list[Glyph]:
             if p.verdict is not None and p.verdict.state == "closed":
                 closed[p.category] = closed.get(p.category, 0) + 1
     return [
-        Glyph(categories[name]["emoji"], str(n) if (n := counts[name]) > 1 else "", dim=closed.get(name) == n)
+        Glyph(categories[name].emoji, str(n) if (n := counts[name]) > 1 else "", dim=closed.get(name) == n)
         for name in categories
         if name in counts
     ]

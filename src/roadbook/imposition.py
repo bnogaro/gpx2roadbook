@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Any
 
 log = logging.getLogger(__name__)
 
@@ -101,10 +100,9 @@ FORMATS = {
 OFF = "off"
 
 
-def chosen(cfg: dict[str, Any]) -> Format | None:
-    """The booklet's format the settings ask for, whatever their case: "A5", "a6"; None for no booklet ("off"). A name
-    no format has gets A5, with a warning."""
-    given = str(cfg["booklet"]["format"])
+def chosen(given: str) -> Format | None:
+    """The booklet's format `[booklet] format` names, whatever its case: "A5", "a6"; None for no booklet ("off"). A
+    name no format has gets A5, with a warning."""
     name = given.lower()
     if name == OFF:
         return None

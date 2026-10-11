@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from roadbook.build import _snap_to_climbs, build
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
@@ -61,7 +61,7 @@ def test_snapper_uses_hint_to_disambiguate_out_and_back() -> None:
 
 
 def test_classify_french_and_english_types() -> None:
-    cats = load_config()["categories"]
+    cats = Settings.of(load_config()).categories
     pois = [
         Poi("x", t, 0, 0)
         for t in ("Cimetière (eau potable)", "Toilettes", "Restauration rapide", "Restaurant", "drinking water")
@@ -89,7 +89,7 @@ def test_max_span_follows_gap_unless_set() -> None:
     def spans(**stops_cfg: float) -> float:
         cfg = load_config()
         cfg["stops"].update(stops_cfg)
-        return max(s.km_end - s.km for s in build(HILLY, cfg).stops)
+        return max(s.km_end - s.km for s in build(HILLY, Settings.of(cfg)).stops)
 
     assert spans() <= 1.5  # default gap 500 m -> 1.5 km
     assert spans(gap_m=5000) > 1.5  # the span grows with the gap instead of capping it
@@ -157,7 +157,7 @@ def test_snapping_ties_are_deterministic() -> None:
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
 def test_sample_end_to_end() -> None:
     cfg = load_config()
-    book = build(SAMPLE, cfg)
+    book = build(SAMPLE, Settings.of(cfg))
     assert book.length_km == pytest.approx(269.8, abs=0.5)
     assert book.items[0].kind == "start"
     assert book.items[-1].kind == "finish"
@@ -168,14 +168,14 @@ def test_sample_end_to_end() -> None:
     assert sum(legs) == pytest.approx(book.length_km, abs=1e-6)
     for layout in ("strip", "line"):
         cfg["render"]["layout"] = layout
-        assert "<html" in render_html(book, cfg)
+        assert "<html" in render_html(book, Settings.of(cfg))
 
 
 @pytest.mark.skipif(not SAMPLE.exists(), reason="sample GPX not present")
 def test_each_row_but_the_finish_gives_the_distance_to_the_next() -> None:
     cfg = load_config()
-    book = build(SAMPLE, cfg)
-    html = render_html(book, cfg)
+    book = build(SAMPLE, Settings.of(cfg))
+    html = render_html(book, Settings.of(cfg))
     assert len(re.findall(r'<span class="dist">↓[\d.]+</span>', html)) == len(book.items) - 1
 
 
@@ -185,8 +185,8 @@ def test_watermark_on_each_strip_and_the_reference_sheet(layout: str, box: str) 
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["render"]["layout"] = layout
-    book = build(SAMPLE, cfg)
-    html = render_html(book, cfg)
+    book = build(SAMPLE, Settings.of(cfg))
+    html = render_html(book, Settings.of(cfg))
     # every strip carries the name, and nothing more: no version, no link
     strips = html.count(f'<div class="{box}">')
     assert strips > 1
@@ -196,7 +196,7 @@ def test_watermark_on_each_strip_and_the_reference_sheet(layout: str, box: str) 
     assert f'Made with gpx2roadbook {version("gpx2roadbook")} · <a href="https://{home}">{home}</a>' in html
     assert 'class="credit"' not in html
     cfg["render"]["details"] = False
-    assert "Made with" not in render_html(book, cfg)
+    assert "Made with" not in render_html(book, Settings.of(cfg))
 
 
 def _layout(avail: float, *, max_emojis: int = 99) -> RowLayout:
@@ -246,7 +246,7 @@ def test_summit_elevation_gives_way_to_its_stop() -> None:
 
 
 def test_stop_glyphs_carry_a_count_only_when_pois_share_an_emoji() -> None:
-    cats = load_config()["categories"]
+    cats = Settings.of(load_config()).categories
     pois = [Poi("p", "", 0, 0, category=c) for c in ("bakery", "water", "bakery")]
     assert emoji_counts(Stop(pois), cats) == [Glyph("🚰"), Glyph("🥖", "2")]
 
@@ -264,7 +264,7 @@ def test_kinds_sort_a_summit_before_whatever_opens_at_its_km() -> None:
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_summit_rows_only_where_a_stop_sits_at_the_top() -> None:
-    book = build(HILLY, load_config())
+    book = build(HILLY, Settings.of(load_config()))
     summits = [i for i in book.items if i.kind == "summit"]
     assert 0 < len(summits) < len(book.climbs)
     assert all(i.stop is not None and i.climb is not None and i.km == i.climb.end_km for i in summits)
@@ -275,11 +275,11 @@ def test_summit_rows_only_where_a_stop_sits_at_the_top() -> None:
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_gutter_follows_gutter_mm() -> None:
     cfg = load_config()
-    book = build(HILLY, cfg)
-    html = render_html(book, cfg)
+    book = build(HILLY, Settings.of(cfg))
+    html = render_html(book, Settings.of(cfg))
     assert html.count('<svg class="gutter"') == html.count('<div class="strip">') > 0
     cfg["render"]["gutter_mm"] = 0
-    assert 'class="gutter"' not in render_html(book, cfg)
+    assert 'class="gutter"' not in render_html(book, Settings.of(cfg))
 
 
 @pytest.mark.parametrize(
@@ -323,14 +323,14 @@ def test_a_crowded_row_grows_a_line_and_a_quiet_one_does_not() -> None:
 
 def test_the_ubf_300_finds_its_big_climbs_and_fits_two_strips() -> None:
     cfg = load_config()
-    book = build(PROVENCE, cfg)
+    book = build(PROVENCE, Settings.of(cfg))
     assert round(book.length_km) == 306
     assert len(book.climbs) == 10
     # Mont Ventoux from Bedoin and the Montagne de Lure: the two Cat HC climbs
     ventoux, lure = (c for c in book.climbs if c.label == "HC")
     assert (round(ventoux.start_km, 1), round(ventoux.length_km), round(ventoux.gain_m, -2)) == (17.8, 21, 1600)
     assert (round(lure.start_km, 1), round(lure.length_km)) == (106.7, 22)
-    html = render_html(book, cfg)
+    html = render_html(book, Settings.of(cfg))
     assert re.findall(r"<span>(\d+/\d+)</span></div>", html) == ["1/2", "2/2"]
 
 
@@ -338,7 +338,7 @@ def test_the_ubf_300_finds_its_big_climbs_and_fits_two_strips() -> None:
 def test_a_climb_always_shows_its_gain(layout: str) -> None:
     cfg = load_config()
     cfg["render"]["layout"] = layout
-    html = render_html(build(PROVENCE, cfg), cfg)
+    html = render_html(build(PROVENCE, Settings.of(cfg)), Settings.of(cfg))
     # Mont Ventoux from Bedoin: the gain has a place of its own, which a narrow strip can't cut ("↗1…")
     assert 'class="gain">↗︎1552</span>' in html.replace('class="sub gain"', 'class="gain"')
     if layout == "strip":
@@ -351,8 +351,8 @@ def test_climb_rows_and_the_key_show_each_climb_s_grade(layout: str, box: str) -
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["render"]["layout"] = layout
-    book = build(HILLY, cfg)
-    html = render_html(book, cfg)
+    book = build(HILLY, Settings.of(cfg))
+    html = render_html(book, Settings.of(cfg))
     climbs = [it for it in book.items if it.kind == "climb"]
     grades = re.findall(rf'class="{box} climb" style="[^"]*--grade: (#[0-9a-f]+)"', html)
     assert len(grades) == len(climbs)
@@ -373,7 +373,7 @@ def test_summit_rows_can_close_every_climb() -> None:
     cfg = load_config()
     assert cfg["climbs"]["summit_rows"] is False
     cfg["climbs"]["summit_rows"] = True
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     summits = [i for i in book.items if i.kind == "summit"]
     assert [i.climb for i in summits] == book.climbs
     # a top with no stop gets its elevation on a row of its own
@@ -381,4 +381,4 @@ def test_summit_rows_can_close_every_climb() -> None:
     row = _row(bare, book, _layout(12.5))
     assert row.emojis == [Glyph("🔝")]
     assert row.label == f"{bare.ele:.0f} m"
-    assert '<div class="row summit"' in render_html(book, cfg)
+    assert '<div class="row summit"' in render_html(book, Settings.of(cfg))

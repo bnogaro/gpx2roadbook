@@ -57,7 +57,7 @@ def widest(cfg: dict[str, Any]) -> float:
 
 def booklet_width(cfg: dict[str, Any]) -> float:
     """The booklet's widest piece on screen, mm: its centre spread, two pages wide, with the page's margin."""
-    f = chosen(cfg)
+    f = chosen(cfg["booklet"]["format"])
     return 2 * f.page[0] + 16 if f else 0.0
 
 

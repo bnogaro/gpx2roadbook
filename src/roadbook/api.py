@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, override
 
 from .booklet import render_booklet
 from .build import build
+from .config import Settings
 from .parse import GpxError
 from .render import html_to_pdf, render_html
 
@@ -101,15 +102,17 @@ def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = 
     """Build the road book of `gpx` with the settings `cfg`, write its HTML and its booklet's, and their PDFs if asked
     for.
 
-    Raises GpxError for a file that is no GPX the road book can use. A PDF that can't be written is not an error:
-    the HTML is there all the same, and the Result says why.
+    Raises GpxError for a file that is no GPX the road book can use, ValueError for settings it can't read (see
+    Settings.of). A PDF that can't be written is not an error: the HTML is there all the same, and the Result says
+    why.
     """
+    settings = Settings.of(cfg)
     with _warnings() as warnings:
-        book = build(gpx, cfg)
+        book = build(gpx, settings)
         out = out or default_out(gpx)
-        out.write_text(render_html(book, cfg), encoding="utf-8")
+        out.write_text(render_html(book, settings), encoding="utf-8")
         result = Result(book, out)
-        if (booklet := render_booklet(book, cfg)) is not None:
+        if (booklet := render_booklet(book, settings)) is not None:
             result.booklet = booklet_out(out)
             result.booklet.write_text(booklet, encoding="utf-8")
         if pdf:
@@ -139,10 +142,11 @@ def preview(gpx: Path, cfg: dict[str, Any]) -> Preview:
     """Build the road book of `gpx` with the settings `cfg` and render it, writing nothing: a look before the run.
 
     The OpenStreetMap lookups only read their cache, whatever its age, and never go online: names and hours not
-    cached yet are missing, and the book's reports count them (`unasked`). Raises GpxError as `run` does.
+    cached yet are missing, and the book's reports count them (`unasked`). Raises as `run` does.
     """
+    settings = Settings.of(cfg)
     with _warnings() as warnings:
-        book = build(gpx, cfg, offline=True)
-        html = render_html(book, cfg)
-        booklet = render_booklet(book, cfg)
+        book = build(gpx, settings, offline=True)
+        html = render_html(book, settings)
+        booklet = render_booklet(book, settings)
     return Preview(book, html, warnings, booklet)

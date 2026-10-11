@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import itertools
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from .model import ClimbPage, Section
 
 if TYPE_CHECKING:
+    from .config import ClimbPagesSettings
     from .model import Climb, Stop
     from .profile import Profile
 
@@ -43,7 +44,7 @@ def sections(climb: Climb, profile: Profile, step: float = 1.0) -> list[Section]
     return [Section(a, b, profile.ele_at(a), profile.ele_at(b)) for a, b in itertools.pairwise(edges)]
 
 
-def chosen(climbs: list[Climb], from_label: str, categories: list[list]) -> list[Climb]:
+def chosen(climbs: list[Climb], from_label: str, categories: tuple[tuple[str, float], ...]) -> list[Climb]:
     """The climbs of category `from_label` or harder; the categories go from the hardest ("HC") to the easiest."""
     order = [str(name) for name, _ in categories]
     if from_label not in order:
@@ -54,14 +55,19 @@ def chosen(climbs: list[Climb], from_label: str, categories: list[list]) -> list
 
 
 def pages(
-    climbs: list[Climb], stops: list[Stop], profile: Profile, cfg: dict[str, Any], categories: list[list], snap_m: float
+    climbs: list[Climb],
+    stops: list[Stop],
+    profile: Profile,
+    settings: ClimbPagesSettings,
+    categories: tuple[tuple[str, float], ...],
+    snap_m: float,
 ) -> list[ClimbPage]:
-    """A page for each climb of `cfg["from_category"]` or harder, with the stops on its way: those within `snap_m` of
+    """A page for each climb of `settings.from_category` or harder, with the stops on its way: those within `snap_m` of
     its foot or summit too, as the strips show them on its rows."""
     out = []
-    for c in chosen(climbs, str(cfg["from_category"]), categories):
+    for c in chosen(climbs, settings.from_category, categories):
         lo, hi = c.start_km - snap_m / 1000, c.end_km + snap_m / 1000
         on_it = [s for s in stops if s.km_end >= lo and s.km <= hi]
-        out.append(ClimbPage(c, sections(c, profile, step_km(c, profile, cfg["min_sections"])), on_it))
-    log.info("Climb pages: %d climbs of category %s or harder", len(out), cfg["from_category"])
+        out.append(ClimbPage(c, sections(c, profile, step_km(c, profile, settings.min_sections)), on_it))
+    log.info("Climb pages: %d climbs of category %s or harder", len(out), settings.from_category)
     return out

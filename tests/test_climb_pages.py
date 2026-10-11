@@ -1,5 +1,6 @@
 import itertools
 import re
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -10,7 +11,7 @@ from typer.testing import CliRunner
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.climb_pages import chosen, pages, sections, step_km
-from roadbook.config import load_config
+from roadbook.config import Settings, load_config
 from roadbook.model import Climb, ClimbPage, Poi, Stop, Track
 from roadbook.osm import M_PER_DEG, OVERPASS
 from roadbook.places import Place, lookup, on_road, road
@@ -19,7 +20,7 @@ from roadbook.render import climb_card, render_html
 from roadbook.svg import CARD_GROUND_H, CARD_PLOT_H, climb_svg
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
-CATEGORIES = load_config()["climbs"]["categories"]
+CATEGORIES = Settings.of(load_config()).climbs.categories
 M = 1 / M_PER_DEG  # a metre north, in degrees
 
 
@@ -115,8 +116,8 @@ def _stop(km: float, category: str = "water") -> Stop:
 def test_a_page_has_the_stops_on_its_climb_its_foot_and_summit_too() -> None:
     profile = _profile(_track())
     stops = [_stop(0.5), _stop(1.8), _stop(4.0), _stop(6.2), _stop(6.6)]
-    cfg = {"from_category": "3", "min_sections": 6}
-    (page,) = pages([_climb(2.0, 6.0)], stops, profile, cfg, CATEGORIES, snap_m=300)
+    asked = replace(Settings.of(load_config()).climb_pages, from_category="3", min_sections=6)
+    (page,) = pages([_climb(2.0, 6.0)], stops, profile, asked, CATEGORIES, snap_m=300)
     assert [s.km for s in page.stops] == [1.8, 4.0, 6.2]  # 200 m from the foot, and from the summit, are on it
     assert [s.length_km for s in page.sections] == pytest.approx([0.5] * 8)  # 4 whole km are too few
 
@@ -160,7 +161,15 @@ class FakeOverpass:
 
 
 def _lookup(tmp_path: Path, page_list: list[ClimbPage], http: FakeOverpass, **kw: Any) -> Any:  # noqa: ANN401
-    return lookup(page_list, _track(), {"place_m": 250}, 365, cache_path=tmp_path / "p.json", http=http, **kw)
+    return lookup(
+        page_list,
+        _track(),
+        replace(Settings.of(load_config()).climb_pages, place_m=250.0),
+        365,
+        cache_path=tmp_path / "p.json",
+        http=http,
+        **kw,
+    )
 
 
 def test_one_overpass_request_finds_the_places_on_every_climb(tmp_path: Path) -> None:
@@ -281,12 +290,12 @@ def test_every_card_draws_a_grade_as_steep_so_a_steep_climb_gets_a_narrower_card
 def test_the_climb_pages_follow_the_reference_sheet_only_when_asked_for() -> None:
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     assert book.climb_pages == []
-    assert 'class="climb-pages"' not in render_html(book, cfg)
+    assert 'class="climb-pages"' not in render_html(book, Settings.of(cfg))
     cfg["climb_pages"] |= {"enabled": True, "from_category": "2"}
-    book = build(HILLY, cfg)
-    html = render_html(book, cfg)
+    book = build(HILLY, Settings.of(cfg))
+    html = render_html(book, Settings.of(cfg))
     assert [p.climb.label for p in book.climb_pages] == ["HC", "2", "HC"]
     assert html.count('class="climb-card"') == 3
     assert html.index('class="details"') < html.index('class="climb-pages"')

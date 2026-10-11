@@ -7,7 +7,7 @@ from typer.testing import CliRunner
 
 from roadbook.build import build
 from roadbook.cli import app
-from roadbook.config import load_config
+from roadbook.config import HoursSettings, Settings, load_config
 from roadbook.opening import DayHours, Ride, Verdict, Window, on_day, verdict
 from roadbook.osm import Report
 from roadbook.render import render_html
@@ -48,7 +48,9 @@ def _t(hhmm: str, day: dt.date = WEDNESDAY) -> dt.datetime:
 
 
 def _ride(**cfg: object) -> Ride:
-    return Ride.from_cfg({**load_config()["ride"], **cfg})
+    settings = load_config()
+    settings["ride"] |= cfg
+    return Ride.of(Settings.of(settings).ride)
 
 
 def test_ride_settings() -> None:
@@ -119,9 +121,9 @@ HOURS = {"Intermarché Super": "Mo-Sa 09:00-19:30", "La Tablée": "Tu-Sa 09:00-2
 def fake_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sets hours on the shops at km 0.2 of HILLY as the OSM lookup would, without network."""
 
-    def lookup(pois: list, cfg: dict, *, offline: bool) -> Report:  # noqa: ARG001  as offline as online
+    def lookup(pois: list, cfg: HoursSettings, *, offline: bool) -> Report:  # noqa: ARG001  as offline as online
         for p in pois:
-            if p.category in cfg["categories"]:
+            if p.category in cfg.categories:
                 p.opening_hours = HOURS.get(p.name)
         return Report(asked=1, found=1)
 
@@ -134,7 +136,7 @@ def test_the_reference_sheet_shows_the_ride_day() -> None:
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["hours"]["enabled"] = True
     cfg["ride"]["date"] = "2026-10-14"
-    html = render_html(build(HILLY, cfg), cfg)
+    html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert "opening hours on Wed 14 Oct 2026" in html
     assert f'Intermarché Super <span class="off">(265 m)</span> <span class="oh">09:00{EN}19:30</span>' in html
     assert '<span class="off">9h-19h</span>' in html  # not OSM syntax: shown as written, muted
@@ -143,7 +145,7 @@ def test_the_reference_sheet_shows_the_ride_day() -> None:
     assert re.search(r'<p class="credit">[^<]*</p>\s*<p class="colophon">Made with gpx2roadbook ', html)
 
     cfg["ride"]["date"] = "2026-10-11"  # Sunday
-    html = render_html(build(HILLY, cfg), cfg)
+    html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert 'Intermarché Super <span class="off">(265 m)</span> <span class="closed">closed</span>' in html
 
 
@@ -153,10 +155,10 @@ def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["hours"]["enabled"] = True
     cfg["ride"].update(date="2026-10-14", start="06:00", speed_kmh=25)
-    book = build(HILLY, cfg)
+    book = build(HILLY, Settings.of(cfg))
     first = book.stops[0]  # km 0.2, reached between 06:00 and 06:21: before the shops open at 09:00
     assert first.window == Window(_t("06:00"), _t("06:21"))
-    html = render_html(book, cfg)
+    html = render_html(book, Settings.of(cfg))
     assert "start Wed 14 Oct 2026 06:00 at 25 km/h" in html
     assert f'<b>km 0.2</b> <span class="eta">~06:00{EN}06:21</span>' in html
     closed = f'<b class="verdict">closed</b> <span class="off">09:00{EN}19:30</span>'  # and when it opens, muted
@@ -168,7 +170,7 @@ def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
     assert '<span class="dim">🛒</span>' in html
 
     cfg["ride"]["start"] = "08:50"  # there between 08:50 and 09:11: the supermarket opens meanwhile
-    html = render_html(build(HILLY, cfg), cfg)
+    html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert '<b class="verdict">⚠ opens 09:00</b>' in html
 
 
@@ -176,7 +178,7 @@ def test_the_sheet_title_states_the_estimate_s_assumptions() -> None:
     cfg = load_config()
     cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["ride"].update(date="2026-10-17", start="07:00", speed_kmh=26, breaks=[[95, 45]])
-    html = render_html(build(HILLY, cfg), cfg)
+    html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert "start Sat 17 Oct 2026 07:00 at 26 km/h + 5 min/100 m climbed" in html
     assert "breaks: km 95 (45 min)" in html
 

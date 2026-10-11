@@ -17,7 +17,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, replace
 from importlib.metadata import version
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from roadbook.imposition import centre, page_count
 from roadbook.render import HOME, TOOL, credit, grade_key, poi_category, ride_title
@@ -28,6 +28,7 @@ from roadbook.tiles import style as tile_style
 from .content import Block, Content, Row, Town, rows_h, wrap
 
 if TYPE_CHECKING:
+    from roadbook.config import Settings
     from roadbook.imposition import Format
     from roadbook.model import Roadbook
 
@@ -135,9 +136,10 @@ class BackPage(Page):
 class Booklet:
     """The booklet of a road book, in a format: its content on pages, two facing at a time, and its other pages."""
 
-    def __init__(self, book: Roadbook, cfg: dict[str, Any], f: Format) -> None:
-        self.book, self.cfg, self.f = book, cfg, f
-        self.content = Content(book, cfg, f)
+    def __init__(self, book: Roadbook, settings: Settings, f: Format) -> None:
+        self.book, self.f = book, f
+        self.km_every = settings.map.km_every  # a km marker on the maps every so many km; 0, to suit their scale
+        self.content = Content(book, settings, f)
         self.mapped = book.route_map is not None  # the spreads get mini-maps, the middle the overview
 
     def spreads(self) -> list[Spread]:
@@ -285,7 +287,7 @@ class Booklet:
         ]
         warnings = [b.text.removeprefix("⚠ ") for b in content.warnings]
         present = {poi_category(p) for s in book.stops for p in s.pois}
-        emojis = [f"{v['emoji']} {k}" for k, v in content.categories.items() if k in present]
+        emojis = [f"{v.emoji} {k}" for k, v in content.categories.items() if k in present]
         key = wrap(emojis, " · ", f.body[0], f.font - 1) if emojis else []
         grades = grade_key(content.grades) if book.climbs and content.grades else []
         # the lines left under the title, totals, timing and profile, and over the keys: the lists share them
@@ -340,10 +342,10 @@ class Booklet:
         """The overview across the centre spread: the route, its towns and climbs, no POIs, but where each spread
         starts, "p. 4", the way to the page with the stops there."""
         m = self.book.route_map
-        every = self.cfg["map"]["km_every"]
+        every = self.km_every
         return map_svg(m, self.book, self.content.categories, every, with_pois=False, pages=pages) if m else ""
 
     def minimap_svg(self, km: tuple[float, float]) -> str:
         """A spread's mini-map: its stretch of road, with its stops' POIs; "" when the book has none made for it."""
         m = self.book.minimaps.get(km)
-        return map_svg(m, self.book, self.content.categories, self.cfg["map"]["km_every"], span=km) if m else ""
+        return map_svg(m, self.book, self.content.categories, self.km_every, span=km) if m else ""
