@@ -1,0 +1,40 @@
+name: App
+
+# The downloadable app: the window, with Python and every dependency inside, for Windows and macOS
+# (scripts/build_app.py). The release workflow calls it and attaches the zips to the GitHub Release; run by hand, it
+# builds them as artifacts only, to try before a release; and on a pull request changing how it's built.
+on:
+  workflow_call:
+  workflow_dispatch:
+  pull_request:  # a change to the app's build is tried on both systems before it ships
+    paths: [scripts/app.py, scripts/build_app.py, .github/workflows/app.yml]
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]  # macOS on Apple silicon: the runners' own, and the Macs sold since 2020
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7  # v10.2.0
+      - run: uv sync --locked --no-dev --group app --extra gui
+      - run: uv run --no-sync python scripts/build_app.py --zip
+      - name: Smoke test the frozen app
+        # a road book and its booklet, made by the app alone, offline: a template, default.toml or compiled module
+        # missing from the bundle fails here, not for users
+        shell: bash
+        run: |
+          if [ "$RUNNER_OS" = Windows ]; then app=dist/app/gpx2roadbook/gpx2roadbook.exe
+          else app=dist/app/gpx2roadbook.app/Contents/MacOS/gpx2roadbook; fi
+          "$app" --check samples/paris_le_mans.gpx
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: app-${{ runner.os }}
+          path: dist/app/*.zip
+          if-no-files-found: error
