@@ -58,6 +58,18 @@ class Report:
         if note and note not in self.made_from:
             self.made_from.append(note)
 
+    def add(self, other: Report) -> None:
+        """Count `other`'s lookups in with these, for one line on both: the map's tiles, and its mini-maps'."""
+        self.asked += other.asked
+        self.found += other.found
+        self.cached += other.cached
+        self.unasked += other.unasked
+        self.failed |= other.failed
+        for source in other.sources:
+            self.answered_by(source)
+        for note in other.made_from:
+            self.made_of(note)
+
 
 def distance_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Metres between two nearby points, as if the Earth were flat there: close enough over a few kilometres."""

@@ -5,7 +5,7 @@
 [![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue)](https://github.com/bnogaro/gpx2roadbook/blob/main/LICENSE)
 
 `gpx2roadbook` (command: `roadbook`) turns a GPX route with points of interest (water, food, toilets, …) into a compact road book you can print.
-You cut the strips out and tape them to your bike's top tube. Each one lists the stops, climbs and distances for a stretch of the ride, next to a small elevation profile.
+You cut the strips out and tape them to your bike's top tube. Each one lists the stops, climbs and distances for a stretch of the ride, next to a small elevation profile. A booklet to fold and take along gives the details: every stop's shops and their hours, the climbs, the long stretches with nothing on the way, and a map (see [The booklet](#the-booklet)).
 
 <img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/strip-example.png" alt="A printed strip covering km 0 to 69.6: stops with water, toilet, food and shop emojis; the towns Saint-Béat-Lez, Saint-Lary and Saint-Girons each framed with their stop, Saint-Girons as one stop from km 59.0 to 62.2 down the km column; the Col de Menté and Col de Portet d&#39;Aspet above their climb rows, with length, grade and gain, and a summit row; and an elevation profile down the right edge, its climbs coloured from yellow to dark red by grade" width="220">
 
@@ -59,7 +59,7 @@ uvx gpx2roadbook my_ride.gpx
 roadbook my_ride.gpx
 ```
 
-This writes `my_ride.roadbook.html` next to the GPX and prints a short summary: distance, climbing, and how many POIs, stops and climbs were found. To write it somewhere else, use `-o`:
+This writes `my_ride.roadbook.html`, with the strips, and `my_ride.booklet.html`, the booklet, next to the GPX, and prints a short summary: distance, climbing, and how many POIs, stops and climbs were found. To write it somewhere else, use `-o`:
 
 ```sh
 roadbook my_ride.gpx -o ~/Desktop/ride.html
@@ -73,7 +73,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout and paper size (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, climb names, summit rows, climb pages, the map, its style and its contour lines); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout, paper size and booklet (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, climb names, summit rows, climb pages, the map, its style and its contour lines, and the booklet's warnings); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -89,8 +89,8 @@ roadbook-gui                # or: roadbook-gui --browser
 
 - **Browse** for the GPX. The road book goes next to it, unless you change the output file.
 - Set the options. Hover over one to see what it does. The usual ones are on top, the rest under **Advanced settings**. Options that depend on others show up when they apply: the start time once you set a ride date, then the speed and planned breaks.
-- The **preview** follows your changes, at true size when it fits (**Fit**), or zoomed in or out. The map is with the reference sheet. It uses only the town names, climb names, hours and map tiles already looked up, and says when some are missing: they come with the first **Make the road book**.
-- **Make the road book** writes the HTML (and the PDF if asked), shows the summary, and lets you open the result or its folder. It also shows the same `roadbook …` command, to copy.
+- The **preview** follows your changes, at true size when it fits (**Fit**), or zoomed in or out. The booklet has a tab of its own, or the reference sheet and the map without one. It uses only the town names, climb names, hours and map tiles already looked up, and says when some are missing: they come with the first **Make the road book**.
+- **Make the road book** writes the HTML and the booklet (and their PDFs if asked), shows the summary, and lets you open them, **Strips** and **Booklet**, print them to PDF, or open their folder. Without a booklet, the road book holds the reference sheet and the map too, and its buttons say **Road book**. It also shows the same `roadbook …` command, to copy.
 
 The window remembers your settings for next time, in `gui.toml` in your user config folder (`%LOCALAPPDATA%\gpx2roadbook` on Windows, `~/.config/gpx2roadbook` on Linux, `~/Library/Application Support/gpx2roadbook` on macOS). The gear menu at the top right resets them to the defaults, or saves them as a file for `roadbook --config` (see [Customising](#customising)). That's a handy way to share an event's setup with the other riders.
 
@@ -102,13 +102,13 @@ The page fits narrow windows and phones too, in one column. To use it from your 
 
 Open the HTML in your browser and print it. Print at **100 % scale**, not "fit to page", so the strips keep their real size in millimetres. If the coloured rows come out white, turn on "background graphics".
 
-Or let `roadbook` make the PDF for you. It drives Chrome or Edge in the background and writes `my_ride.roadbook.pdf` next to the HTML:
+Or let `roadbook` make the PDFs for you. It drives Chrome or Edge in the background and writes `my_ride.roadbook.pdf` and `my_ride.booklet.pdf` next to the HTML:
 
 ```sh
 roadbook my_ride.gpx --pdf
 ```
 
-Either way, cut along the dashed lines.
+Either way, cut the strips along the dashed lines. The booklet prints double-sided, then folds: see [The booklet](#the-booklet).
 
 ### Layouts
 
@@ -128,15 +128,18 @@ Either way, cut along the dashed lines.
 | `--gap M` | Merge POIs closer than this many metres into one stop (default 500). |
 | `--max-span M` | The longest a stop may stretch, in metres (default 3 × `--gap`). Longer runs of POIs are split into several stops, never between POIs at the same spot. |
 | `--emoji-lines N` | How many lines a stop's emojis may fill on a strip (default 2). Use 3 to see every kind of POI at busy stops, or 1 for the shortest road book. |
-| `--no-details` | Leave out the reference sheet with the POI names. |
+| `--booklet FORMAT` | The booklet of the stops, climbs and map: `A5` (default), `A6` (pocket size) or `off`, which keeps the reference sheet, the map and the climb pages in the road book instead (see [The booklet](#the-booklet)). |
+| `--water-hours H`, `--food-hours H` | With a `--speed`, the booklet warns of a stretch taking this long or more to ride, climbing included, with nowhere to get water (default 3) or nothing to eat (default 4); `0` never. |
+| `--water-km KM`, `--food-km KM` | The same without a speed, in km (default 50 and 70). |
+| `--no-details` | Without a booklet, leave out the reference sheet with the POI names. |
 | `--climb-pages` | Add a page of climb profiles, each climb cut into slabs by grade (see [Climb pages](#climb-pages)). |
 | `--climb-pages-from CAT` | With `--climb-pages`: the easiest category that gets a profile, `HC`, `1`, `2`, `3` or `4` (default `3`). |
-| `--no-map` | Leave out the map page. It's on by default, from OpenStreetMap-based tiles (see [The map](#the-map)), and needs internet the first time. |
+| `--no-map` | Leave out the map. It's on by default, from OpenStreetMap-based tiles (see [The map](#the-map)), and needs internet the first time. |
 | `--map-style STYLE` | The map's look: `osm` (default), `cyclosm`, `topo` or `satellite`. |
 | `--no-map-contours` | Leave the contour lines off the map. They are on by default, from Mapzen's Terrain Tiles (see [The map](#the-map)), and need internet the first time; the `topo` style has its own. |
 | `--no-towns` | Leave out the names of the towns at busy stops. They are on by default, from OpenStreetMap (see [Town names](#town-names)), and need internet the first time. |
 | `--no-climb-names` | Leave out the names of the cols, passes and peaks climbs top out at. They are on by default, from OpenStreetMap (see [Climb names](#climb-names)), and need internet the first time. |
-| `--hours` | Add shops' opening hours to the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
+| `--hours` | Add shops' opening hours to the booklet, or the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
@@ -192,7 +195,7 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 
 - **The bold number** is the km where the row sits. **`↓4.3`** at the right is the distance to the next row; the profile on the right shows the climbing and descent on the way.
 - **🟢 START, 🏁 FINISH, 🚩 CP…** are the start, the finish and checkpoints, on a blue background.
-- **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed on the reference sheet.
+- **Emojis** are the POIs at that stop. A small number after one (🚰²) says how many POIs of that kind are there. When a stop has more kinds than fit beside its km, they carry on a line below (up to `--emoji-lines`). A **`+`** means there are still more kinds than fit. They are all listed in the booklet, or on the reference sheet.
 - **A second, lighter km** under a stop's km, joined to it by dots, is where the stop ends: its POIs stretch from the first km to the second, e.g. 122.4 to 129.1. Stops longer than 1 km (`render.stop_range_m`) show it, in a town or with a large `--gap`. It sits on the stop's second line of emojis when it has one, or else on a short line of its own. On a `line` ribbon, a long stop's token says `→129.1` instead.
 - ***Saint-Girons*** in italics, at the right above a row, is the town that stop is in (see [Town names](#town-names)).
 - **⛰️ rows** (orange) mark the foot of a climb. The bar down their left edge is in the colour of the climb's average grade (see below). The line below gives its length, average grade and total gain, e.g. `4.3km 2.6% ↗110`, or `21km 7.4% ↗1552` from 10 km on. The gain sits at the right, under the distances, and is never cut: on a narrow strip, the length and grade give way first. **`Cat 4`** … **`Cat HC`** is its category, scored as length × grade, the same way as the Tour de France. Small climbs have no category. Ascents gaining less than 80 m (`--min-climb`) are not shown as climbs at all.
@@ -204,20 +207,47 @@ Each strip has a dark header with its km range and its number (`2/3`). The tool'
 
 The narrow strip on the right edge of each strip is the elevation profile of that stretch. Elevation grows to the right.
 
-- **Climbs are coloured by grade**, a kilometre at a time, so the steep ones show where they are: yellow under 3 %, then orange (3–6 %), dark orange (6–9 %), red (9–12 %) and dark red from 12 %. **Grey** is everything else. The colours get darker as the road steepens, so they still read printed in black and white. A key at the end of the reference sheet recalls them, and each named climb there has a square in the colour of its average grade.
+- **Climbs are coloured by grade**, a kilometre at a time, so the steep ones show where they are: yellow under 3 %, then orange (3–6 %), dark orange (6–9 %), red (9–12 %) and dark red from 12 %. **Grey** is everything else. The colours get darker as the road steepens, so they still read printed in black and white. A key on the booklet's cover, or at the end of the reference sheet, recalls them, and each climb there is marked in the colour of its average grade.
 - **Each dot** lines up with a row, so you can see where each stop is on the profile.
 - **Distance on the profile is not to scale.** The profile is stretched to fit between the rows, so a 10 km gap between two rows takes the same space as a 1 km gap. Use it to see the shape of the climbs, not to measure distance.
 - **Elevation is scaled for each strip separately.** A big slope on one strip is not the same height as a big slope on the next. Very flat stretches are kept flat, so small rolls don't look like mountains.
 
+### The booklet
+
+The stops, climbs and map also go into a booklet, `my_ride.booklet.html` (and `my_ride.booklet.pdf` with `--pdf`), to print, fold and take on the ride, in a jersey pocket or a bar bag:
+
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/booklet.png" alt="Pages 2 and 3 of an A5 booklet. Each page is headed by its km range, the day and its number. The left page has a map of the stretch both pages cover, from the start by Saint-Béat-Lez over the Col de Menté and the Col de Portet d&#39;Aspet to Saint-Lary, with the stops&#39; emojis at their places. Under it, and under the right page&#39;s header, a small profile of the page&#39;s stretch with a tick for each stop. Then the start at 07:30, and the stops one under another: each km large on the left, with the distance from the stop before under it; on the right the town and the arrival window, with a moon before sunrise, then a line for the water points, the nearest named and how many more, and a line per shop with the side of the road it is on and how far off, and its hours that day, the closed ones greyed and last, one marked opens 08:00. The Col de Menté and the Col de Portet d&#39;Aspet are orange bands with their category, length, grades and gain; a grey band marks sunrise at 08:06" width="640">
+
+*Pages 2 and 3 of the A5 booklet of [`samples/entrainement_ubf.gpx`](https://github.com/bnogaro/gpx2roadbook/blob/main/samples/entrainement_ubf.gpx), with `--hours --date 2026-10-11 --start 07:30 --speed 24`.*
+
+- **A5 or A6.** The booklet is A5 by default (`--booklet A5`), four pages to a sheet of A4. `--booklet A6` makes one that fits a pocket, eight pages to a sheet. With `--booklet off` there's none, and the reference sheet, the map and the climb pages stay in the road book.
+- **Printing it.** The pages are laid out on the sheets in the order that folds into a booklet. Print at **100 %**, with background graphics on:
+  - **A5:** on A4, double-sided, flipping on the short edge. Fold the stack in half and staple it at the fold.
+  - **A6:** on A4, double-sided, flipping on the long edge. Cut the stack across the middle, put the bottom pile under the top one, fold it all in half and staple it at the fold.
+
+  On screen, the pages read in order, with these steps above them. The samples' booklets take 3 or 4 sheets of A4 in A5 (5 for Paris–Le Mans with its shops' hours), 2 or 3 in A6.
+- **The cover** has the ride at a glance: its distance and climbing, the start and pace of a timed ride, the profile of the whole route, the checkpoints, the warnings and the climbs, and the keys to the emojis and climb colours. The back page has the credits. Spare pages at the end are lined, for notes.
+- **Each page** is headed by its km range, the day on a timed ride, and its number, over a profile of its stretch with a tick for each stop. It starts at a stop: a stop never runs over two pages, unless it's too long for one, like Le Mans, which carries on over the next page, "continued".
+- **Each stop** has its km, large, on the left, with the distance from the stop before (`+3.3`) and, for a long one, where it ends (`→ 5.5`). On the right, its town and arrival window (🌙 when it's dark), then what it has:
+  - **Water and toilets** on one line each: the nearest named, and how many more (`+2`).
+  - **Each shop** on a line of its own, with the side of the road it's on as you ride (← or →), and how far off the route when it's more than 30 m: `Intermarché → 257 m`. At most 5 of a kind, the nearest first (`booklet.max_per_kind`), then `+ 6 more 🥖`.
+  - **With `--hours`**, each shop's hours: that day's with `--date`, else the whole week's, on lines of their own when they're long. A shop closed when you pass is greyed and listed last, with **closed**; one opening or closing while you may be there says so: ⚠ **opens 08:00**.
+- **Between the stops:**
+  - **The climbs**, where they start, in the colour of their average grade, with their length, average and steepest grade and gain. With `--climb-pages`, their profile too (see [Climb pages](#climb-pages)).
+  - **Warnings** before a long stretch with nowhere to get water or nothing to eat, after the last stop that has some. You drink and eat by the hour, whatever the distance, so with a `--speed` a stretch is as long as it takes to ride, its climbing included (see [Arrival times](#arrival-times)): 3 hours or more without water (`--water-hours`), 4 without food (`--food-hours`). Round Mont Ventoux at 24 km/h: `⚠ 3h25 (45 km) without water: next at km 44.9 (~08:53–09:56)`. Without a speed, it's 50 km without water (`--water-km`) and 70 km without food (`--food-km`). Every shop sells drinks, so only a stretch without taps or shops counts as one without water. Shops known to be closed when you pass don't count, nor, after dark, shops not known to be open; taps do. `booklet.water` and `booklet.food` list the categories that count.
+  - **Checkpoints**, and on a timed ride each new day, and sunset 🌇 and sunrise 🌅 where you'll be then. The sun's times are worked out in your computer's time zone, as the arrival times are: right for a ride in your own country.
+- **A mini-map for each spread.** Each pair of facing pages has a map of the stretch they cover on its left-hand page, north up, with the stops' POIs at their places, their towns and climbs, and km markers. Only the road on that stretch is drawn: on a loop, the other side going by doesn't clutter it. A spread whose places are all on the road itself gets none, and the room for more stops.
+- **The map** of the whole route goes across the middle of the booklet, on the two pages printed side by side on the innermost sheet: A4 landscape in an A5 booklet, A5 in an A6 one (see [The map](#the-map)). It shows no POIs, the mini-maps do; instead it marks where each spread starts (**p. 4**), to find the page for where you are.
+
 ### The map
 
-Right after the strips comes a page with a map of the whole route, to see where the ride goes, and to plan it:
+A map of the whole route, to see where the ride goes, and to plan it. It goes across the middle of the booklet, two pages wide, or, without one, on a page right after the strips:
 
-<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/map.png" alt="Part of the map of samples/entrainement_ubf.gpx: the route in magenta through the Pyrenees foothills, from the green start disc by Saint-Béat-Lez over the Col de Menté, the Col de Portet d&#39;Aspet and the Col de Portel, through Saint-Lary, Saint-Girons and Le Mas-d&#39;Azil; km markers every 20 km; water, toilet, bakery, café, food, shop and fuel emojis on white discs at the POIs, some with a count, some on a thin line back to their place; thin brown contour lines every 100 m, bolder every 500 m with their height written along them, crowding over the mountains in the south and thinning out over the plain; a 10 km scale bar and the OpenStreetMap and terrain credits at the bottom" width="640">
+<img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/map.png" alt="Part of the map of samples/entrainement_ubf.gpx: the route in magenta through the Pyrenees foothills, from the green start disc by Saint-Béat-Lez over the Col de Menté, the Col de Portet d&#39;Aspet and the Col de Portel, through Saint-Lary, Saint-Girons and Le Mas-d&#39;Azil; km markers every 20 km, and black markers p. 2, p. 4 where each spread of the booklet starts; thin brown contour lines every 100 m, bolder every 500 m with their height written along them, crowding over the mountains in the south and thinning out over the plain; a 10 km scale bar and the OpenStreetMap and terrain credits at the bottom" width="640">
 
-- **What it shows.** The route, in magenta. Every POI at its place, as its emoji on a white disc: POIs of the same kind close together share one, with their count, and one moved aside to make room has a thin line back to its place. The towns named at busy stops (see [Town names](#town-names)), the climbs' names at their summits ▲ (see [Climb names](#climb-names)), 🟢 the start and 🏁 the finish. A km marker every few km (every 20 km on a 200 km ride) ties the map to the strips; checkpoints show with their label, in blue. `map.km_every` in a `--config` file sets the markers' spacing.
+- **What it shows.** The route, in magenta. Every POI at its place, as its emoji on a white disc: POIs of the same kind close together share one, with their count, and one moved aside to make room has a thin line back to its place. In the booklet, the POIs are on each spread's mini-map instead, and the map marks where each spread starts. The towns named at busy stops (see [Town names](#town-names)), the climbs' names at their summits ▲ (see [Climb names](#climb-names)), 🟢 the start and 🏁 the finish. A km marker every few km (every 20 km on a 200 km ride) ties the map to the strips; checkpoints show with their label, in blue. `map.km_every` in a `--config` file sets the markers' spacing.
 - **Contour lines** show the lie of the land: thin and brown, every fifth bolder with its height written along it, wherever that hides nothing else. Their interval suits the map, as close as keeps them about a millimetre apart on most of its slopes: every 20 m from Paris to Le Mans, every 100 m in the Pyrenees foothills or round Mont Ventoux. They are white on `satellite`; `topo` has its own, so it gets none. `--no-map-contours` leaves them off.
-- **Its scale.** The map is drawn at the zoom where its own place names print about as large as they show on a screen, with the route filling the page. The page is turned to landscape when that shows the route larger, for a ride heading east or west, whatever the other pages. A scale bar sits at the bottom left.
+- **Its scale.** The map is drawn at the zoom where its own place names print about as large as they show on a screen, with the route filling the page. In the booklet it is landscape. Without one, its page is turned to landscape when that shows the route larger, for a ride heading east or west, whatever the other pages. A scale bar sits at the bottom left.
 - **Its look**, with `--map-style`:
 
   | Style | Look | Tiles |
@@ -234,11 +264,11 @@ Right after the strips comes a page with a map of the whole route, to see where 
 
 ### The reference sheet
 
-After the strips and the map comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`. A footer line at its end says which version of gpx2roadbook made it and where to get it.
+Without a booklet (`--booklet off`), after the strips and the map comes a page listing every stop by km (as a range, e.g. `km 122.4 → 129.1`, for long stops), with the name of each POI grouped by emoji. When a POI is more than 30 m off the route, its distance from the route is shown in brackets, e.g. `Intermarché Super (265 m)`. Keep it in a pocket, or leave it out with `--no-details`. A footer line at its end says which version of gpx2roadbook made it and where to get it.
 
 ### Climb pages
 
-`--climb-pages` adds a page of climb profiles after the reference sheet, like the ones the big races print. It's meant for reading before the ride, or keeping in a pocket:
+`--climb-pages` adds climb profiles like the ones the big races print, to read before the ride or on the way: in the booklet, each where its climb starts; without one, on a page after the reference sheet:
 
 <img src="https://raw.githubusercontent.com/bnogaro/gpx2roadbook/main/docs/img/climb-page.png" alt="The Col de Menté's climb profile: Cat HC, 9.6 km at 8.9 %, from 504 m to 1357 m; ten slabs, one per kilometre, each coloured and labelled by its grade from 7.8 to 10.8 %, the altitude at each kilometre, the km from the foot below; above, dashed lines to the villages Lez and Boutx and to the stops' emojis" width="640">
 
@@ -263,7 +293,7 @@ km 60.0 → 61.5 · Saint-Girons
 - **One stop per town.** A town's POIs often fall into several stops, split by `--gap`. Its named stops, and the unnamed ones between them, are merged into one, whatever `--gap` says: Le Mans is one row from km 264.8 to 269.4 rather than three. Only stops up to 5 km apart join (`towns.group_km`; 0 never groups), since a route may come back through a town later. The small stops just outside a town's named ones, up to 2 km (`towns.edge_km`), are asked which town they are in, and join it if it's the same: the supermarket on the way out of Saint-Girons does, the next village's bakery doesn't. That's one more request, once, for each such stop.
 - **On the strip**, the name gets a line of its own above the stop's row, in italics and right-aligned, so the km down the left read on undisturbed. A thin frame, open on the right, holds the name, the row and the town's range together. That line takes 3.2 mm, so a strip holds a little less. When two busy stops in a row are in the same town but too far apart to be one, only the first names it.
 - **The finish never ends up alone.** If the last row doesn't quite fit, the last strip runs up to 6 mm longer rather than start a new strip for it.
-- **On the reference sheet**, every busy stop has its name next to its km.
+- **In the booklet and on the reference sheet**, every busy stop has its name next to its km.
 - **Where it comes from.** The GPX has no place names, so each busy stop asks [Nominatim](https://nominatim.org) (OpenStreetMap) which city, town or village its middle POI is in. That is one request per busy stop, one per second: a few seconds for most routes.
 - **Then it's instant.** Answers are cached on your computer for a year (`towns.max_age_days`); `--refresh` looks them up again. If Nominatim doesn't answer, you get a warning and a road book without the missing names.
 
@@ -277,14 +307,14 @@ km 25.6 → 29.9 · Col de Portet d'Aspet
 ```
 
 - **On the strip**, the name gets a line of its own above the climb's ⛰️ row, the row at its foot: it announces the climb before you start it, right above its length and grade. It is right-aligned and in the climbs' brown, and takes 3.2 mm like a town line. The 🔝 summit row isn't used, as it only shows when a stop sits at the top. A climb starting at a busy stop in a named town gets both lines: the town, then the climb.
-- **On the reference sheet**, each named climb gets an entry of its own, at its foot's km between the stops: its name, category, length, grade and gain.
+- **In the booklet and on the reference sheet**, each named climb gets an entry of its own, at its foot's km between the stops: its name, category, length, grade and gain.
 - **Which name.** OpenStreetMap places tagged as a mountain pass (`mountain_pass=yes`), a saddle (`natural=saddle`) or a peak (`natural=peak`), with a name, near the climb's top. A pass or saddle within 300 m (`climb_names.pass_m`) wins, since the road crosses it; else a peak within 200 m (`climb_names.peak_m`), since the road only skirts one: the nearest peak is often a summit off to the side, not where the road tops out. Then the closest. Most small rises have neither, and get no name.
 - **Where it comes from.** One [Overpass](https://overpass-api.de) request for the whole route; if its servers are busy, a mirror, then [Nominatim](https://nominatim.org), up to three requests per climb, one per second.
 - **Then it's instant.** Answers are cached on your computer for a year (`climb_names.max_age_days`); `--refresh` looks them up again. If OpenStreetMap doesn't answer, or you're offline, you get a warning and a road book without the missing names.
 
 ### Opening hours
 
-With `--hours`, each bakery, grocery, petrol station, café, fast food and ice cream shop on the reference sheet gets its own line with its opening hours, as listed on [OpenStreetMap](https://www.openstreetmap.org):
+With `--hours`, each bakery, grocery, petrol station, café, fast food and ice cream shop in the booklet, or on the reference sheet, gets its own line with its opening hours, as listed on [OpenStreetMap](https://www.openstreetmap.org):
 
 ```text
 km 4.3
@@ -331,7 +361,7 @@ km 151.7 ~14:45–17:15
 - **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
 - **Climbing slows you down.** Each 100 m climbed adds 5 minutes (`--climb`), on top of the distance at your flat speed. So the stop after a big climb comes later than at a constant speed, and the flat stretches after it go quicker. Fitted on real 100–250 km rides with 800–4,100 m of climbing, this got the ride time within about half an hour. Descents are not counted separately: the 5 minutes are what a climb costs once the descent after it has given some time back.
 - **Planned breaks**, such as `--break 95:45` for a 45-minute lunch at km 95, delay every stop after them. They don't widen the margin, since you plan them.
-- The sheet's title sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (±15 %, ≥20 min) · breaks: km 95 (45 min)*.
+- The booklet's cover, or the sheet's title, sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (±15 %, ≥20 min) · breaks: km 95 (45 min)*.
 
 ## Development
 

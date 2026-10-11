@@ -12,6 +12,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, override
 
+from .booklet import render_booklet
 from .build import build
 from .parse import GpxError
 from .render import html_to_pdf, render_html
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from .model import Roadbook
     from .osm import Report
 
-__all__ = ["GpxError", "Preview", "Result", "default_out", "lookup_line", "preview", "run"]
+__all__ = ["GpxError", "Preview", "Result", "booklet_out", "default_out", "lookup_line", "preview", "run"]
 
 
 @dataclass
@@ -33,7 +34,9 @@ class Result:
     book: Roadbook  # with the lookups' reports: book.hours, book.towns, book.climb_names
     html: Path
     pdf: Path | None = None  # None when no PDF was asked for, or it could not be written
-    pdf_error: str | None = None  # why the PDF asked for was not written; the HTML is, all the same
+    pdf_error: str | None = None  # why a PDF asked for was not written; the HTML is, all the same
+    booklet: Path | None = None  # None when no booklet was asked for
+    booklet_pdf: Path | None = None
     warnings: list[str] = field(default_factory=list)  # what the run warned of: no elevation, no arrival times…
 
 
@@ -44,6 +47,7 @@ class Preview:
     book: Roadbook  # its lookups' reports count what they left unasked: report.unasked
     html: str
     warnings: list[str] = field(default_factory=list)
+    booklet: str | None = None  # its HTML, None without a booklet
 
 
 class _Collect(logging.Handler):
@@ -88,8 +92,14 @@ def default_out(gpx: Path) -> Path:
     return gpx.with_suffix(".roadbook.html")
 
 
+def booklet_out(out: Path) -> Path:
+    """Where the booklet goes, next to the road book: ride.roadbook.html's is ride.booklet.html."""
+    return out.with_name(out.name.removesuffix(".html").removesuffix(".roadbook") + ".booklet.html")
+
+
 def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = False) -> Result:
-    """Build the road book of `gpx` with the settings `cfg`, write its HTML, and its PDF if asked for.
+    """Build the road book of `gpx` with the settings `cfg`, write its HTML and its booklet's, and their PDFs if asked
+    for.
 
     Raises GpxError for a file that is no GPX the road book can use. A PDF that can't be written is not an error:
     the HTML is there all the same, and the Result says why.
@@ -99,16 +109,30 @@ def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = 
         out = out or default_out(gpx)
         out.write_text(render_html(book, cfg), encoding="utf-8")
         result = Result(book, out)
+        if (booklet := render_booklet(book, cfg)) is not None:
+            result.booklet = booklet_out(out)
+            result.booklet.write_text(booklet, encoding="utf-8")
         if pdf:
-            target = out.with_suffix(".pdf")
-            try:
-                html_to_pdf(out, target)
-            except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # the browser failed, or never finished
-                result.pdf_error = str(exc)
-            else:
-                result.pdf = target
+            _pdfs(result)
     result.warnings = warnings
     return result
+
+
+def _pdfs(result: Result) -> None:
+    """Print the road book, and its booklet, each to a PDF next to it; at the first that fails, say why and stop."""
+    for html in (result.html, result.booklet):
+        if html is None:
+            continue
+        target = html.with_suffix(".pdf")
+        try:
+            html_to_pdf(html, target)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # the browser failed, or never finished
+            result.pdf_error = str(exc)
+            return
+        if html == result.html:
+            result.pdf = target
+        else:
+            result.booklet_pdf = target
 
 
 def preview(gpx: Path, cfg: dict[str, Any]) -> Preview:
@@ -120,4 +144,5 @@ def preview(gpx: Path, cfg: dict[str, Any]) -> Preview:
     with _warnings() as warnings:
         book = build(gpx, cfg, offline=True)
         html = render_html(book, cfg)
-    return Preview(book, html, warnings)
+        booklet = render_booklet(book, cfg)
+    return Preview(book, html, warnings, booklet)

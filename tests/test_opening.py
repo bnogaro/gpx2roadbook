@@ -131,6 +131,7 @@ def fake_lookup(monkeypatch: pytest.MonkeyPatch) -> None:
 @pytest.mark.usefixtures("fake_lookup")
 def test_the_reference_sheet_shows_the_ride_day() -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["hours"]["enabled"] = True
     cfg["ride"]["date"] = "2026-10-14"
     html = render_html(build(HILLY, cfg), cfg)
@@ -149,6 +150,7 @@ def test_the_reference_sheet_shows_the_ride_day() -> None:
 @pytest.mark.usefixtures("fake_lookup")
 def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["hours"]["enabled"] = True
     cfg["ride"].update(date="2026-10-14", start="06:00", speed_kmh=25)
     book = build(HILLY, cfg)
@@ -172,6 +174,7 @@ def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
 
 def test_the_sheet_title_states_the_estimate_s_assumptions() -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["ride"].update(date="2026-10-17", start="07:00", speed_kmh=26, breaks=[[95, 45]])
     html = render_html(build(HILLY, cfg), cfg)
     assert "start Sat 17 Oct 2026 07:00 at 26 km/h + 5 min/100 m climbed" in html

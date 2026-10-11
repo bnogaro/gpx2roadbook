@@ -15,6 +15,7 @@ from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import M_PER_DEG, Report
 from roadbook.render import printable_area, render_html
 from roadbook.routemap import (
+    MINI_PAD,
     PAD,
     SCREEN,
     SPACE,
@@ -27,6 +28,7 @@ from roadbook.routemap import (
     frame,
     km_every,
     make,
+    section,
     svg,
     world,
 )
@@ -235,6 +237,59 @@ def test_the_map_shows_the_route_its_pois_towns_and_climbs() -> None:
     assert re.fullmatch(r"\d+ km", _texts(out, "map-scale")[0])
 
 
+def test_a_mini_map_shows_its_stretch_only_and_the_overview_no_pois() -> None:
+    track = _track(100)
+    cats = load_config()["categories"]
+    stops = [Stop([_poi(track, 30, "bakery")], town="Here"), Stop([_poi(track, 80, "water")], town="There")]
+    book = _book(track, stops, [Climb(40, 52, 600, 5, 8, "2", name="Col"), Climb(85, 90, 300, 6, 8, "3", name="Far")])
+    m = _map(track)
+    mini = svg(m, book, cats, every_km=10, span=(0, 60))
+    assert _texts(mini, "map-poi") == [cats["bakery"]["emoji"]]
+    assert _texts(mini, "map-town") == ["Here"]
+    assert _texts(mini, "map-climb") == ["Col"]
+    assert _texts(mini, "map-start") == ["🟢"]
+    assert _texts(mini, "map-finish") == []
+    pills = re.findall(r'dominant-baseline="central">([\w. ]+)</text>', mini)
+    assert [p for p in pills if p.isdigit()] == ["10", "20", "30", "40", "50", "60"]
+    overview = svg(m, book, cats, every_km=10, with_pois=False, pages=[(0.0, "p. 2"), (55.0, "p. 4")])
+    assert _texts(overview, "map-poi") == []
+    assert _texts(overview, "map-town") == ["Here", "There"]
+    assert "p. 2" in overview
+    assert "p. 4" in overview
+
+
+def test_a_mini_map_fills_its_box_and_its_credit_fits_on_a_line(tiles: FakeTiles) -> None:
+    track = _track(100, east=True)
+    m, report = section(track, load_config()["map"], (90, 42), (20, 60))
+    assert (m.width, m.height) == (90, 42)
+    x, y = m.mm(*track.at(20))
+    x1, _ = m.mm(*track.at(60))
+    assert 0 < x < x1 < 90
+    assert 0 < y < 42
+    assert x == pytest.approx(MINI_PAD, abs=1)  # the stretch as large as the box takes it
+    assert x1 == pytest.approx(90 - MINI_PAD, abs=1)
+    assert report.asked == len(tiles.asked[0][1])
+    credit = _texts(svg(m, _book(track, [], []), {}, span=(20, 60)), "map-credit")
+    assert credit == ["© OpenStreetMap contributors · HOT tiles by OSM France"]
+
+
+def test_a_mini_map_draws_only_its_stretch_of_a_loop() -> None:
+    """Out north 50 km, back 2 km further east: the way back runs by the way out, and is not this map's."""
+    dist = np.arange(0, 100_001, 100.0)
+    north = np.minimum(dist, 100_000 - dist) / M_PER_DEG
+    east = np.where(dist <= 50_000, 0.0, 2000.0) / M_PER_DEG / math.cos(math.radians(45))
+    loop = Track("loop", 45 + north, 5 + east, np.zeros_like(dist), dist)
+    m = _map(loop)
+    back = m.mm(loop.lat[dist > 51_000], loop.lon[dist > 51_000])[0].min()  # x of the way back
+    drawn = re.search(r'class="map-route" points="([^"]+)"', svg(m, _book(loop, [], []), {}, span=(0, 50)))
+    assert drawn is not None
+    xs = [float(p.split(",")[0]) for p in drawn.group(1).split()]
+    assert max(xs) < back - 1  # the way out only
+    whole = re.search(r'class="map-route" points="([^"]+)"', svg(m, _book(loop, [], []), {}))
+    assert whole is not None
+    assert max(float(p.split(",")[0]) for p in whole.group(1).split()) >= back - 0.01  # the whole loop otherwise
+
+
 def test_a_map_without_tiles_still_shows_the_route() -> None:
     track = _track(50)
     out = svg(_map(track, tiles={}), _book(track, [], []), load_config()["categories"])
@@ -260,6 +315,7 @@ def test_the_satellite_map_credits_the_names_to_openstreetmap() -> None:
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_map_page_comes_between_the_strips_and_the_reference_sheet(tiles: FakeTiles) -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     book = build(HILLY, cfg)
     assert book.route_map is not None
     assert book.tiles is not None
@@ -278,7 +334,7 @@ def test_the_map_page_comes_between_the_strips_and_the_reference_sheet(tiles: Fa
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_cli_takes_the_map_options_and_sums_up_its_tiles(tiles: FakeTiles, tmp_path: Path) -> None:
     out = tmp_path / "rb.html"
-    result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), "--map-style", "satellite"])
+    result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), "--map-style", "satellite", "--booklet", "off"])
     assert result.exit_code == 0, result.output
     n = len(tiles.asked[0][1])
     assert tiles.asked[0][0] == "satellite"

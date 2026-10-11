@@ -344,9 +344,10 @@ def test_the_cli_draws_the_contours_and_sums_up_their_terrain(
     assert result.exit_code == 0, result.output
     n = len(terrain.asked[0][1])
     assert f"Contours: {n} of {n} terrain tiles (AWS Terrain Tiles)" in result.output
-    assert 'class="map-contours"' in out.read_text(encoding="utf-8")
+    booklet = tmp_path / "rb.booklet.html"  # where the map is
+    assert 'class="map-contours"' in booklet.read_text(encoding="utf-8")
     result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), "--no-map-contours"])
     assert result.exit_code == 0, result.output
     assert len(terrain.asked) == 1
     assert "Contours:" not in result.output
-    assert 'class="map-contours"' not in out.read_text(encoding="utf-8")
+    assert 'class="map-contours"' not in booklet.read_text(encoding="utf-8")

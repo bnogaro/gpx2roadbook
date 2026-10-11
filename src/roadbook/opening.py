@@ -92,9 +92,16 @@ class Ride:
         margins = float(cfg["margin_pct"]), float(cfg["margin_min"])
         return cls(date, start, speed, *margins, float(cfg.get("climb_min_per_100m") or 0), breaks)
 
+    def riding_h(self, km_from: float, km_to: float, gain: Gain = _flat) -> float | None:
+        """Hours riding from one km to another at the ride's speed, its climbing included, the breaks not; None without
+        a speed."""
+        if self.speed_kmh <= 0:
+            return None
+        return (km_to - km_from) / self.speed_kmh + gain(km_from, km_to) / 100 * self.climb_min_per_100m / 60
+
     def _at(self, start: dt.datetime, km: float, sign: int, gain: Gain) -> dt.datetime:
         """The estimate for `km`, moved by its margin: earlier (sign -1) or later (+1)."""
-        riding = km / self.speed_kmh + gain(0.0, km) / 100 * self.climb_min_per_100m / 60
+        riding = self.riding_h(0.0, km, gain) or 0.0  # a start time comes with a speed
         resting = sum(minutes for at_km, minutes in self.breaks if at_km < km) / 60
         # the error grows with the time ridden: a little faster or slower adds up over a long day; breaks are planned
         spread = max(riding * self.margin_pct / 100, self.margin_min / 60)
@@ -102,6 +109,10 @@ class Ride:
         # to the minute, rounding outwards: a window shown as "06:00-06:21" never ends before what it says
         minute = at.replace(second=0, microsecond=0)
         return minute + dt.timedelta(minutes=1) if sign > 0 and at > minute else minute
+
+    def at(self, km: float, gain: Gain = _flat) -> dt.datetime | None:
+        """When the rider is expected at `km`, without the margin; None without a start time and speed."""
+        return None if self.start is None else self._at(self.start, km, 0, gain)
 
     def window(self, km_from: float, km_to: float, gain: Gain = _flat) -> Window | None:
         """When the rider may be between `km_from` and `km_to`; None without a start time and speed.

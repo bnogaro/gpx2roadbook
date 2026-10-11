@@ -89,11 +89,30 @@ async def test_picking_a_gpx_and_making_the_road_book(user: User, tmp_path: Path
     user.find(marker="make").click()
     await user.should_see(marker="wrote", retries=50)
     assert (tmp_path / "ride.roadbook.html").is_file()
+    await user.should_see(marker="wrote-booklet")
+    assert (tmp_path / "ride.booklet.html").is_file()
+    await user.should_see(marker="open-booklet")
+    await user.should_see("Strips PDF")  # the road book holds the strips alone: its buttons say so
     await user.should_see("690 POIs")
     await user.should_see(marker="command")
     command = next(iter(user.find(marker="command").elements)).text  # ty: ignore[unresolved-attribute]  # a label
     assert "--categories toilets,bakery,cafe" in command
     await user.should_see(kind=ui.log)
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+async def test_the_run_s_log_says_each_step_once_while_the_preview_builds_too(user: User, tmp_path: Path) -> None:
+    gpx = tmp_path / "ride.gpx"
+    shutil.copy(FLAT, gpx)
+    await user.open("/")
+    user.find(marker="gpx").type(str(gpx))
+    user.find(marker="make").click()  # at once: the preview of the new GPX builds while the road book is made
+    await user.should_see(marker="wrote", retries=80)
+    await user.should_see(marker="preview-frame", retries=50)
+    log = next(iter(user.find(kind=ui.log).elements))
+    lines = [line.text for line in log.default_slot.children]  # ty: ignore[unresolved-attribute]  # its labels
+    assert lines.count("Read ride.gpx: 4304 track points, 690 waypoints") == 1
+    assert len(lines) == len(set(lines))
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
@@ -127,7 +146,11 @@ async def test_the_preview_follows_the_settings_from_the_cache_only(
     await user.should_see("Fit")
     for tabs in user.find(kind=ui.tabs).elements:
         tabs.value = "sheet"  # as a click does in a window
-    assert ".sheet { display: none; }" in _srcdoc(user)
+    assert 'class="booklet"' in _srcdoc(user)  # the booklet, a file of its own: nothing to hide
+    assert next(iter(user.find(marker="preview-sheet").elements)).props["label"] == "Booklet"
+    assert "display: none; }" not in _srcdoc(user).split("</head>")[0].rsplit("<style>", 1)[1]
+    for tabs in user.find(kind=ui.tabs).elements:
+        tabs.value = "strips"
     _pick(user, "layout", "line")
     for _ in range(50):  # built again, a moment after the change
         await asyncio.sleep(0.1)

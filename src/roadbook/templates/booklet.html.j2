@@ -1,0 +1,198 @@
+{#- a stop's or a climb's line: what goes right of its km -#}
+{% macro line(r) -%}
+{%- if r is none %}{% elif r.kind == 'town' -%}
+<span class="town">{{ r.town }}</span>{% if r.eta %}<span class="eta">{{ r.eta }}{% if r.dark %} 🌙{% endif %}</span>{% endif %}
+{%- elif r.kind == 'count' -%}
+<span class="e">{{ r.emoji }}</span><span class="n">{{ r.name }}</span>{% if r.where %}<span class="w">{{ r.where }}</span>{% endif %}{% if r.n > 1 %}<b class="x">+{{ r.n - 1 }}</b>{% endif %}
+{%- elif r.kind == 'shop' -%}
+<span class="e">{{ r.emoji }}</span><span class="n">{{ r.name }}</span>{% if r.where %}<span class="w">{{ r.where }}</span>{% endif %}
+{%- if r.verdict or r.hours %}<span class="h {{ r.cls }}">{% if r.verdict %}<b class="v">{{ r.verdict }}</b>{% endif %}{% if r.verdict and r.hours %} {% endif %}{{ r.hours }}</span>
+{%- elif r.cls == 'write-in' %}<span class="h"><span class="wi" title="hours unknown"></span></span>{% endif %}
+{%- elif r.kind == 'hours' -%}
+<span class="u {{ r.cls }}">{{ r.text }}</span>
+{%- elif r.kind == 'more' -%}
+<span class="more">+ {{ r.n }} more {{ r.emoji }}</span>
+{%- elif r.kind == 'col' -%}
+<span class="col">⛰️ {{ r.name }}</span>{% if r.cat %}<span class="cat">Cat {{ r.cat }}</span>{% endif %}
+{%- elif r.kind == 'text' -%}
+<span class="txt">{{ r.text }}</span>
+{%- endif %}
+{%- endmacro %}
+
+{% macro block(b) -%}
+{%- if b.rows %}
+<div class="b {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm{% if b.data.grade %}; --grade: {{ b.data.grade }}{% endif %}">
+  {%- for r in b.rows %}
+  <div class="r{% if loop.first %} head{% endif %}{% if r.right and r.right.closed %} closed{% endif %}"><span class="l">{{ r.left }}</span><span class="c">{{ line(r.right) }}</span></div>
+  {%- endfor %}
+  {%- if b.data.svg %}<div class="card">{{ b.data.svg | safe }}</div>{% endif %}
+</div>
+{%- else %}
+<div class="b band {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm"><div class="t">{{ b.data.text }}</div></div>
+{%- endif %}
+{%- endmacro %}
+
+{% macro page(p, x, y) -%}
+{%- if p.kind == 'map' %}
+<div class="spread" style="--x: {{ x }}mm; --y: {{ y }}mm; order: {{ p.n }}">
+  <div class="ph"><span>{{ book.title }}</span><span class="no">{{ p.n }}–{{ p.n + 1 }} / {{ p.of }}</span></div>
+  {{ p.svg | safe }}
+</div>
+{%- else %}
+<div class="page {{ p.kind }} {{ 'recto' if p.recto else 'verso' }}" style="--x: {{ x }}mm; --y: {{ y }}mm; order: {{ p.n }}">
+{%- if p.kind == 'cover' %}
+  <h1>{{ p.title }}</h1>
+  <p class="total">{{ p.total }}</p>
+  <p class="ride">{{ p.ride }}</p>
+  <div class="pp big">{{ p.profile | safe }}</div>
+  {%- for l in p.lists %}
+  <h2>{{ l.title }}</h2>
+  {%- for item in l['items'] %}<div class="li">{{ item }}</div>{% endfor %}
+  {%- endfor %}
+  <div class="keys">
+    {%- for k in p.key %}<div class="li">{{ k }}</div>{% endfor %}
+    {%- if p.grades %}<div class="li">Grades:{% for label, colour in p.grades %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</div>{% endif %}
+  </div>
+{%- elif p.kind == 'stops' %}
+  <div class="ph"><span>{{ p.km }}</span>{% if p.day %}<span class="day">{{ p.day }}</span>{% endif %}<span class="no">{{ p.n }} / {{ p.of }}</span></div>
+  {%- if p.minimap %}<div class="mm">{{ p.minimap | safe }}</div>{% endif %}
+  <div class="pp">{{ p.profile | safe }}</div>
+  {%- for b in p.blocks %}{{ block(b) }}{% endfor %}
+{%- elif p.kind == 'notes' %}
+  <div class="ph"><span>Notes</span><span class="no">{{ p.n }} / {{ p.of }}</span></div>
+  {%- for _ in range(notes_lines) %}<div class="rule"></div>{% endfor %}
+{%- elif p.kind == 'back' %}
+  <div class="colophon">
+    {%- if p.maps %}<p>{{ p.maps }}</p>{% endif %}
+    {%- if p.credit %}<p>{{ p.credit }}</p>{% endif %}
+    {%- if p.check %}<p>{{ p.check }}</p>{% endif %}
+    <p>Made with {{ p.tool }} {{ p.version }} · {{ p.home }}</p>
+  </div>
+{%- endif %}
+</div>
+{%- endif %}
+{%- endmacro -%}
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>{{ book.title }} — booklet</title>
+<style>
+  @page { size: {{ f.sheet[0] }}mm {{ f.sheet[1] }}mm; margin: 0; }
+  :root {
+    --pw: {{ f.page[0] }}mm; --ph: {{ f.page[1] }}mm; --margin: {{ f.margin }}mm; --inner: {{ f.inner }}mm;
+    --line: {{ f.line }}mm; --head: {{ f.head }}mm; --km-col: {{ f.km_col }}mm; --header: {{ f.header }}mm;
+    --profile: {{ f.profile }}mm; --gap: {{ f.gap }}mm; --minimap: {{ f.minimap }}mm;
+  }
+  * { box-sizing: border-box; }
+  html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  body { margin: 0; font-family: "Segoe UI", "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
+         font-size: {{ f.font }}pt; color: #111; }
+  p { margin: 0; }
+
+  /* printed: each A4 side, its pages at their places on it */
+  .side { position: relative; width: {{ f.sheet[0] }}mm; height: {{ f.sheet[1] }}mm; overflow: hidden; break-after: page; }
+  .page, .spread { position: absolute; left: var(--x); top: var(--y); width: var(--pw); height: var(--ph);
+                   overflow: hidden; padding: var(--margin); background: #fff; }
+  .page.recto { padding-left: var(--inner); }  /* a right-hand page: the fold on its left */
+  .page.verso { padding-right: var(--inner); }
+  .spread { width: calc(2 * var(--pw)); }
+  .spread .route-map { display: block; margin: 0 auto; }
+
+  /* the running header, and the profile of the page's km under it */
+  .ph { height: var(--header); display: flex; align-items: center; gap: 2.5mm; border-bottom: 0.35mm solid #111;
+        font-size: {{ f.font - 0.5 }}pt; font-weight: 700; white-space: nowrap; overflow: hidden; }
+  .ph .day { font-weight: 600; }
+  .ph .no { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .pp { height: calc(var(--profile) + var(--gap)); padding-top: 0.3mm; overflow: hidden; }
+  .pp svg { display: block; }
+  .mm { height: calc(var(--minimap) + var(--gap)); padding-top: var(--gap); overflow: hidden; }  /* the spread's map */
+  .mm svg { display: block; }
+
+  /* a block: its height set, so the page holds what was counted; its lines, each a line high */
+  .b { overflow: hidden; }
+  .r { height: var(--line); display: flex; align-items: center; white-space: nowrap; }
+  .r.head { height: var(--head); }
+  .stop .r.head, .climb .r.head { border-top: 0.2mm solid #888; }
+  .r .l { width: var(--km-col); flex: none; font-variant-numeric: tabular-nums; font-size: {{ f.font - 1 }}pt; color: #333; }
+  .r.head .l { font-size: {{ f.km_font }}pt; font-weight: 800; color: #111; letter-spacing: -0.02em; }
+  .r .c { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 1.2mm; overflow: hidden; }
+  .c .e { flex: none; }
+  .c .n { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+  .c .w { flex: none; color: #333; font-variant-numeric: tabular-nums; }
+  .c .x { flex: none; }  /* the others of its kind, after the nearest */
+  .c .h { flex: none; margin-left: auto; font-variant-numeric: tabular-nums; }
+  .c .h.off, .c .u.off { color: #444; }
+  .c .h.closed, .c .v { font-weight: 700; }
+  .c .u { padding-left: {{ 4 }}mm; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+  .c .wi { display: inline-block; width: 16mm; height: 3mm; border-bottom: 0.2mm dotted #555; }
+  .c .more { color: #333; }
+  .r.closed .n, .r.closed .w, .r.closed .e { opacity: 0.55; }  /* closed when passing: there, but stepped back */
+  .town { font-weight: 700; font-size: {{ f.font + 0.5 }}pt; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .eta { flex: none; margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .climb { background: #fdf0dc; box-shadow: inset 1.2mm 0 0 var(--grade, #f59e0b); padding-left: 1.6mm; }
+  .climb .r .l { width: calc(var(--km-col) - 1.6mm); color: #92400e; }
+  .col { font-weight: 800; color: #92400e; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .cat { flex: none; margin-left: auto; font-weight: 700; color: #92400e; }
+  .txt { overflow: hidden; text-overflow: ellipsis; }
+  .card svg { display: block; }
+
+  /* headings across the page: the start, a day, sunset, a checkpoint, a warning, the finish */
+  .band .t { height: calc(var(--line) + 1.2mm); display: flex; align-items: center; padding: 0 1.5mm; font-weight: 700;
+             white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .band.start .t, .band.finish .t, .band.checkpoint .t { background: #d9e8ff; border-top: 0.3mm solid #345;
+                                                          border-bottom: 0.3mm solid #345; }
+  .band.day .t { font-size: {{ f.font + 1 }}pt; font-weight: 800; border-bottom: 0.5mm solid #111; padding-left: 0; }
+  .band.sun .t { background: #eee; border-radius: 1mm; }
+  .band.gap .t { border-left: 1.4mm solid #111; background: #f0f0f0; }
+
+  /* the cover, Notes, the back */
+  .cover h1 { font-size: {{ f.font + 6 }}pt; margin: 0 0 1mm; line-height: 1.15; max-height: 3em; overflow: hidden; }
+  .cover .total { font-weight: 700; font-size: {{ f.font + 1 }}pt; height: var(--line); }
+  .cover .ride { font-size: {{ f.font - 1 }}pt; height: calc(2 * var(--line)); overflow: hidden; color: #333; }
+  .cover .pp.big { height: auto; margin: 1mm 0 2mm; }
+  .cover h2 { font-size: {{ f.font }}pt; margin: 0; height: var(--line); display: flex; align-items: flex-end;
+              border-bottom: 0.25mm solid #111; }
+  .cover .li { height: var(--line); display: flex; align-items: center; white-space: nowrap; overflow: hidden;
+               text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .cover .keys { position: absolute; left: var(--pad-l); right: var(--pad-r); bottom: var(--margin); font-size: {{ f.font - 1 }}pt; }
+  .page.recto .keys { --pad-l: var(--inner); --pad-r: var(--margin); }
+  .page.verso .keys { --pad-l: var(--margin); --pad-r: var(--inner); }
+  .swatch { display: inline-block; width: 2.4mm; height: 2.4mm; margin: 0 0.6mm 0 1.6mm; }
+  .rule { height: calc(2 * var(--line)); border-bottom: 0.2mm solid #999; }
+  .back .colophon { position: absolute; left: var(--margin); right: var(--margin); bottom: var(--margin);
+                    font-size: {{ f.font - 1.5 }}pt; color: #333; }
+  .back .colophon p + p { margin-top: 1mm; }
+
+  /* on screen: the pages in reading order, the printing steps above them */
+  .note { display: none; }
+  @media screen {
+    body { background: #ddd; padding: 6mm; }
+    .note { display: block; max-width: 200mm; margin: 0 0 5mm; font-size: 10pt; line-height: 1.4; }
+    .booklet { display: flex; flex-wrap: wrap; gap: 5mm; align-items: flex-start; }
+    .side { display: contents; }
+    .page, .spread { position: relative; left: auto; top: auto; box-shadow: 0 0.4mm 2mm rgba(0, 0, 0, 0.3); }
+  }
+</style>
+</head>
+<body>
+<div class="note">
+  <b>{{ pages }} pages, {{ f.name }}.</b>
+  {%- if f.rows == 1 %}
+  To print: A4, double-sided, flip on the short edge, at actual size (100 %). Fold the stack in half and staple it at
+  the fold.
+  {%- else %}
+  To print: A4, double-sided, flip on the long edge, at actual size (100 %). Cut the stack across the middle, put the
+  bottom pile under the top one, fold it all in half and staple it at the fold.
+  {%- endif %}
+</div>
+<div class="booklet">
+{%- for side in sides %}
+<section class="side">
+  {%- for s in side %}{{ page(s.page, s.x, s.y) }}{% endfor %}
+</section>
+{%- endfor %}
+</div>
+</body>
+</html>

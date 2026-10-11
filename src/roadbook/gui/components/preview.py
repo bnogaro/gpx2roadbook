@@ -12,6 +12,7 @@ from nicegui import run, ui
 from roadbook import settings as st
 from roadbook.api import GpxError, preview
 from roadbook.gui.components.run_panel import LOOKUPS
+from roadbook.imposition import chosen
 
 if TYPE_CHECKING:
     from nicegui.element import Element
@@ -42,7 +43,8 @@ def framed(html: str, tab: str, zoom: float | None, widest_mm: float) -> str:
         zooming = " ".join(fit)
     else:
         zooming = f"html {{ zoom: {zoom:g}; }}"
-    style = f"<style>{HIDE[tab]} {{ display: none; }} {zooming}</style>"
+    hide = f"{HIDE[tab]} {{ display: none; }} " if tab in HIDE else ""  # the booklet is a file of its own
+    style = f"<style>{hide}{zooming}</style>"
     return html.replace("</head>", f"{style}</head>", 1)
 
 
@@ -51,6 +53,12 @@ def widest(cfg: dict[str, Any]) -> float:
     line = st.LAYOUT.get(cfg) == "line"
     across = st.LENGTH.get(cfg) if line else st.WIDTH.get(cfg) or st.strip_width(cfg)
     return float(across) + 10  # its frame and a margin
+
+
+def booklet_width(cfg: dict[str, Any]) -> float:
+    """The booklet's widest piece on screen, mm: its centre spread, two pages wide, with the page's margin."""
+    f = chosen(cfg)
+    return 2 * f.page[0] + 16 if f else 0.0
 
 
 def notes(shot: Preview) -> list[str]:
@@ -65,7 +73,7 @@ def notes(shot: Preview) -> list[str]:
 
 
 class PreviewPanel:
-    """Tabs for the strips and the reference sheet, the zoom, and the road book at its true size."""
+    """Tabs for the strips and the booklet (or the reference sheet), the zoom, and the road book at its true size."""
 
     def __init__(self, form: Form) -> None:
         self.form = form
@@ -80,7 +88,7 @@ class PreviewPanel:
         with ui.row().classes("w-full items-center gap-1"):
             with ui.tabs(on_change=self.pick).classes("grow") as tabs:
                 ui.tab("strips", "Strips", icon="view_week").mark("preview-strips")
-                ui.tab("sheet", "Reference sheet", icon="list_alt").mark("preview-sheet")
+                self.sheet = ui.tab("sheet", "Booklet", icon="menu_book").mark("preview-sheet")
             tabs.value = self.tab
             with ui.row().classes("items-center no-wrap gap-1"):  # the zoom keeps together, on a phone too
                 ui.button(icon="zoom_out", on_click=lambda: self.zoom_by(-1)).props("flat dense round").tooltip(
@@ -113,8 +121,12 @@ class PreviewPanel:
         """Show the tab and zoom picked, without building again."""
         if self.frame is None or self.shot is None:
             return
+        booklet = self.shot.booklet
+        self.sheet.props["label"] = "Booklet" if booklet is not None else "Reference sheet"
         sheets = ('<div class="map-page">', '<div class="details">', '<div class="climb-pages">')
-        if self.tab == "sheet" and not any(s in self.shot.html for s in sheets):
+        if self.tab == "sheet" and booklet is not None:
+            html = framed(booklet, "booklet", self.zoom, booklet_width(self.form.settings()))
+        elif self.tab == "sheet" and not any(s in self.shot.html for s in sheets):
             html = f"<p style='font-family: sans-serif'>No reference sheet: turn on “{st.DETAILS.text(self.form.cfg)}”"
             html += " in the advanced settings.</p>"
         else:

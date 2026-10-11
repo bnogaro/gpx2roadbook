@@ -18,6 +18,8 @@ type Scale = Sequence[Sequence[float | str]]  # [[from this grade up, %, colour]
 GROUND = "#efefef"  # lighter than the gentlest climb, printed in grey too
 CLIMB = "#f59e0b"  # a climb's colour without a grade scale
 PIECE_KM = 1.0  # a climb is coloured a kilometre at a time, by each one's average grade, as race books do
+PROFILE_TICK_H = 1.6  # under a booklet page's profile: a tick for each stop
+PROFILE_TOP = 1.0  # above its highest point, for the altitude written there
 
 
 def grade_colour(grade: float, scale: Scale) -> str:
@@ -111,6 +113,63 @@ KM_EVERY = (0.2, 0.5, 1, 2, 5, 10)  # when the steps crowd the scale, km labels 
 GRADE_MM, GRADE_MIN_MM = 2.6, 1.6  # a slab's grade: this large, or smaller as the slab narrows, down to this
 GRADE_EM_PER_CHAR = 0.6  # the grade's width, per character at its font size, with a margin
 LABEL_CHARS = 26  # a longer label is cut, rather than run past the card's top
+
+
+def profile_svg(  # noqa: PLR0913  the grade colours and marks come on top of the geometry
+    profile: Profile,
+    climbs: list[Climb],
+    km_range: tuple[float, float],
+    size: tuple[float, float],
+    *,
+    marks: Sequence[float] = (),
+    grades: Scale = (),
+    min_span_m: float = 300.0,
+) -> str:
+    """The profile from one km to another across `size` (width, height mm), as a booklet page heads its stops with:
+    the ground grey, each climb a kilometre at a time in its grade's colour, a tick under each of `marks` (km), the
+    stretch's highest altitude on the left. Its heights span `min_span_m` at least: rolling ground stays flat."""
+    (k0, k1), (w, h) = km_range, size
+    k1 = max(k1, k0 + 0.1)
+    plot = h - PROFILE_TICK_H
+    km = np.append(np.arange(k0, k1, profile.step / 1000), k1)
+    ele = np.interp(km * 1000, profile.x, profile.e)
+    lo, hi = float(ele.min()), float(ele.max())
+    span = max(hi - lo, min_span_m)
+    x = (km - k0) / (k1 - k0) * w
+    y = plot - (ele - lo) / span * (plot - PROFILE_TOP)
+
+    def area(points: np.ndarray, fill: str) -> str:
+        pts = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(x[points], y[points], strict=True))
+        return f'<polygon points="{x[points[0]]:.2f},{plot} {pts} {x[points[-1]]:.2f},{plot}" fill="{fill}"/>'
+
+    shapes = [area(np.arange(len(km)), GROUND)]
+    for c in climbs:
+        points = np.flatnonzero((km >= c.start_km) & (km <= c.end_km))
+        if len(points) < 2:  # noqa: PLR2004  a climb touching the stretch at one point only
+            continue
+        edges = np.linspace(c.start_km, c.end_km, max(1, round(c.length_km / PIECE_KM)) + 1)
+        piece_ele = np.interp(edges * 1000, profile.x, profile.e)
+        piece_grades = np.diff(piece_ele) / np.maximum(np.diff(edges) * 1000, 1e-9) * 100
+        piece = np.clip(np.searchsorted(edges, km[points], side="right") - 1, 0, len(piece_grades) - 1)
+        fills = [grade_colour(g, grades) if grades else CLIMB for g in piece_grades[piece]]
+        start = 0
+        for end in [*(i + 1 for i in range(len(fills) - 1) if fills[i + 1] != fills[i]), len(fills)]:
+            shapes.append(area(points[start : end + 1], fills[start]))  # one point into the next: no gap between
+            start = end
+    line = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(x, y, strict=True))
+    ticks = "".join(
+        f'<line x1="{(m - k0) / (k1 - k0) * w:.2f}" y1="{plot + 0.3:.2f}" x2="{(m - k0) / (k1 - k0) * w:.2f}" '
+        f'y2="{h:.2f}" stroke="#111" stroke-width="0.35"/>'
+        for m in marks
+        if k0 <= m <= k1
+    )
+    halo = 'stroke="#fff" stroke-width="0.5" paint-order="stroke"'
+    return (
+        f'<svg class="profile" viewBox="0 0 {w:g} {h:g}" width="{w:g}mm" height="{h:g}mm">{"".join(shapes)}'
+        f'<polyline points="{line}" fill="none" stroke="#333" stroke-width="0.25"/>'
+        f'<line x1="0" y1="{plot}" x2="{w:g}" y2="{plot}" stroke="#999" stroke-width="0.15"/>{ticks}'
+        f'<text x="0.4" y="{PROFILE_TOP + 1.2:.2f}" font-size="2" font-weight="700" {halo}>{hi:.0f} m</text></svg>'
+    )
 
 
 def _ink(colour: str) -> str:

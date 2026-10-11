@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from .imposition import chosen as booklet_format
 from .kinds import KINDS, climb_of
 from .model import Glyph
 from .opening import Ride, on_day
@@ -100,7 +101,7 @@ def _first_only(emojis: list[Glyph], avail: float) -> tuple[list[Glyph], bool, f
     return [bare], False, EMOJI_W
 
 
-def _category(p: Poi) -> str:
+def poi_category(p: Poi) -> str:
     """The category of a POI inside a stop; filter_pois() only keeps classified ones."""
     if p.category is None:
         msg = f"POI {p.name!r} at km {p.km:.1f} has no category"
@@ -240,7 +241,7 @@ def pretty_hours(value: str) -> str:
 _VERDICT = {"closed": "closed", "unknown": "open?"}  # "open" needs no word; "tight" says what changes
 
 
-def _shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
+def shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
     """How the reference sheet shows a shop's hours: a verdict word if judged, then its hours, and their CSS class.
 
     Its hours are those of `day` if given and readable, else the value as OSM gives it.
@@ -259,7 +260,7 @@ def _shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
     return {"verdict": word, "hours": found.text, "hours_class": "off" if word else "oh"}
 
 
-def _ride_title(book: Roadbook) -> str:
+def ride_title(book: Roadbook) -> str:
     """What the reference sheet's title says about the ride: its day, and the arrival estimate's assumptions."""
     ride = book.ride
     if ride is None or ride.date is None:
@@ -274,7 +275,7 @@ def _ride_title(book: Roadbook) -> str:
     return f"start {ride.start:%a %d %b %Y %H:%M} at {pace} ({margin})" + (f" · breaks: {breaks}" if breaks else "")
 
 
-def _eta(w: Window, ride_day: dt.date | None) -> str:
+def eta_text(w: Window, ride_day: dt.date | None) -> str:
     """ "~09:40-10:50" (en dash), with the weekday when the rider gets there on another day than the start."""
 
     def at(t: dt.datetime) -> str:
@@ -301,11 +302,11 @@ def _details(
         day = s.window.early.date() if s.window else ride.date  # the day the rider gets there
         groups: list[tuple[str, list[dict[str, Any]]]] = []
         shared: dict[str, list[dict[str, Any]]] = {}
-        for p in sorted(s.pois, key=lambda p: (order.index(_category(p)), p.km)):
-            emoji = categories[_category(p)]["emoji"]
+        for p in sorted(s.pois, key=lambda p: (order.index(poi_category(p)), p.km)):
+            emoji = categories[poi_category(p)]["emoji"]
             poi: dict[str, Any] = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
             if book.hours is not None and p.category in hours_for:
-                poi |= _shop_hours(p, day)
+                poi |= shop_hours(p, day)
                 groups.append((emoji, [poi]))
             elif emoji in shared:
                 shared[emoji].append(poi)
@@ -313,7 +314,7 @@ def _details(
                 shared[emoji] = [poi]
                 groups.append((emoji, shared[emoji]))
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
-        eta = _eta(s.window, ride.date) if s.window else ""
+        eta = eta_text(s.window, ride.date) if s.window else ""
         out.append({"at": s.km, "km": km, "town": s.town or "", "eta": eta, "groups": groups})
     out += [_climb_entry(c, grades) for c in book.climbs if c.name]
     return sorted(out, key=lambda e: e["at"])  # stable: a stop at a climb's foot comes first, as on the strip
@@ -332,7 +333,7 @@ def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> dict[str, A
     }
 
 
-def _grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
+def grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
     """The reference sheet's key to the climb colours: ("under 3 %", colour), ("3 to 6 %", colour), …"""
     steps = [f"{start:g}" for start, _ in grades]
     labels = [f"under {steps[1]} %" if len(steps) > 1 else "climbs"]
@@ -357,16 +358,16 @@ def _climb_cards(
     book: Roadbook, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
 ) -> list[dict[str, Any]]:
     """One card per climb page: its title, and its profile with the places and stops on the way marked."""
-    return [_climb_card(page, categories, grades, width) for page in book.climb_pages]
+    return [climb_card(page, categories, grades, width) for page in book.climb_pages]
 
 
-def _climb_card(
+def climb_card(
     page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
 ) -> dict[str, Any]:
     c, order = page.climb, list(categories)
 
     def emojis(s: Stop) -> str:
-        kinds = sorted({_category(p) for p in s.pois}, key=order.index)
+        kinds = sorted({poi_category(p) for p in s.pois}, key=order.index)
         return "".join(categories[k]["emoji"] for k in kinds)
 
     on_it = lambda km: min(max(km, c.start_km), c.end_km)  # noqa: E731  a stop at the foot or top, on its edge
@@ -383,7 +384,7 @@ def _climb_card(
     }
 
 
-def _credit(book: Roadbook) -> str:
+def credit(book: Roadbook) -> str:
     """What the reference sheet owes OpenStreetMap: "Opening hours, town names and climb names", or "".
 
     Only what it shows: a lookup that found nothing, such as climb names on a flat route, has nothing to credit.
@@ -479,11 +480,18 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
             capacity,
         )
 
+    sheet = booklet_format(cfg) is None  # else the reference sheet, the climb pages and the map go in the booklet
     details = (
-        _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades) if r["details"] else []
+        _details(book, cfg["categories"], r["stop_range_m"], cfg["hours"]["categories"], grades)
+        if r["details"] and sheet
+        else []
     )
-    climb_cards = _climb_cards(book, cfg["categories"], grades, _printable_width(r["page"], orientation))
-    route_map = map_svg(book.route_map, book, cfg["categories"], cfg["map"]["km_every"]) if book.route_map else ""
+    climb_cards = (
+        _climb_cards(book, cfg["categories"], grades, _printable_width(r["page"], orientation)) if sheet else []
+    )
+    route_map = (
+        map_svg(book.route_map, book, cfg["categories"], cfg["map"]["km_every"]) if book.route_map and sheet else ""
+    )
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
         book=book,
@@ -497,9 +505,9 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         climb_cards=climb_cards,
         route_map=route_map,
         map_orientation="landscape" if book.route_map and book.route_map.landscape else "portrait",
-        ride=_ride_title(book),
-        credit=_credit(book),
-        grade_key=_grade_key(grades) if book.climbs and grades else [],
+        ride=ride_title(book),
+        credit=credit(book),
+        grade_key=grade_key(grades) if book.climbs and grades else [],
         tool=TOOL,
         version=version(TOOL),
         home=HOME,

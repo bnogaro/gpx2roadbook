@@ -56,6 +56,7 @@ jobs:
           uvx --isolated --from ./dist/*.whl roadbook --help
           uvx --isolated --from ./dist/*.whl roadbook samples/paris_le_mans.gpx --no-towns --no-map -o "$RUNNER_TEMP/smoke.html"
           test -s "$RUNNER_TEMP/smoke.html"
+          test -s "$RUNNER_TEMP/smoke.booklet.html"
       - name: Smoke test the GUI extra
         # --help returns before NiceGUI is imported, so import the window's module too: a missing page or component
         # in the wheel, or an extra that no longer resolves, fails here

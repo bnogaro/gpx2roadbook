@@ -271,6 +271,7 @@ def test_every_card_draws_a_grade_as_steep_so_a_steep_climb_gets_a_narrower_card
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_climb_pages_follow_the_reference_sheet_only_when_asked_for() -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     book = build(HILLY, cfg)
     assert book.climb_pages == []
     assert 'class="climb-pages"' not in render_html(book, cfg)
@@ -286,7 +287,7 @@ def test_the_climb_pages_follow_the_reference_sheet_only_when_asked_for() -> Non
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_the_cli_turns_the_climb_pages_on(tmp_path: Path) -> None:
     out = tmp_path / "ubf.html"
-    args = [str(HILLY), "--climb-pages", "--climb-pages-from", "HC", "-o", str(out)]
+    args = [str(HILLY), "--climb-pages", "--climb-pages-from", "HC", "-o", str(out), "--booklet", "off"]
     result = CliRunner().invoke(app, args)
     assert result.exit_code == 0, result.output
     assert out.read_text(encoding="utf-8").count('class="climb-card"') == 2

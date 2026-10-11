@@ -54,8 +54,8 @@ def test_snapper_uses_hint_to_disambiguate_out_and_back() -> None:
     dist = np.concatenate([[0], np.cumsum(np.hypot(np.diff(lat) * 111_195, 0))])
     t = Track("oab", lat, np.zeros_like(lat), np.zeros_like(lat), dist)
     s = Snapper(t)
-    out_km, _ = s.snap(0.0045, 0.0, hint_km=0.5)
-    back_km, _ = s.snap(0.0045, 0.0, hint_km=1.5)
+    out_km, *_ = s.snap(0.0045, 0.0, hint_km=0.5)
+    back_km, *_ = s.snap(0.0045, 0.0, hint_km=1.5)
     assert out_km == pytest.approx(0.5, abs=0.05)
     assert back_km == pytest.approx(1.5, abs=0.05)
 
@@ -183,6 +183,7 @@ def test_each_row_but_the_finish_gives_the_distance_to_the_next() -> None:
 @pytest.mark.parametrize(("layout", "box"), [("strip", "strip"), ("line", "ribbon")])
 def test_watermark_on_each_strip_and_the_reference_sheet(layout: str, box: str) -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["render"]["layout"] = layout
     book = build(SAMPLE, cfg)
     html = render_html(book, cfg)
@@ -348,6 +349,7 @@ def test_a_climb_always_shows_its_gain(layout: str) -> None:
 @pytest.mark.parametrize(("layout", "box"), [("strip", "row"), ("line", "tok")])
 def test_climb_rows_and_the_key_show_each_climb_s_grade(layout: str, box: str) -> None:
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["render"]["layout"] = layout
     book = build(HILLY, cfg)
     html = render_html(book, cfg)

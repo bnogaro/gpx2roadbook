@@ -29,6 +29,8 @@ from .tiles import fetch as fetch_tiles
 from .tiles import style as tile_style
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from .model import Roadbook, Stop, Track
     from .osm import Report
     from .tiles import Key
@@ -38,6 +40,7 @@ log = logging.getLogger(__name__)
 TILE = 256  # px, a tile's side
 SCREEN = 25.4 / 96  # mm a pixel takes on a screen
 PAD = 12.0  # mm kept between the route and the map's edges, for its labels
+MINI_PAD = 5.0  # on a booklet's mini-map, small: the route as large as it can be
 TITLE_H = 10.0  # mm the page's title takes above the map, with some to spare: a map a hair too tall prints two pages
 MIN_ZOOM = 3
 TURN = 1.15  # the map's page turns from the others' way when that shows the route this many times larger
@@ -58,10 +61,12 @@ SPACE = 0.5  # kept clear around each label
 HALO = 'stroke="#fff" stroke-width="0.7" stroke-linejoin="round" paint-order="stroke"'
 CLIMB = "#92400e"  # the climbs' brown, as on the strips
 CHECKPOINT = "#1d4ed8"
+PAGE = "#111"  # a booklet page's marker on its overview map
 MERGE = 4.0  # POIs of a kind closer than this on paper show as one emoji, with their count
 KM_GAP = 25.0  # km markers at least this far apart along the route, when picked to suit the scale
 KM_STEPS = (1, 2, 5, 10, 20, 25, 50, 100, 200, 500)
 SCALE_BAR = 35.0  # the scale bar's longest length
+MINI = 25.0, 1.5  # on a booklet's mini-map: the scale bar's longest length, and the credit's font size
 SAME_NAME = 40.0  # a name shown again only this far from where it already is
 MOVED = 0.5  # a mark further than this from its place gets a line back to it
 MARK_RINGS, NAME_RINGS = 4, 8  # how far out a mark, a name, may go for room: in rings of its size, of its gap
@@ -119,45 +124,54 @@ class RouteMap:
         return EARTH_M * math.cos(math.radians(float(lat))) / (TILE * 2**self.zoom) / self.scale
 
 
-def _fit(x: np.ndarray, y: np.ndarray, area: tuple[float, float]) -> float:
+def _fit(x: np.ndarray, y: np.ndarray, area: tuple[float, float], pad: float = PAD) -> float:
     """The mm a pixel at zoom 0 may take for the points `x`, `y` (at zoom 0) to fit `area` (width, height, mm), within
-    PAD of its edges."""
+    `pad` of its edges."""
     width, height = area
-    return min((width - 2 * PAD) / max(np.ptp(x), 1e-9), (height - 2 * PAD) / max(np.ptp(y), 1e-9))
+    return min((width - 2 * pad) / max(np.ptp(x), 1e-9), (height - 2 * pad) / max(np.ptp(y), 1e-9))
 
 
 def frame(
-    x: np.ndarray, y: np.ndarray, area: tuple[float, float], max_zoom: int
+    x: np.ndarray, y: np.ndarray, area: tuple[float, float], max_zoom: int, *, fill: bool = False, pad: float = PAD
 ) -> tuple[int, float, float, float, float]:
     """(zoom, left, top, scale, height) of a map in `area` (width, height, mm) showing the points `x`, `y` (at zoom 0).
 
-    The zoom draws its tiles nearest their size on a screen, the points fit within PAD of the edges, and the map is as
-    tall as they need. A short route is shown with more around it, rather than its tiles blown up.
+    The zoom draws its tiles nearest their size on a screen, the points fit within `pad` of the edges, and the map is
+    as tall as they need, or as `area` if it must `fill` it. A short route is shown with more around it, rather than its
+    tiles blown up.
     """
     width, height = area
-    fit = _fit(x, y, area)
+    fit = _fit(x, y, area, pad)
     zoom = min(max(round(math.log2(fit / SCREEN)), MIN_ZOOM), max_zoom)
     scale = min(fit / 2**zoom, SCREEN * math.sqrt(2))
-    height = min(height, float(np.ptp(y)) * 2**zoom * scale + 2 * PAD)
+    if not fill:
+        height = min(height, float(np.ptp(y)) * 2**zoom * scale + 2 * pad)
     left = (float(x.min()) + float(x.max())) / 2 * 2**zoom - width / 2 / scale
     top = (float(y.min()) + float(y.max())) / 2 * 2**zoom - height / 2 / scale
     return zoom, left, top, scale, height
 
 
 def make(
-    track: Track, cfg: dict[str, Any], area: tuple[float, float], *, landscape: bool = False, offline: bool = False
+    track: Track,
+    cfg: dict[str, Any],
+    area: tuple[float, float],
+    *,
+    landscape: bool = False,
+    turn: bool = True,
+    offline: bool = False,
 ) -> tuple[RouteMap, Report]:
     """The map of `track` on a page leaving `area` (width, height, upright) mm inside its margins, with its tiles:
     those not cached are fetched, unless `offline`.
 
     The page is turned as the road book's other pages are (`landscape`), unless turned the other way it shows the
-    route TURN times larger: a route running east to west fills a landscape page better.
+    route TURN times larger: a route running east to west fills a landscape page better. Not if it may not `turn`:
+    a booklet's centre spread is landscape whatever the route.
     """
     name, s = tile_style(str(cfg["style"]))
     x, y = world(track.lat, track.lon)
     upright, turned = (area[0], area[1] - TITLE_H), (area[1], area[0] - TITLE_H)
     own, other = (turned, upright) if landscape else (upright, turned)
-    if _fit(x, y, other) > TURN * _fit(x, y, own):
+    if turn and _fit(x, y, other) > TURN * _fit(x, y, own):
         own, landscape = other, not landscape
     zoom, left, top, scale, height = frame(x, y, own, s.max_zoom)
     m = RouteMap(name, zoom, left, top, scale, own[0], height, track, landscape)
@@ -174,6 +188,24 @@ def make(
     return m, report
 
 
+def section(
+    track: Track, cfg: dict[str, Any], area: tuple[float, float], km: tuple[float, float], *, offline: bool = False
+) -> tuple[RouteMap, Report]:
+    """A map of the route from one km to another, north up, filling `area` (width, height, mm), with its tiles: the
+    mini-map of a booklet's spread. The route goes on past its ends, as far as the map shows."""
+    name, s = tile_style(str(cfg["style"]))
+    a, b = km
+    on = (track.dist >= a * 1000) & (track.dist <= b * 1000)
+    lat, lon = (track.lat[on], track.lon[on]) if on.sum() > 1 else zip(track.at(a), track.at(b), strict=True)
+    x, y = world(np.asarray(lat), np.asarray(lon))
+    zoom, left, top, scale, height = frame(x, y, area, s.max_zoom, fill=True, pad=MINI_PAD)
+    m = RouteMap(name, zoom, left, top, scale, area[0], height, track)
+    keys = list(dict.fromkeys(m.key(*c) for c in m.cells()))
+    log.debug("Map of km %.1f to %.1f: zoom %d, 1:%s, %d tiles", a, b, zoom, f"{m.m_per_mm * 1000:,.0f}", len(keys))
+    m.tiles, report = fetch_tiles(name, keys, cfg["max_age_days"], offline=offline)
+    return m, report
+
+
 # ---------------------------------------------------------------- placing the labels
 
 
@@ -183,7 +215,9 @@ class Placer:
 
     def __init__(self, width: float, height: float, route: tuple[np.ndarray, np.ndarray]) -> None:
         self.width, self.height = width, height
-        self.route = np.column_stack(route)
+        points = np.column_stack(route)
+        on = (points[:, 0] >= 0) & (points[:, 0] <= width) & (points[:, 1] >= 0) & (points[:, 1] <= height)
+        self.route = points[on]  # a label on the map hides none of the route off it: a mini-map's is mostly off
         self.spots = np.empty((0, 2))
         self.boxes = np.empty((0, 4))  # x0, y0, x1, y1 of each label placed
 
@@ -276,9 +310,20 @@ def _text_w(text: str, size: float) -> float:
     return len(text) * size * CHAR_W + 0.6
 
 
-def _route(m: RouteMap) -> tuple[np.ndarray, np.ndarray]:
-    """The route on paper through points STEP apart: enough for a smooth line, a light file and a quick placing."""
-    x, y = m.mm(m.track.lat, m.track.lon)
+def _route(m: RouteMap, span: tuple[float, float] | None = None) -> tuple[np.ndarray, np.ndarray]:
+    """The route on paper through points STEP apart: enough for a smooth line, a light file and a quick placing.
+
+    Only its `span`, (from km, to km), if given: a mini-map shows the road its spread covers, not the rest of a loop
+    passing by.
+    """
+    t = m.track
+    if span is None:
+        lat, lon = t.lat, t.lon
+    else:  # its ends where they are, between the track's points
+        on = (t.dist > span[0] * 1000) & (t.dist < span[1] * 1000)
+        (lat0, lon0), (lat1, lon1) = t.at(span[0]), t.at(span[1])
+        lat, lon = np.concatenate([[lat0], t.lat[on], [lat1]]), np.concatenate([[lon0], t.lon[on], [lon1]])
+    x, y = m.mm(lat, lon)
     along = np.concatenate([[0], np.cumsum(np.hypot(np.diff(x), np.diff(y)))])
     keep = np.flatnonzero(np.diff(np.floor(along / STEP), prepend=-1) > 0)
     keep = np.append(keep, len(x) - 1) if keep[-1] != len(x) - 1 else keep
@@ -366,32 +411,50 @@ def _pois(m: RouteMap, stops: list[Stop], categories: dict[str, Any]) -> list[tu
     return [(e, sum(x for x, _ in pts) / len(pts), sum(y for _, y in pts) / len(pts), len(pts)) for e, pts in groups]
 
 
-def svg(m: RouteMap, book: Roadbook, categories: dict[str, Any], every_km: float = 0) -> str:
+def svg(  # noqa: PLR0913  what the map shows, on top of what it is
+    m: RouteMap,
+    book: Roadbook,
+    categories: dict[str, Any],
+    every_km: float = 0,
+    *,
+    span: tuple[float, float] | None = None,
+    with_pois: bool = True,
+    pages: Sequence[tuple[float, str]] = (),
+) -> str:
     """The map, as an SVG `m.width` x `m.height` mm: its tiles, the route, and what the road book shows on it.
 
-    A km marker every `every_km` km; 0 picks one to suit the scale (km_every).
+    A km marker every `every_km` km; 0 picks one to suit the scale (km_every). `span`, (from km, to km), keeps it to
+    what lies on that stretch: a booklet spread's mini-map. Without its POIs (`with_pois`), it is a booklet's overview,
+    which marks where each of its `pages` (km, label) starts instead.
     """
-    route = _route(m)
+    lo, hi = span or (0.0, book.length_km)
+
+    def on(km: float) -> bool:
+        return lo <= km <= hi
+
+    route = _route(m, span)
     relief = contours.lines(m)
     placer = Placer(m.width, m.height, route)
     layers = _Layers()
-    foot = _scale_and_credit(m, book, placer)
+    foot = _scale_and_credit(m, book, placer, mini=span is not None)
 
     for kind, km, emoji in (("start", 0.0, "🟢"), ("finish", book.length_km, "🏁")):
-        cx, cy = _near(placer, layers, *_at(m, km), END * 1.1, END * 1.1)
-        layers.names.append(_emoji(cx, cy, emoji, size=END, cls=f"map-{kind}"))
+        if on(km):
+            cx, cy = _near(placer, layers, *_at(m, km), END * 1.1, END * 1.1)
+            layers.names.append(_emoji(cx, cy, emoji, size=END, cls=f"map-{kind}"))
 
     checkpoints = [it for it in book.items if it.kind == "checkpoint"]
-    every = every_km or km_every(route, book.length_km)
+    every = every_km or km_every(route, hi - lo)
     # none right by the finish, nor where a checkpoint already is
     kms = [every * k for k in range(1, int(book.length_km / every) + 1) if every * k < book.length_km - every / 4]
     marks = [(km, f"{km:g}", ROUTE) for km in kms if all(abs(km - c.km) > every / 4 for c in checkpoints)]
     marks += [(c.km, c.label, CHECKPOINT) for c in checkpoints]
-    for km, text, colour in sorted(marks):
+    marks += [(km, text, PAGE) for km, text in pages]
+    for km, text, colour in sorted(mark for mark in marks if on(mark[0])):
         cx, cy = _near(placer, layers, *_at(m, km), _text_w(text, KM_FONT) + 0.6, KM_FONT * 1.4, colour=colour)
         layers.marks.append(_pill(cx, cy, text, colour))
 
-    summits = [(c.name, *_at(m, c.end_km)) for c in book.climbs if c.name is not None]
+    summits = [(c.name, *_at(m, c.end_km)) for c in book.climbs if c.name is not None and on(c.end_km)]
     for _, x, y in summits:
         placer.take(x - 1.3, y - 1.3, x + 1.3, y + 1.0)
         layers.marks.append(
@@ -400,10 +463,11 @@ def svg(m: RouteMap, book: Roadbook, categories: dict[str, Any], every_km: float
         )
 
     # the names beside their places, keeping the POIs' own spots clear: then each emoji finds its spot free
-    pois = _pois(m, book.stops, categories)
+    stops = [s for s in book.stops if on(s.km) or on(s.km_end)]
+    pois = _pois(m, stops, categories) if with_pois else []
     placer.keep_clear(np.array([x for _, x, _, _ in pois]), np.array([y for _, _, y, _ in pois]))
     towns = []
-    for s in book.stops:
+    for s in stops:
         if s.town:
             x, y = m.mm(sum(p.lat for p in s.pois) / len(s.pois), sum(p.lon for p in s.pois) / len(s.pois))
             towns.append((s.town, float(x), float(y)))
@@ -493,15 +557,19 @@ def _wrap(text: str, size: float, room: float) -> list[str]:
     return [" · ".join(parts[:cut]), " · ".join(parts[cut:])]
 
 
-def _scale_and_credit(m: RouteMap, book: Roadbook, placer: Placer) -> str:
-    """A scale bar at the bottom left, and the tiles' credit at the bottom right, on white; their room is taken."""
+def _scale_and_credit(m: RouteMap, book: Roadbook, placer: Placer, *, mini: bool = False) -> str:
+    """A scale bar at the bottom left, and the tiles' credit at the bottom right, on white; their room is taken.
+
+    A `mini` map, a booklet's spread's, gets them smaller, and the credit short, on a line if it can.
+    """
     _, s = tile_style(m.style)
-    credit = s.credit
+    longest, size = MINI if mini else (SCALE_BAR, 1.7)
+    credit = s.short if mini and s.short else s.credit
     named = any(r is not None and r.found for r in (book.towns, book.climb_names))
     if named and "OpenStreetMap contributors" not in credit:  # the names come from OpenStreetMap
-        credit += f" · Names {OSM}"
-    size, line = 1.7, 1.7 * 1.3
-    room = m.width - 2 - SCALE_BAR - 8
+        credit += " · names © OpenStreetMap contributors" if mini else f" · Names {OSM}"
+    line = size * 1.3
+    room = m.width - 2 - longest - 8
     lines = _wrap(credit, size, room)
     if m.terrain and book.terrain:
         lines += _wrap(contours.credit(book.terrain.made_from), size, room)
@@ -517,7 +585,7 @@ def _scale_and_credit(m: RouteMap, book: Roadbook, placer: Placer) -> str:
     ]
 
     mm_per_km = 1000 / m.m_per_mm
-    km = max((k for k in (0.5, *KM_STEPS) if k * mm_per_km <= SCALE_BAR), default=0.5)
+    km = max((k for k in (0.5, *KM_STEPS) if k * mm_per_km <= longest), default=0.5)
     bar = km * mm_per_km
     bx, by = 2.0, m.height - 2.5
     placer.take(0, by - 4, bx + bar + 10, m.height)

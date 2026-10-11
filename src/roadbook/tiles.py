@@ -52,6 +52,7 @@ class Style:
     max_zoom: int
     subdomains: str = ""  # {s}: the same tile always from the same one, as a browser's cache would have it
     note: str = ""  # a header saying what each tile was made from, kept beside it, for the credit
+    short: str = ""  # the credit on one line, for a booklet's mini-maps; the full one is on its overview and back
 
     def tile_url(self, key: Key) -> str:
         z, x, y = key
@@ -70,6 +71,7 @@ STYLES = {
         f"{OSM} · Humanitarian style (HOT), tiles by OpenStreetMap France",
         19,
         "abc",
+        short="© OpenStreetMap contributors · HOT tiles by OSM France",
     ),
     "cyclosm": Style(
         "https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png",
@@ -77,6 +79,7 @@ STYLES = {
         f"{OSM} · CyclOSM, tiles by OpenStreetMap France",
         19,
         "abc",
+        short="© OpenStreetMap contributors · CyclOSM by OSM France",
     ),
     "topo": Style(
         "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
@@ -84,6 +87,7 @@ STYLES = {
         f"Map data {OSM}, SRTM · Map style © OpenTopoMap (CC-BY-SA)",
         17,
         "abc",
+        short="© OpenStreetMap contributors, SRTM · © OpenTopoMap (CC-BY-SA)",
     ),
     "satellite": Style(
         "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2017_3857/default/g/{z}/{y}/{x}.jpg",  # WMTS: row first
@@ -91,6 +95,7 @@ STYLES = {
         "EOxCloudless https://cloudless.eox.at by EOX IT Services GmbH"
         " (Contains modified Copernicus Sentinel data 2017), CC BY 4.0",
         14,  # 10 m a pixel: closer is only blurrier
+        short="Sentinel-2 cloudless 2017 by EOX, CC BY 4.0",
     ),
 }
 DEFAULT = "osm"

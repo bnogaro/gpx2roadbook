@@ -27,7 +27,7 @@ from roadbook.gui.models.form import Form
 if TYPE_CHECKING:
     from nicegui.events import UploadEventArguments
 
-COMMON = (st.LAYOUT, st.PAGE, st.CHECKPOINT_EVERY, st.TOWNS, st.HOURS, st.DATE, st.START, st.SPEED)
+COMMON = (st.LAYOUT, st.PAGE, st.BOOKLET, st.CHECKPOINT_EVERY, st.TOWNS, st.HOURS, st.DATE, st.START, st.SPEED)
 ADVANCED = (
     st.WIDTH,
     st.LENGTH,
@@ -45,6 +45,10 @@ ADVANCED = (
     st.MAP,
     st.MAP_STYLE,
     st.MAP_CONTOURS,
+    st.WATER_GAP_H,
+    st.WATER_GAP_KM,
+    st.FOOD_GAP_H,
+    st.FOOD_GAP_KM,
 )
 
 

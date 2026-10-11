@@ -4,10 +4,11 @@ from __future__ import annotations
 
 import logging
 import subprocess
+import threading
 import webbrowser
 from collections import deque
 from pathlib import Path
-from typing import TYPE_CHECKING, override
+from typing import TYPE_CHECKING, Any, override
 
 from nicegui import run, ui
 
@@ -29,14 +30,20 @@ LOOKUPS = (  # what the summary says of each OpenStreetMap lookup, as the CLI do
 
 
 class _Queue(logging.Handler):
-    """The run's log, kept for the page: the run logs from a worker thread, and the page's timer shows it."""
+    """The run's log, kept for the page: the run logs from a worker thread, and the page's timer shows it.
+
+    Only the run's own: a preview built meanwhile, on a thread of its own, logs its steps too.
+    """
 
     def __init__(self) -> None:
         super().__init__(logging.INFO)
         self.lines: deque[str] = deque()
+        self.thread: int | None = None  # the run's, once it starts
 
     @override
     def emit(self, record: logging.LogRecord) -> None:
+        if record.thread != self.thread:
+            return
         indent = "    " if record.name == "roadbook.http" else "  " if record.levelno < logging.INFO else ""
         self.lines.append(indent + record.getMessage())
 
@@ -61,11 +68,30 @@ class RunPanel:
         self.summary = ui.column().classes("w-full gap-0").mark("summary")
         with ui.row().classes("gap-2") as self.actions:
             if remote:  # opening a file here would open it on this computer, not on the device
-                ui.button("Download", icon="download", on_click=self.download_html).props("outline").mark("download")
-                ui.button("PDF", icon="picture_as_pdf", on_click=self.download_pdf).props("outline").mark("pdf")
+                # named once a run says what the road book holds: done()
+                self.html_button = ui.button(icon="view_week", on_click=self.download_html).props("outline")
+                self.html_button.mark("download")
+                self.pdf_button = ui.button(icon="picture_as_pdf", on_click=self.download_pdf).props("outline")
+                self.pdf_button.mark("pdf")
             else:
-                ui.button("Open", icon="open_in_new", on_click=self.open_html).props("outline").mark("open")
-                ui.button("PDF", icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
+                self.html_button = ui.button(icon="view_week", on_click=self.open_html).props("outline").mark("open")
+                self.pdf_button = ui.button(icon="picture_as_pdf", on_click=self.make_pdf).props("outline").mark("pdf")
+            with ui.row().classes("gap-2") as self.booklet:  # only when a booklet was made
+                if remote:
+                    ui.button("Booklet", icon="menu_book", on_click=self.download_booklet).props("outline").mark(
+                        "download-booklet"
+                    )
+                    ui.button("Booklet PDF", icon="picture_as_pdf", on_click=self.download_booklet_pdf).props(
+                        "outline"
+                    ).mark("booklet-pdf")
+                else:
+                    ui.button("Booklet", icon="menu_book", on_click=self.open_booklet).props("outline").mark(
+                        "open-booklet"
+                    )
+                    ui.button("Booklet PDF", icon="picture_as_pdf", on_click=self.make_booklet_pdf).props(
+                        "outline"
+                    ).mark("booklet-pdf")
+            if not remote:
                 ui.button("Folder", icon="folder_open", on_click=self.open_folder).props("outline").mark("folder")
         self.actions.visible = False
         with ui.row().classes("w-full items-center no-wrap gap-2") as self.same:
@@ -94,7 +120,7 @@ class RunPanel:
         logger.addHandler(self.queue)
         try:
             out = Path(self.form.out) if self.form.out else None
-            result = await run.io_bound(make_road_book, gpx, self.form.settings(), out=out, pdf=self.form.pdf)
+            result = await run.io_bound(self._run, gpx, self.form.settings(), out, pdf=self.form.pdf)
         except GpxError as exc:
             ui.notify(str(exc), type="negative", multi_line=True)
             return
@@ -105,6 +131,11 @@ class RunPanel:
             self.show_log()
         if result is not None:  # None: the app is shutting down
             self.done(result)
+
+    def _run(self, gpx: Path, cfg: dict[str, Any], out: Path | None, *, pdf: bool) -> Result:
+        """The run, on its worker thread: its log is this thread's."""
+        self.queue.thread = threading.get_ident()
+        return make_road_book(gpx, cfg, out=out, pdf=pdf)
 
     def done(self, result: Result) -> None:
         self.result = result
@@ -119,11 +150,18 @@ class RunPanel:
                     if said[1]:
                         ui.notify(said[1], type="warning", multi_line=True)
             ui.label(f"Wrote {result.html}").classes("text-positive").mark("wrote")
+            if result.booklet:
+                ui.label(f"Wrote {result.booklet}").classes("text-positive").mark("wrote-booklet")
         for warning in result.warnings:
             ui.notify(warning, type="warning", multi_line=True)
         if result.pdf_error:
             ui.notify(f"PDF not written: {result.pdf_error}", type="negative", multi_line=True)
         self.actions.visible = True
+        self.booklet.visible = result.booklet is not None
+        # with a booklet, the road book is the strips alone; without, the reference sheet and the map are in it too
+        name = "Strips" if result.booklet is not None else "Road book"
+        self.html_button.set_text(name)
+        self.pdf_button.set_text(f"{name} PDF")
         self.command.set_text(self.form.command())
         self.same.visible = True
 
@@ -131,20 +169,32 @@ class RunPanel:
         if self.result:
             await run.io_bound(webbrowser.open, self.result.html.as_uri())
 
+    async def open_booklet(self) -> None:
+        if self.result and self.result.booklet:
+            await run.io_bound(webbrowser.open, self.result.booklet.as_uri())
+
     async def make_pdf(self) -> None:
         """Print the road book to a PDF next to it, with Edge or Chrome, and open it."""
         if pdf := await self.pdf():
             await run.io_bound(webbrowser.open, pdf.as_uri())
 
-    async def pdf(self) -> Path | None:
-        """The PDF next to the road book, printed with Edge or Chrome unless the run already made it."""
+    async def make_booklet_pdf(self) -> None:
+        """Print the booklet to a PDF next to it, imposed to fold, and open it."""
+        if pdf := await self.pdf(booklet=True):
+            await run.io_bound(webbrowser.open, pdf.as_uri())
+
+    async def pdf(self, *, booklet: bool = False) -> Path | None:
+        """The PDF next to the road book, or its booklet, printed with Edge or Chrome unless the run already made it."""
         if not self.result:
             return None
-        if self.result.pdf is not None:
-            return self.result.pdf
-        pdf = self.result.html.with_suffix(".pdf")
+        html, made = (self.result.booklet, self.result.booklet_pdf) if booklet else (self.result.html, self.result.pdf)
+        if html is None:
+            return None
+        if made is not None:
+            return made
+        pdf = html.with_suffix(".pdf")
         try:
-            await run.io_bound(html_to_pdf, self.result.html, pdf)
+            await run.io_bound(html_to_pdf, html, pdf)
         except (RuntimeError, OSError, subprocess.SubprocessError) as exc:  # no browser, or it failed
             ui.notify(f"PDF not written: {exc}", type="negative", multi_line=True)
             return None
@@ -156,6 +206,14 @@ class RunPanel:
 
     async def download_pdf(self) -> None:
         if pdf := await self.pdf():
+            await _download(pdf, "application/pdf")
+
+    async def download_booklet(self) -> None:
+        if self.result and self.result.booklet:
+            await _download(self.result.booklet, "text/html")
+
+    async def download_booklet_pdf(self) -> None:
+        if pdf := await self.pdf(booklet=True):
             await _download(pdf, "application/pdf")
 
     async def open_folder(self) -> None:

@@ -122,6 +122,16 @@ def timed(cfg: Config) -> bool:
     return dated(cfg) and bool(cfg["ride"]["start"])
 
 
+def booklet(cfg: Config) -> bool:
+    """Whether a booklet is made: the stops, climbs and map then go there rather than in the road book."""
+    return str(cfg["booklet"]["format"]).lower() != "off"
+
+
+def paced(cfg: Config) -> bool:
+    """Whether the ride has a speed: the booklet then measures a stretch by the time it takes to ride, not in km."""
+    return float(cfg["ride"]["speed_kmh"] or 0) > 0
+
+
 def refresh(cfg: Config) -> None:
     """--refresh: every answer cached from earlier runs counts as too old, so all are looked up again."""
     for section in ("hours", "towns", "climb_names", "map"):
@@ -284,7 +294,13 @@ EMOJI_LINES = Setting(
     int,
 )
 DETAILS = Setting(
-    "--details", "Append a POI names reference sheet.", "Reference sheet with POI names", "render", "details", bool
+    "--details",
+    "Append a POI names reference sheet, without a booklet.",
+    "Reference sheet with POI names",
+    "render",
+    "details",
+    bool,
+    when=lambda cfg: not booklet(cfg),
 )
 MARGIN = Setting(
     "--margin",
@@ -364,6 +380,53 @@ MAP_CONTOURS = Setting(
     bool,
     when=lambda cfg: bool(MAP.get(cfg)) and MAP_STYLE.get(cfg) != "topo",
 )
+BOOKLET = Setting(
+    "--booklet",
+    "Also make a booklet of the stops, climbs and map, to print, fold and take on the ride: A5 (default), A6 (pocket"
+    " size) or off (the reference sheet, map and climb pages then stay in the road book).",
+    "A booklet to take on the ride (stops, climbs and map)",
+    "booklet",
+    "format",
+    choices=("A5", "A6", "off"),
+)
+WATER_GAP_H = Setting(
+    "--water-hours",
+    "With a speed, the booklet warns of a stretch taking this long to ride, hours, climbing included, with nowhere to"
+    " get water (default 3; 0 = never).",
+    "Warn of stretches without water from, hours of riding (0 = never)",
+    "booklet",
+    "water_gap_h",
+    float,
+    when=lambda cfg: booklet(cfg) and paced(cfg),
+)
+WATER_GAP_KM = Setting(
+    "--water-km",
+    "Without a speed, the booklet warns of a stretch this long, km, with nowhere to get water (default 50; 0 = never).",
+    "Warn of stretches without water from, km (0 = never)",
+    "booklet",
+    "water_gap_km",
+    float,
+    when=lambda cfg: booklet(cfg) and not paced(cfg),
+)
+FOOD_GAP_H = Setting(
+    "--food-hours",
+    "With a speed, the booklet warns of a stretch taking this long to ride, hours, climbing included, with nothing to"
+    " eat (default 4; 0 = never).",
+    "Warn of stretches without food from, hours of riding (0 = never)",
+    "booklet",
+    "food_gap_h",
+    float,
+    when=lambda cfg: booklet(cfg) and paced(cfg),
+)
+FOOD_GAP_KM = Setting(
+    "--food-km",
+    "Without a speed, the booklet warns of a stretch this long, km, with nothing to eat (default 70; 0 = never).",
+    "Warn of stretches without food from, km (0 = never)",
+    "booklet",
+    "food_gap_km",
+    float,
+    when=lambda cfg: booklet(cfg) and not paced(cfg),
+)
 OUT = Setting("--out", "Output .html (default: next to the GPX).", "Output file", group=RUN)
 PDF = Setting("--pdf", "Also export a PDF via headless Edge/Chrome.", "Also export a PDF?", kind=bool, group=RUN)
 REFRESH = Setting(
@@ -403,6 +466,11 @@ SETTINGS = (
     MAP,
     MAP_STYLE,
     MAP_CONTOURS,
+    BOOKLET,
+    WATER_GAP_H,
+    WATER_GAP_KM,
+    FOOD_GAP_H,
+    FOOD_GAP_KM,
     OUT,
     PDF,
     REFRESH,

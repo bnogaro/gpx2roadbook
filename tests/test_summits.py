@@ -15,7 +15,7 @@ from roadbook.config import load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
-from roadbook.render import FRAME_PAD, HEAD_H, MAIN_H, RowLayout, _add_heads, _credit, _details, _row, render_html
+from roadbook.render import FRAME_PAD, HEAD_H, MAIN_H, RowLayout, _add_heads, _details, _row, credit, render_html
 from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -307,18 +307,18 @@ def test_the_reference_sheet_lists_named_climbs_among_the_stops() -> None:
 
 def test_the_credit_names_what_came_from_osm() -> None:
     book = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
-    assert _credit(book) == ""
+    assert credit(book) == ""
     book.climb_names = Report(asked=3, found=1)
-    assert _credit(book) == "Climb names"
+    assert credit(book) == "Climb names"
     book.hours, book.towns = Report(asked=9, found=4), Report(asked=2, found=2)
-    assert _credit(book) == "Opening hours, town names and climb names"
+    assert credit(book) == "Opening hours, town names and climb names"
 
 
 def test_a_lookup_that_found_nothing_is_not_credited() -> None:
     # a flat route has no climbs to name: the sheet must not credit OSM for climb names it doesn't show
     book = Roadbook("t", 100, 0, 0, [], [], [], 0, 0)
     book.climb_names, book.towns = Report(), Report(asked=4, found=0)
-    assert _credit(book) == ""
+    assert credit(book) == ""
 
 
 # --- end to end, on a sample, with a fake Overpass
@@ -335,6 +335,7 @@ def _named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path, http: FakeHttp | Non
 def test_on_the_sample_the_pyrenean_cols_are_named(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     http = _named(monkeypatch, tmp_path)
     cfg = load_config()
+    cfg["booklet"]["format"] = "off"  # the reference sheet in the road book: no booklet
     cfg["climb_names"]["enabled"] = True
     book = build(HILLY, cfg)
     named = {round(c.start_km, 1): c.name for c in book.climbs if c.name}
@@ -389,8 +390,8 @@ def test_climbs_are_named_by_default_unless_turned_off(monkeypatch: pytest.Monke
     http.urls.clear()
     cfg["climb_names"]["enabled"] = False
     assert build(HILLY, cfg).climb_names is None
-    # nowhere to show them: a ribbon of tokens and no reference sheet
+    # nowhere to show them: a ribbon of tokens, no reference sheet and no booklet
     cfg["climb_names"]["enabled"] = True
-    cfg["render"]["layout"], cfg["render"]["details"] = "line", False
+    cfg["render"]["layout"], cfg["render"]["details"], cfg["booklet"]["format"] = "line", False, "off"
     assert build(HILLY, cfg).climb_names is None
     assert http.urls == []

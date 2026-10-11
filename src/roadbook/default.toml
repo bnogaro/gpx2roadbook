@@ -77,6 +77,18 @@ contours = true      # contour lines, from Mapzen's Terrain Tiles (not on topo, 
 km_every = 0         # a km marker on the route every this many km; 0 = picked to suit the map's scale
 max_age_days = 30    # fetch a tile again once the cached one is this old (unchanged, it is not downloaded again)
 
+[booklet]
+format = "A5"        # A5 | A6 | off: the stops, climbs and map as a booklet to print, fold and take on the ride, in a
+                     # file of its own; off keeps the reference sheet, map and climb pages in the road book instead
+water_gap_h = 3      # warn of a stretch with nowhere to get water taking this many hours to ride, with a speed...
+water_gap_km = 50    # ...or this many km, without one (0 = never)
+food_gap_h = 4       # the same, with nothing to eat
+food_gap_km = 70
+water = ["water", "cafe", "bakery", "food", "fastfood", "grocery", "fuel", "vending", "icecream"]  # where to drink
+food = ["bakery", "cafe", "food", "fastfood", "grocery", "fuel", "vending"]  # where to eat
+counted = ["water", "toilets"]  # one line each in a stop: how many, and the nearest; the others, one line a place...
+max_per_kind = 5     # ...at most this many of a kind, the nearest first (0 = all)
+
 [ride]
 date = ""            # "YYYY-MM-DD": with hours, each shop's hours on that day only ("" = its whole week)
 start = ""           # "HH:MM", with date and speed_kmh: estimate when each stop is reached...
