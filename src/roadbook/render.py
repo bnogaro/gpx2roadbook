@@ -6,7 +6,7 @@ import re
 import shutil
 import subprocess
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass, replace
 from importlib.metadata import version
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -22,6 +22,7 @@ from .svg import climb_svg, grade_colour, gutter_svg
 
 if TYPE_CHECKING:
     import datetime as dt
+    from collections.abc import Callable
 
     from .model import Climb, ClimbPage, Item, Poi, Roadbook, Stop
     from .opening import Window
@@ -122,23 +123,48 @@ class RowLayout:
     grades: tuple[tuple[float, str], ...] = ()  # a climb's colour by its average grade: see svg.grade_colour()
 
 
-def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
+@dataclass(frozen=True)
+class Head:
+    """A heading line above a row: a busy stop's town ("town"), or a climb's name ("col"). See _add_heads()."""
+
+    cls: str  # its CSS class: "town" | "col"
+    text: str
+
+
+@dataclass(frozen=True)
+class Row:
+    """An item as a strip shows it in a row, or a ribbon in a token: its texts, emojis and size."""
+
+    kind: str
+    km: str
+    label: str
+    emojis: list[Glyph]  # on the main line: the row's own emoji first, if it has one, then its stop's
+    emoji_lines: list[list[Glyph]]  # a crowded stop's emojis carried on below the main line
+    more: bool  # some emojis are still left out: a "+" after the last
+    w: float  # mm along a ribbon
+    sub: str = ""  # a climb's length and grade, under the main line
+    sub_short: str = ""  # a ribbon's: a climb's length and grade, or where a long stop ends
+    km_end: str = ""  # a long stop's last km, at the foot of the km column
+    gain: str = ""  # a climb's ↗ metres, at the end of its sub line
+    dist: str = ""  # "↓4.3" to the next row, at the end of the main line
+    leg_short: str = ""  # the same at the foot of a ribbon's token
+    grade: str = ""  # a climb or summit row's colour, by the climb's average grade
+    heads: tuple[Head, ...] = ()  # lines above the row: see _add_heads()
+    town: bool = False  # framed with its town's name
+
+    @property
+    def h(self) -> float:
+        """Its height down a strip, mm: its lines, and the room under a town's frame."""
+        # the last km takes the km column of the row's last emoji line; with none, a short line of its own
+        end_h = SUB_H if self.km_end and not self.emoji_lines else 0
+        h = MAIN_H + EMO_H * len(self.emoji_lines) + (SUB_H if self.sub else 0) + end_h
+        return h + (FRAME_PAD if self.town else 0) + HEAD_H * len(self.heads)
+
+
+def _row(it: Item, book: Roadbook, layout: RowLayout) -> Row:
     avail, max_emojis, sep = layout.avail, layout.max_emojis, layout.sep
     kind = KINDS[it.kind]
-    row: dict[str, Any] = {
-        "kind": it.kind,
-        "km": f"{it.km:.1f}",
-        "label": kind.label(it, book),
-        "sub": "",
-        "sub_short": "",
-        "km_end": "",  # a long stop's last km, at the foot of the km column
-        "gain": "",  # a climb's ↗ metres, at the end of its sub line
-        "dist": None,
-        "heads": [],  # lines above the row, each {"cls": "town" | "col", "text": ...}: see _add_heads()
-        "grade": "",  # a climb or summit row's colour, by the climb's average grade
-    }
-    if it.climb and layout.grades:
-        row["grade"] = grade_colour(it.climb.avg_grade, layout.grades)
+    label = kind.label(it, book)
     if kind.emoji:
         # the row's own emoji leads; a stop snapped onto a climb's foot or summit follows in the space left.
         # The row is too narrow for both a stop and a full label, so with a stop on board the category
@@ -147,36 +173,46 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> dict[str, Any]:
         room = avail - EMOJI_W - COUNT_W * len(sup)
         # at least one stop emoji, even when max_emojis is 1 or the room is too tight for its count and a "+":
         # a snapped stop must not vanish behind its climb
-        stop_emojis, extra, row["more"], stop_w = _emoji_lines(it.emojis, room, max(1, max_emojis - 1), layout)
+        stop_emojis, extra, more, stop_w = _emoji_lines(it.emojis, room, max(1, max_emojis - 1), layout)
         if it.emojis and not stop_emojis and not extra:
-            stop_emojis, row["more"], stop_w = _first_only(it.emojis, room)
-        row["emojis"] = [Glyph(kind.emoji, sup), *stop_emojis]
-        row["emoji_lines"] = extra
+            stop_emojis, more, stop_w = _first_only(it.emojis, room)
+        emojis = [Glyph(kind.emoji, sup), *stop_emojis]
         emoji_w = EMOJI_W + stop_w
         if kind.label_if_room and stop_emojis and stop_w + LABEL_W > room:  # alone, the label clips at worst
-            row["label"] = ""
+            label = ""
     else:
-        row["emojis"], row["emoji_lines"], row["more"], emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
+        emojis, extra, more, emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
+    sub = sub_short = km_end = gain = ""
     if kind.stats:
         c = climb_of(it)
         length = f"{c.length_km:.0f}" if c.length_km >= WHOLE_KM else f"{c.length_km:.1f}"
-        row["sub"] = f"{length}km{sep}{c.avg_grade:.1f}%"
+        sub = f"{length}km{sep}{c.avg_grade:.1f}%"
         # the climb's gain is what a rider plans by: never cut, while length and grade may be, should the line be short
-        row["gain"] = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
-        row["sub_short"] = f"{length}km {c.avg_grade:.0f}%"
+        gain = f"↗︎{c.gain_m:.0f}"  # the arrow as text (VS15): narrower than its emoji
+        sub_short = f"{length}km {c.avg_grade:.0f}%"
     elif it.stop and _spans(it.stop, layout.range_m):
         # the row sits at the stop's first POI; a long stop says where its last one is, so nothing hides past it: on a
         # strip down the km column, under the first; a ribbon's token has no column for it
-        row["km_end"] = f"{it.stop.km_end:.1f}"
-        row["sub_short"] = f"→{row["km_end"]}"
-    if it.dist_to_next is not None:  # at the end of the main line on a strip, at the foot of a ribbon's token
-        row["dist"] = f"↓{it.dist_to_next:.1f}"
-        row["leg_short"] = f"{it.dist_to_next:.1f}"
-    # the last km takes the km column of the row's last emoji line; with none, a short line of its own
-    end_h = SUB_H if row["km_end"] and not row["emoji_lines"] else 0
-    row["h"] = MAIN_H + EMO_H * len(row["emoji_lines"]) + (SUB_H if row["sub"] else 0) + end_h
-    row["w"] = max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if row["sub_short"] else 0.0)
-    return row
+        km_end = f"{it.stop.km_end:.1f}"
+        sub_short = f"→{km_end}"
+    # the distance to the next row: at the end of the main line on a strip, at the foot of a ribbon's token
+    leg = f"{it.dist_to_next:.1f}" if it.dist_to_next is not None else ""
+    return Row(
+        kind=it.kind,
+        km=f"{it.km:.1f}",
+        label=label,
+        emojis=emojis,
+        emoji_lines=extra,
+        more=more,
+        w=max(11.0, emoji_w + 2 * PAD + 0.6, 15.0 if sub_short else 0.0),
+        sub=sub,
+        sub_short=sub_short,
+        km_end=km_end,
+        gain=gain,
+        dist=f"↓{leg}" if leg else "",
+        leg_short=leg,
+        grade=grade_colour(it.climb.avg_grade, layout.grades) if it.climb and layout.grades else "",
+    )
 
 
 def _emoji_lines(
@@ -193,8 +229,8 @@ def _spans(stop: Stop, range_m: float) -> bool:
     return (stop.km_end - stop.km) * 1000 >= range_m
 
 
-def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
-    """Give rows their heading lines, each HEAD_H mm tall: the town of a named stop, then the name of a named climb.
+def _add_heads(rows: list[Row], book: Roadbook) -> list[Row]:
+    """The rows with their heading lines, each HEAD_H mm tall: a named stop's town, then a named climb's name.
 
     A town is not named again on the next row in the same town: its stops make one (towns.group), but two too far
     apart to join may still follow each other, and naming it once is enough on a narrow strip. A climb's name goes
@@ -202,30 +238,32 @@ def _add_heads(rows: list[dict[str, Any]], book: Roadbook) -> None:
     announces the climb before it starts and sits right above the length and grade it goes with. A climb row whose
     foot is in a named town gets both lines: where you are, then what comes.
     """
+    out: list[Row] = []
     last = None  # the last town shown
     for it, row in zip(book.items, rows, strict=True):
+        heads: list[Head] = []
         town = it.stop.town if it.stop else None
         if town and town != last:
-            row["heads"].append({"cls": "town", "text": town})
-            row["town"] = True  # framed with its name
-            row["h"] += FRAME_PAD
+            heads.append(Head("town", town))
+        framed = bool(heads)  # a named town gets a frame round its name and row
         last = town or last
         if it.kind == "climb" and it.climb and it.climb.name:
-            row["heads"].append({"cls": "col", "text": it.climb.name})
-        row["h"] += HEAD_H * len(row["heads"])
+            heads.append(Head("col", it.climb.name))
+        out.append(replace(row, heads=tuple(heads), town=framed))
+    return out
 
 
-def _paginate(rows: list[dict[str, Any]], capacity: float, key: str) -> list[list[dict[str, Any]]]:
+def _paginate[T](rows: list[T], capacity: float, size: Callable[[T], float]) -> list[list[T]]:
     """Fill strips with rows up to `capacity` mm; only the very last row may overrun a strip, by up to OVERRUN."""
-    pages: list[list[dict[str, Any]]] = [[]]
+    pages: list[list[T]] = [[]]
     used = 0.0
     for i, r in enumerate(rows):
         room = capacity + (OVERRUN if i == len(rows) - 1 else 0)
-        if pages[-1] and used + r[key] > room:
+        if pages[-1] and used + size(r) > room:
             pages.append([])
             used = 0.0
         pages[-1].append(r)
-        used += r[key]
+        used += size(r)
     return pages
 
 
@@ -241,23 +279,34 @@ def pretty_hours(value: str) -> str:
 _VERDICT = {"closed": "closed", "unknown": "open?"}  # "open" needs no word; "tight" says what changes
 
 
-def shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
-    """How the reference sheet shows a shop's hours: a verdict word if judged, then its hours, and their CSS class.
+@dataclass(frozen=True)
+class ShopHours:
+    """How the reference sheet shows a shop's hours: a verdict word if judged, then its hours, and their CSS class."""
 
-    Its hours are those of `day` if given and readable, else the value as OSM gives it.
-    """
+    verdict: str
+    hours: str
+    hours_class: str  # "oh" | "off" | "closed" | "write-in"
+
+
+def _shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
+    """A shop's hours on the reference sheet: those of `day` if given and readable, else the value as OSM gives it."""
     if not p.opening_hours:
         # a blank to write them in by hand, once checked elsewhere (the shop's site, a map app) before the ride
-        return {"verdict": "", "hours": "", "hours_class": "write-in"}
+        return ShopHours("", "", "write-in")
     v = p.verdict
     word = (f"⚠ {v.note}" if v.state == "tight" else _VERDICT.get(v.state, "")) if v else ""
     found = on_day(p.opening_hours, p.lat, p.lon, day) if day else None
     if found is None:  # no day asked, or a value that isn't OSM syntax (then shown as written, muted)
-        return {"verdict": word, "hours": pretty_hours(p.opening_hours), "hours_class": "off" if day else "oh"}
+        return ShopHours(word, pretty_hours(p.opening_hours), "off" if day else "oh")
     if found.closed:  # closed all day: the verdict, if any, says it already
-        return {"verdict": "", "hours": found.text, "hours_class": "closed"}
+        return ShopHours("", found.text, "closed")
     # judged closed or tight: the day's hours are only there to say when instead, so they step back
-    return {"verdict": word, "hours": found.text, "hours_class": "off" if word else "oh"}
+    return ShopHours(word, found.text, "off" if word else "oh")
+
+
+def shop_hours(p: Poi, day: dt.date | None) -> dict[str, str]:
+    """_shop_hours() as a dict, with keys verdict, hours and hours_class: as the booklet reads it."""
+    return asdict(_shop_hours(p, day))
 
 
 def ride_title(book: Roadbook) -> str:
@@ -284,30 +333,54 @@ def eta_text(w: Window, ride_day: dt.date | None) -> str:
     return f"~{at(w.early)}\u2013{at(w.late)}"
 
 
+@dataclass(frozen=True)
+class PoiLine:
+    """A POI on the reference sheet: its name, how far off the route, and a shop's hours if it gets them."""
+
+    name: str
+    off: int  # m from the route
+    verdict: str = ""
+    hours: str = ""
+    hours_class: str = ""  # see ShopHours
+
+
+@dataclass(frozen=True)
+class SheetEntry:
+    """A stop on the reference sheet, or a named climb at its foot."""
+
+    at: float  # the km it is sorted by
+    km: str
+    groups: list[tuple[str, list[PoiLine]]]  # (emoji, its POIs)
+    town: str = ""
+    eta: str = ""  # when the rider gets there: see eta_text()
+    col: str = ""  # a climb's name
+    grade: str = ""  # a climb's colour, by its average grade
+
+
 def _details(
     book: Roadbook,
     categories: dict[str, Any],
     range_m: float,
     hours_for: list[str],
     grades: tuple[tuple[float, str], ...] = (),
-) -> list[dict[str, Any]]:
+) -> list[SheetEntry]:
     """One entry per stop: its POIs grouped under their emoji; with hours, a shop that gets them has its own line.
 
     A named climb gets an entry too, at its foot, between the stops: its name, category, length and grade.
     """
     ride = book.ride or Ride()
-    out = []
+    out: list[SheetEntry] = []
     order = list(categories)
     for s in book.stops:
         day = s.window.early.date() if s.window else ride.date  # the day the rider gets there
-        groups: list[tuple[str, list[dict[str, Any]]]] = []
-        shared: dict[str, list[dict[str, Any]]] = {}
+        groups: list[tuple[str, list[PoiLine]]] = []
+        shared: dict[str, list[PoiLine]] = {}
         for p in sorted(s.pois, key=lambda p: (order.index(poi_category(p)), p.km)):
             emoji = categories[poi_category(p)]["emoji"]
-            poi: dict[str, Any] = {"name": p.name or p.type, "off": round(p.offset_m), "hours": None}
+            poi = PoiLine(p.name or p.type, round(p.offset_m))
             if book.hours is not None and p.category in hours_for:
-                poi |= shop_hours(p, day)
-                groups.append((emoji, [poi]))
+                h = _shop_hours(p, day)
+                groups.append((emoji, [replace(poi, verdict=h.verdict, hours=h.hours, hours_class=h.hours_class)]))
             elif emoji in shared:
                 shared[emoji].append(poi)
             else:
@@ -315,22 +388,21 @@ def _details(
                 groups.append((emoji, shared[emoji]))
         km = f"{s.km:.1f} → {s.km_end:.1f}" if _spans(s, range_m) else f"{s.km:.1f}"
         eta = eta_text(s.window, ride.date) if s.window else ""
-        out.append({"at": s.km, "km": km, "town": s.town or "", "eta": eta, "groups": groups})
+        out.append(SheetEntry(s.km, km, groups, town=s.town or "", eta=eta))
     out += [_climb_entry(c, grades) for c in book.climbs if c.name]
-    return sorted(out, key=lambda e: e["at"])  # stable: a stop at a climb's foot comes first, as on the strip
+    return sorted(out, key=lambda e: e.at)  # stable: a stop at a climb's foot comes first, as on the strip
 
 
-def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> dict[str, Any]:
+def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> SheetEntry:
     cat = f"Cat {c.label} · " if c.label else ""
-    stats = {"name": f"{cat}{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗️{c.gain_m:.0f} m", "off": 0, "hours": None}
-    return {
-        "at": c.start_km,
-        "km": f"{c.start_km:.1f} → {c.end_km:.1f}",
-        "col": c.name,
-        "grade": grade_colour(c.avg_grade, grades) if grades else "",  # a swatch before the name, as on the strip
-        "eta": "",
-        "groups": [("⛰️", [stats])],
-    }
+    stats = PoiLine(f"{cat}{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗️{c.gain_m:.0f} m", 0)
+    return SheetEntry(
+        c.start_km,
+        f"{c.start_km:.1f} → {c.end_km:.1f}",
+        [("⛰️", [stats])],
+        col=c.name or "",
+        grade=grade_colour(c.avg_grade, grades) if grades else "",  # a swatch before the name, as on the strip
+    )
 
 
 def grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
@@ -354,16 +426,34 @@ def printable_area(page: str) -> tuple[float, float]:
     return w - 2 * PAGE_MARGIN, h - 2 * PAGE_MARGIN
 
 
+@dataclass(frozen=True)
+class ClimbCard:
+    """A climb page's card: its title's parts, and its profile."""
+
+    name: str
+    stats: str  # "Cat 2 · 4.3 km at 9.6 % · max 12.0 % · ↗️408 m"
+    km: str
+    grade: str  # a swatch before the name, by the climb's average grade
+    svg: str
+
+
 def _climb_cards(
     book: Roadbook, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
-) -> list[dict[str, Any]]:
+) -> list[ClimbCard]:
     """One card per climb page: its title, and its profile with the places and stops on the way marked."""
-    return [climb_card(page, categories, grades, width) for page in book.climb_pages]
+    return [_climb_card(page, categories, grades, width) for page in book.climb_pages]
 
 
 def climb_card(
     page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
 ) -> dict[str, Any]:
+    """_climb_card() as a dict, with keys name, stats, km, grade and svg: as the booklet reads it."""
+    return asdict(_climb_card(page, categories, grades, width))
+
+
+def _climb_card(
+    page: ClimbPage, categories: dict[str, Any], grades: tuple[tuple[float, str], ...], width: float
+) -> ClimbCard:
     c, order = page.climb, list(categories)
 
     def emojis(s: Stop) -> str:
@@ -375,13 +465,13 @@ def climb_card(
     sections = [(s.start_km, s.end_km, s.ele_start, s.ele_end) for s in page.sections]
     stats = [f"Cat {c.label}"] if c.label else []
     stats += [f"{c.length_km:.1f} km at {c.avg_grade:.1f} %", f"max {c.max_grade:.1f} %", f"↗️{c.gain_m:.0f} m"]
-    return {
-        "name": c.name or f"Climb at km {c.start_km:.1f}",
-        "stats": " · ".join(stats),
-        "km": f"km {c.start_km:.1f} → {c.end_km:.1f}",
-        "grade": grade_colour(c.avg_grade, grades) if grades else "",
-        "svg": climb_svg(sections, marks, width, grades=grades),
-    }
+    return ClimbCard(
+        name=c.name or f"Climb at km {c.start_km:.1f}",
+        stats=" · ".join(stats),
+        km=f"km {c.start_km:.1f} → {c.end_km:.1f}",
+        grade=grade_colour(c.avg_grade, grades) if grades else "",
+        svg=climb_svg(sections, marks, width, grades=grades),
+    )
 
 
 def credit(book: Roadbook) -> str:
@@ -405,27 +495,55 @@ def credit(book: Roadbook) -> str:
     return listed[0].upper() + listed[1:]
 
 
-def _add_gutters(
-    strips: list[dict[str, Any]], book: Roadbook, width: float, height: float, grades: tuple[tuple[float, str], ...]
-) -> None:
-    """Give each strip a profile whose km scale follows its rows: one anchor at each row's main line."""
+@dataclass(frozen=True)
+class Strip:
+    """A strip of rows, or a ribbon of tokens, as printed."""
+
+    rows: list[Row]
+    first: str  # its first row's km
+    last: str
+    over: float  # how far the last strip runs past its length to keep the finish, 0 for the others
+    gutter: str = ""  # the profile down its right edge, an SVG: see _gutters()
+
+
+@dataclass(frozen=True)
+class Geometry:
+    """The row geometry the template's CSS variables take, mm."""
+
+    gutter: float  # the profile's width, 0 without one
+    main_h: float = MAIN_H
+    head_h: float = HEAD_H
+    frame_pad: float = FRAME_PAD
+    sub_h: float = SUB_H
+    hdr_h: float = HDR_H
+    km_col: float = KM_COL
+    pad: float = PAD
+    emo_h: float = EMO_H
+
+
+def _gutters(
+    strips: list[Strip], book: Roadbook, width: float, height: float, grades: tuple[tuple[float, str], ...]
+) -> list[str]:
+    """Each strip's profile, whose km scale follows its rows: one anchor at each row's main line."""
     p = book.profile
     if p is None:  # render_html() only asks for gutters when there is a profile
-        return
+        return [""] * len(strips)
+    out: list[str] = []
     first = 0  # index in book.items of the strip's first row
     for s in strips:
-        items = book.items[first : first + len(s["rows"])]
+        items = book.items[first : first + len(s.rows)]
         anchors, y = [], 0.0
-        for it, row in zip(items, s["rows"], strict=True):
-            anchors.append((it.km, y + HEAD_H * len(row["heads"]) + MAIN_H / 2))  # under its heading lines
-            y += row["h"]
+        for it, row in zip(items, s.rows, strict=True):
+            anchors.append((it.km, y + HEAD_H * len(row.heads) + MAIN_H / 2))  # under its heading lines
+            y += row.h
         first += len(items)
         if first < len(book.items):  # carry the line to the bottom edge, towards the next strip's first row
-            anchors.append((book.items[first].km, height + s["over"]))
+            anchors.append((book.items[first].km, height + s.over))
         # each strip gets its own scale: one shared with a 1500 m pass would flatten every other strip
         lo, hi = p.ele_range(anchors[0][0], anchors[-1][0])
         span = (lo, max(hi, lo + GUTTER_MIN_SPAN_M))
-        s["gutter"] = gutter_svg(p, book.climbs, anchors, width, height + s["over"], span, grades=grades)
+        out.append(gutter_svg(p, book.climbs, anchors, width, height + s.over, span, grades=grades))
+    return out
 
 
 def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
@@ -454,31 +572,25 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
     )
     rows = [_row(it, book, row_layout) for it in book.items]
     if layout == "strip":  # a token of the line layout grows sideways: no room is left over in it
-        _add_heads(rows, book)
+        rows = _add_heads(rows, book)
 
-    key, capacity = ("h", length - HDR_H - 2 * PAD) if layout == "strip" else ("w", length - 2 * PAD)
+    def size(row: Row) -> float:  # down a strip, along a ribbon
+        return row.h if layout == "strip" else row.w
+
+    capacity = length - HDR_H - 2 * PAD if layout == "strip" else length - 2 * PAD
     orientation = "portrait" if layout == "strip" else "landscape"
-    strips: list[dict[str, Any]] = [
-        # "over": how far the last strip runs past its length to keep the finish, 0 for the others
-        {"rows": p, "first": p[0]["km"], "last": p[-1]["km"], "over": max(0.0, sum(r[key] for r in p) - capacity)}
-        for p in _paginate(rows, capacity, key)
+    strips = [
+        Strip(p, p[0].km, p[-1].km, max(0.0, sum(size(r) for r in p) - capacity))
+        for p in _paginate(rows, capacity, size)
     ]
     if gutter:
-        _add_gutters(strips, book, gutter, capacity, grades)
+        gutters = _gutters(strips, book, gutter, capacity, grades)
+        strips = [replace(s, gutter=g) for s, g in zip(strips, gutters, strict=True)]
     noun = "strip" if layout == "strip" else "ribbon"
     log.info("Layout: %d %ss of %g x %g mm", len(strips), noun, width, length)
     for n, s in enumerate(strips, 1):
-        used = sum(r[key] for r in s["rows"])
-        log.debug(
-            "%s %d: km %s to %s, %d rows, %.1f of %.1f mm",
-            noun,
-            n,
-            s["first"],
-            s["last"],
-            len(s["rows"]),
-            used,
-            capacity,
-        )
+        used = sum(size(r) for r in s.rows)
+        log.debug("%s %d: km %s to %s, %d rows, %.1f of %.1f mm", noun, n, s.first, s.last, len(s.rows), used, capacity)
 
     sheet = booklet_format(cfg) is None  # else the reference sheet, the climb pages and the map go in the booklet
     details = (
@@ -511,17 +623,7 @@ def render_html(book: Roadbook, cfg: dict[str, Any]) -> str:
         tool=TOOL,
         version=version(TOOL),
         home=HOME,
-        g={
-            "MAIN_H": MAIN_H,
-            "HEAD_H": HEAD_H,
-            "FRAME_PAD": FRAME_PAD,
-            "SUB_H": SUB_H,
-            "HDR_H": HDR_H,
-            "KM_COL": KM_COL,
-            "PAD": PAD,
-            "EMO_H": EMO_H,
-            "GUTTER": gutter,
-        },
+        g=Geometry(gutter),
     )
 
 

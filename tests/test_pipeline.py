@@ -101,16 +101,16 @@ def test_a_long_stop_shows_where_it_ends() -> None:
     long_stop, short_stop = (Stop([Poi("p", "", 0, 0, km=10.0), Poi("p", "", 0, 0, km=k)]) for k in (11.2, 10.4))
     long_row = _row(Item("stop", 10.0, 0, stop=long_stop), book, _layout(20))
     # on a strip, at the foot of the km column; on a ribbon's token, a line of its own
-    assert (long_row["km_end"], long_row["sub"], long_row["sub_short"]) == ("11.2", "", "→11.2")
-    assert long_row["h"] > _row(Item("stop", 10.0, 0, stop=short_stop), book, _layout(20))["h"]
+    assert (long_row.km_end, long_row.sub, long_row.sub_short) == ("11.2", "", "→11.2")
+    assert long_row.h > _row(Item("stop", 10.0, 0, stop=short_stop), book, _layout(20)).h
     # a stop whose emojis already wrap onto a second line puts it there: no taller than another stop
     glyphs = [Glyph(e) for e in "🚰🚻🥖🛒⛽☕"]
     wrapped = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
     crowded = Stop([Poi("p", "", 0, 0, km=10.0), Poi("p", "", 0, 0, km=11.2)])
     rows = [_row(Item("stop", 10.0, 0, stop=s, emojis=glyphs), book, wrapped) for s in (crowded, short_stop)]
-    assert rows[0]["emoji_lines"]
-    assert rows[0]["km_end"] == "11.2"
-    assert rows[0]["h"] == rows[1]["h"]
+    assert rows[0].emoji_lines
+    assert rows[0].km_end == "11.2"
+    assert rows[0].h == rows[1].h
 
 
 def test_stops_snap_to_the_nearest_climb_edge_within_reach() -> None:
@@ -206,7 +206,7 @@ def _layout(avail: float, *, max_emojis: int = 99) -> RowLayout:
 def test_a_row_gives_the_bare_distance_to_the_next() -> None:
     book = Roadbook("t", 50, 0, 0, [], [], [], 0, 0)
     row = _row(Item("stop", 10.0, 0, dist_to_next=4.3), book, _layout(20))
-    assert (row["dist"], row["leg_short"], row["h"]) == ("↓4.3", "4.3", MAIN_H)
+    assert (row.dist, row.leg_short, row.h) == ("↓4.3", "4.3", MAIN_H)
 
 
 def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji() -> None:
@@ -214,16 +214,16 @@ def test_climb_row_with_a_stop_folds_its_category_onto_the_emoji() -> None:
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
     bare = _row(Item("climb", 10.0, 0, climb=climb), book, _layout(12.5))
     loaded = _row(Item("climb", 10.0, 0, climb=climb, emojis=[Glyph("🍔")]), book, _layout(12.5))
-    assert bare["emojis"] == [Glyph("⛰️")]
-    assert bare["label"] == "Cat 4"
-    assert loaded["emojis"] == [Glyph("⛰️", "4"), Glyph("🍔")]
-    assert loaded["label"] == ""
+    assert bare.emojis == [Glyph("⛰️")]
+    assert bare.label == "Cat 4"
+    assert loaded.emojis == [Glyph("⛰️", "4"), Glyph("🍔")]
+    assert loaded.label == ""
     # even when capped to one emoji, the stop riding on the climb keeps its own
     capped = _row(
         Item("climb", 10.0, 0, climb=climb, emojis=[Glyph("🍔"), Glyph("🚰")]), book, _layout(30, max_emojis=1)
     )
-    assert capped["emojis"][1:] == [Glyph("🍔")]
-    assert capped["more"]
+    assert capped.emojis[1:] == [Glyph("🍔")]
+    assert capped.more
 
 
 def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() -> None:
@@ -232,17 +232,17 @@ def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() 
         _row(Item(kind, km, 0, label=label), book, _layout(20))
         for kind, km, label in (("start", 0, "START"), ("checkpoint", 20, "CP1"), ("checkpoint", 30, "Lunch"))
     ]
-    assert [r["emojis"] for r in rows] == [[Glyph("🟢")], [Glyph("🚩")], [Glyph("🚩")]]
-    assert [r["label"] for r in rows] == ["START", "CP1 · 30 to go", "Lunch"]
+    assert [r.emojis for r in rows] == [[Glyph("🟢")], [Glyph("🚩")], [Glyph("🚩")]]
+    assert [r.label for r in rows] == ["START", "CP1 · 30 to go", "Lunch"]
 
 
 def test_summit_elevation_gives_way_to_its_stop() -> None:
     climb = Climb(10.0, 15.0, 400, 8.0, 10.0, "2")
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
     top = Item("summit", 15.0, 1240.4, climb=climb, emojis=[Glyph("🍔")])
-    assert _row(top, book, _layout(30))["label"] == "1240 m"
-    assert _row(top, book, _layout(12))["label"] == ""
-    assert _row(top, book, _layout(12))["emojis"] == [Glyph("🔝"), Glyph("🍔")]
+    assert _row(top, book, _layout(30)).label == "1240 m"
+    assert _row(top, book, _layout(12)).label == ""
+    assert _row(top, book, _layout(12)).emojis == [Glyph("🔝"), Glyph("🍔")]
 
 
 def test_stop_glyphs_carry_a_count_only_when_pois_share_an_emoji() -> None:
@@ -291,8 +291,8 @@ def test_a_crowded_stop_on_a_climb_or_summit_keeps_its_first_emoji(kind: str, av
     book = Roadbook("t", 50, 0, 0, [], [], [climb], 0, 0)
     glyphs = [Glyph("🚰", "3"), Glyph("🚻"), Glyph("🥖")]
     row = _row(Item(kind, 10.0, 0, climb=climb, emojis=glyphs), book, _layout(avail))
-    assert [g.emoji for g in row["emojis"]] + (["+"] if row["more"] else []) == shown
-    assert row["emojis"][1].sup == ""  # the count gave way first
+    assert [g.emoji for g in row.emojis] + (["+"] if row.more else []) == shown
+    assert row.emojis[1].sup == ""  # the count gave way first
 
 
 def test_wrap_carries_a_crowded_stop_onto_the_next_line() -> None:
@@ -313,12 +313,12 @@ def test_a_crowded_row_grows_a_line_and_a_quiet_one_does_not() -> None:
     one = _layout(12.5)
     two = RowLayout(avail=12.5, max_emojis=99, sep=" ", range_m=1000, emoji_lines=2, wrap_avail=18.5)
     cut = _row(crowded, book, one)
-    assert cut["more"]
-    assert not cut["emoji_lines"]
+    assert cut.more
+    assert not cut.emoji_lines
     wrapped = _row(crowded, book, two)
-    assert len(wrapped["emojis"]) + sum(map(len, wrapped["emoji_lines"])) == 4
-    assert not wrapped["more"]
-    assert wrapped["h"] > _row(quiet, book, two)["h"] == _row(quiet, book, one)["h"]
+    assert len(wrapped.emojis) + sum(map(len, wrapped.emoji_lines)) == 4
+    assert not wrapped.more
+    assert wrapped.h > _row(quiet, book, two).h == _row(quiet, book, one).h
 
 
 def test_the_ubf_300_finds_its_big_climbs_and_fits_two_strips() -> None:
@@ -379,6 +379,6 @@ def test_summit_rows_can_close_every_climb() -> None:
     # a top with no stop gets its elevation on a row of its own
     bare = next(i for i in summits if i.stop is None)
     row = _row(bare, book, _layout(12.5))
-    assert row["emojis"] == [Glyph("🔝")]
-    assert row["label"] == f"{bare.ele:.0f} m"
+    assert row.emojis == [Glyph("🔝")]
+    assert row.label == f"{bare.ele:.0f} m"
     assert '<div class="row summit"' in render_html(book, cfg)

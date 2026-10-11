@@ -15,7 +15,7 @@ from roadbook.model import Climb, ClimbPage, Poi, Stop, Track
 from roadbook.osm import M_PER_DEG, OVERPASS
 from roadbook.places import Place, lookup, on_road, road
 from roadbook.profile import Profile
-from roadbook.render import render_html
+from roadbook.render import climb_card, render_html
 from roadbook.svg import CARD_GROUND_H, CARD_PLOT_H, climb_svg
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
@@ -207,6 +207,15 @@ def test_a_card_draws_each_section_in_its_grade_colour_with_the_marks_above() ->
         assert text in svg
     assert ">Boutx · 🚰<" in svg  # too close to read apart: one label
     assert "Col &lt;b&gt;" in svg
+
+
+def test_the_booklet_gets_a_climb_card_as_a_dict() -> None:
+    climb = Climb(1.0, 4.0, 240.0, 8.0, 10.0, "1", name="Col du Test")
+    page = ClimbPage(climb, sections(climb, _profile(_track())), [])
+    card = climb_card(page, load_config()["categories"], (), 190)
+    assert list(card) == ["name", "stats", "km", "grade", "svg"]
+    assert (card["name"], card["km"], card["grade"]) == ("Col du Test", "km 1.0 → 4.0", "")
+    assert "<svg" in card["svg"]
 
 
 def _size(svg: str) -> tuple[float, float]:
