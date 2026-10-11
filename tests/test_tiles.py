@@ -10,7 +10,7 @@ from typing import Self
 import pytest
 
 from roadbook.api import lookup_line
-from roadbook.osm import USER_AGENT
+from roadbook.osm import USER_AGENT, Report
 from roadbook.tiles import DEFAULT, SOURCES, STYLES, TERRAIN, fetch, get_tile, style
 
 PNG = b"\x89PNG\r\n\x1a\n tile"
@@ -122,6 +122,13 @@ def test_a_terrain_tile_says_what_it_was_made_from_cached_or_not(tmp_path: Path)
     assert (report.cached, report.made_from) == (2, ["eudem/eudem_dem_5deg_n45e000.tif, srtm/N45E005.tif"])
     _, report = fetch("osm", KEYS[:1], 30, folder=tmp_path, get=FakeServer())
     assert report.made_from == []  # the map's own tiles don't say
+
+
+def test_two_reports_add_up_to_one_line() -> None:
+    a = Report(asked=10, found=9, cached=4, sources=["OSM France"], failed=True, made_from=["srtm/x.tif"])
+    a.add(Report(asked=5, found=5, cached=5, unasked=1, sources=["OSM France", "EOX"], made_from=["eudem/y.tif"]))
+    assert (a.asked, a.found, a.cached, a.unasked, a.failed) == (15, 14, 9, 1, True)
+    assert (a.sources, a.made_from) == (["OSM France", "EOX"], ["srtm/x.tif", "eudem/y.tif"])
 
 
 def test_an_unknown_style_falls_back_to_the_default(caplog: pytest.LogCaptureFixture) -> None:

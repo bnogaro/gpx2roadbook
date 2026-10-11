@@ -1,7 +1,9 @@
 import datetime as dt
+import itertools
 import math
 import re
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -278,9 +280,53 @@ def test_the_pages_hold_their_blocks_headings_with_what_follows_warnings_with_wh
     blocks = [Block("stop", float(k), cap / 3) for k in range(5)]
     blocks.insert(3, Block("day", 3.0, 5, keep="next"))  # would end page 1: goes on with the stop after it
     blocks.insert(5, Block("gap", 3.0, 5, keep="prev"))
-    pages = b.paginate(blocks)
-    assert [[x.kind for x in p] for p in pages] == [["stop", "stop", "stop"], ["day", "stop", "gap", "stop"]]
-    assert all(sum(x.h for x in p) <= cap for p in pages)
+    (spread,) = b.paginate(blocks)
+    assert [[x.kind for x in p] for p in spread.pages] == [["stop", "stop", "stop"], ["day", "stop", "gap", "stop"]]
+    assert all(sum(x.h for x in p) <= cap for p in spread.pages)
+    assert not spread.mapped  # no map on this book
+
+
+def _mapped(stops: list[Stop], f: str = "a5", **booklet: Any) -> Booklet:  # noqa: ANN401  [booklet] settings
+    """The booklet of a book with a map: its spreads get mini-maps."""
+    book = _book(stops)
+    book.route_map = SimpleNamespace(style="osm")  # ty: ignore[invalid-assignment]  # its being there, and its style
+    return _booklet(book, f, **booklet)
+
+
+def test_a_spread_with_a_stop_off_the_road_has_a_mini_map_on_its_left_page() -> None:
+    far = [Stop([_poi(k, "bakery", off=200), _poi(k + 0.1, "water")]) for k in range(2, 98, 3)]
+    b = _mapped(far)
+    spreads = b.paginate(b.blocks())
+    assert len(spreads) > 1
+    assert all(sp.mapped for sp in spreads)
+    cap, small = A5.blocks_h, A5.blocks_h - A5.minimap - A5.gap
+    for sp in spreads:
+        assert sum(x.h for x in sp.pages[0]) <= small  # under its map
+        assert all(sum(x.h for x in p) <= cap for p in sp.pages[1:])
+        assert sp.km[0] == sp.pages[0][0].km
+    for a, z in itertools.pairwise(spreads):  # their stretches follow on, so the maps cover the whole route
+        assert a.km[1] >= z.km[0]
+    assert spreads[-1].km[1] == 100
+    unmapped = _mapped([Stop([_poi(k, "water")]) for k in range(2, 98, 3)])  # on the road: no map needed
+    assert not any(sp.mapped for sp in unmapped.paginate(unmapped.blocks()))
+
+
+def test_the_overview_marks_where_each_spread_starts() -> None:
+    b = _mapped([Stop([_poi(k, "bakery", off=200)]) for k in range(2, 98, 3)])
+    marked: list[list[tuple[float, str]]] = []
+    b.map_svg = lambda pages: marked.append(pages) or "<svg/>"  # ty: ignore[invalid-assignment]
+    pages = b.pages()
+    mid = centre(len(pages))
+    assert (pages[mid]["kind"], pages[mid]["svg"], pages[mid + 1]["kind"]) == ("map", "<svg/>", "map-right")
+    (marks,) = marked
+    lefts = [p for p in pages if p["kind"] == "stops" and not p["recto"]]
+    assert marks == [(p["starts"], f"p. {p['n']}") for p in lefts]
+    labels = [label for _, label in marks]
+    assert labels[0] == "p. 2"
+    assert f"p. {mid + 1}" not in labels  # the map's own pages hold no stops
+    assert all("minimap" in p for p in lefts)
+    assert not any("minimap" in p for p in pages if p["kind"] == "stops" and p["recto"])
+    assert b.back()["maps"].startswith("Maps: © OpenStreetMap contributors")  # their full credit, on the back
 
 
 def test_a_stop_too_tall_for_a_page_goes_on_over_the_next_continued() -> None:
@@ -319,16 +365,6 @@ def test_the_booklet_has_its_cover_first_its_map_in_the_middle_and_its_credits_l
     assert "📍 Lunch · km 50.0" in texts
     cover = pages[0]
     assert [lst["title"] for lst in cover["lists"]] == ["Checkpoints", "Climbs"]
-
-
-def test_the_map_goes_across_the_centre_spread() -> None:
-    book = _book([Stop([_poi(k, "water")]) for k in range(1, 100, 2)])
-    book.route_map = object()  # ty: ignore[invalid-assignment]  # only its being there counts here
-    b = _booklet(book)
-    b.map_svg = lambda: "<svg/>"  # ty: ignore[invalid-assignment]
-    pages = b.pages()
-    mid = centre(len(pages))
-    assert (pages[mid]["kind"], pages[mid + 1]["kind"]) == ("map", "map-right")
 
 
 def test_a_cover_with_more_climbs_than_room_says_how_many_more_are_inside() -> None:
@@ -381,6 +417,31 @@ def test_the_map_is_drawn_for_the_centre_spread() -> None:
     m = build(HILLY, cfg).route_map
     assert m is not None
     assert m.width == A6.spread[0]
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+@pytest.mark.parametrize("name", ["A5", "A6"])
+def test_each_spread_s_mini_map_is_made_with_the_book(name: str) -> None:
+    cfg = load_config()
+    cfg["booklet"]["format"] = name
+    book = build(HILLY, cfg)
+    f = FORMATS[name.lower()]
+    b = Booklet(book, cfg, f)
+    mapped = [sp.km for sp in b.paginate(b.blocks()) if sp.mapped]
+    assert mapped
+    assert list(book.minimaps) == mapped
+    for (a, z), m in book.minimaps.items():
+        assert (m.width, m.height) == (f.body[0], f.minimap)
+        assert not m.landscape
+        x, y = m.mm(*book.track.at(a)) if book.track else (0, 0)
+        assert 0 < x < m.width
+        assert 0 < y < m.height
+        assert z > a
+    html = render_booklet(book, cfg)
+    assert html is not None
+    assert html.count('<div class="mm">') == len(mapped)
+    cfg["map"]["enabled"] = False
+    assert build(HILLY, cfg).minimaps == {}
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")

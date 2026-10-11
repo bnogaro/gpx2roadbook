@@ -42,6 +42,7 @@ class Format:
     header: float  # the running header: km, day, page
     profile: float  # the profile under it
     gap: float  # between two stops
+    minimap: float  # the mini-map of a spread's stretch, on its left-hand page
 
     @property
     def body(self) -> tuple[float, float]:
@@ -76,6 +77,7 @@ FORMATS = {
         header=6.0,
         profile=11.0,
         gap=1.8,
+        minimap=60.0,
     ),
     "a6": Format(
         "A6",
@@ -93,6 +95,7 @@ FORMATS = {
         header=5.0,
         profile=8.0,
         gap=1.5,
+        minimap=42.0,
     ),
 }
 OFF = "off"

@@ -151,3 +151,4 @@ class Roadbook:
     route_map: RouteMap | None = None  # None when no map was asked for
     tiles: Report | None = None  # the map's tiles: None without a map
     terrain: Report | None = None  # the terrain tiles of the map's contour lines: None without them
+    minimaps: dict[tuple[float, float], RouteMap] = field(default_factory=dict)  # a booklet spread's, by its stretch

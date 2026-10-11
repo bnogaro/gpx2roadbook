@@ -55,6 +55,7 @@
   </div>
 {%- elif p.kind == 'stops' %}
   <div class="ph"><span>{{ p.km }}</span>{% if p.day %}<span class="day">{{ p.day }}</span>{% endif %}<span class="no">{{ p.n }} / {{ p.of }}</span></div>
+  {%- if p.minimap %}<div class="mm">{{ p.minimap | safe }}</div>{% endif %}
   <div class="pp">{{ p.profile | safe }}</div>
   {%- for b in p.blocks %}{{ block(b) }}{% endfor %}
 {%- elif p.kind == 'notes' %}
@@ -62,6 +63,7 @@
   {%- for _ in range(notes_lines) %}<div class="rule"></div>{% endfor %}
 {%- elif p.kind == 'back' %}
   <div class="colophon">
+    {%- if p.maps %}<p>{{ p.maps }}</p>{% endif %}
     {%- if p.credit %}<p>{{ p.credit }}</p>{% endif %}
     {%- if p.check %}<p>{{ p.check }}</p>{% endif %}
     <p>Made with {{ p.tool }} {{ p.version }} · {{ p.home }}</p>
@@ -81,7 +83,7 @@
   :root {
     --pw: {{ f.page[0] }}mm; --ph: {{ f.page[1] }}mm; --margin: {{ f.margin }}mm; --inner: {{ f.inner }}mm;
     --line: {{ f.line }}mm; --head: {{ f.head }}mm; --km-col: {{ f.km_col }}mm; --header: {{ f.header }}mm;
-    --profile: {{ f.profile }}mm; --gap: {{ f.gap }}mm;
+    --profile: {{ f.profile }}mm; --gap: {{ f.gap }}mm; --minimap: {{ f.minimap }}mm;
   }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -105,6 +107,8 @@
   .ph .no { margin-left: auto; font-variant-numeric: tabular-nums; }
   .pp { height: calc(var(--profile) + var(--gap)); padding-top: 0.3mm; overflow: hidden; }
   .pp svg { display: block; }
+  .mm { height: calc(var(--minimap) + var(--gap)); padding-top: var(--gap); overflow: hidden; }  /* the spread's map */
+  .mm svg { display: block; }
 
   /* a block: its height set, so the page holds what was counted; its lines, each a line high */
   .b { overflow: hidden; }

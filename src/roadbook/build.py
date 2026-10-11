@@ -5,6 +5,7 @@ import logging
 from collections import Counter
 from typing import TYPE_CHECKING, Any
 
+from .booklet import minimaps
 from .climb_pages import pages as climb_pages
 from .climbs import find_climbs
 from .contours import add as add_contours
@@ -218,7 +219,7 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
     for a, b in itertools.pairwise(items):
         a.dist_to_next = b.km - a.km
 
-    return Roadbook(
+    book = Roadbook(
         title=track.name,
         length_km=length,
         gain_m=profile.total_gain,
@@ -240,3 +241,8 @@ def build(gpx_path: Path, cfg: dict[str, Any], *, offline: bool = False) -> Road
         tiles=tiles,
         terrain=terrain,
     )
+    # the booklet's spreads are known once the book is: their mini-maps come last, their tiles counted with the map's
+    book.minimaps, sections = minimaps(book, cfg, offline=offline)
+    if book.tiles is not None and sections is not None:
+        book.tiles.add(sections)
+    return book

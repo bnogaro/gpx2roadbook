@@ -27,16 +27,20 @@ from jinja2 import Environment, PackageLoader, select_autoescape
 
 from .imposition import centre, chosen, page_count, sides
 from .opening import Ride
+from .osm import Report
 from .render import HOME, TOOL, climb_card, credit, eta_text, grade_key, poi_category, ride_title, shop_hours
+from .routemap import section
 from .routemap import svg as map_svg
 from .sun import local, sun_times
 from .svg import grade_colour, profile_svg
+from .tiles import style as tile_style
 
 if TYPE_CHECKING:
     import datetime as dt
 
     from .imposition import Format
     from .model import Climb, Poi, Roadbook, Stop
+    from .routemap import RouteMap
 
 log = logging.getLogger(__name__)
 
@@ -138,6 +142,16 @@ class Block:
     end: float | None = None  # where a stop or a climb ends, when it spans some road
 
 
+@dataclass
+class Spread:
+    """Two facing pages of stops, left and right, and the stretch of road they cover; the left one has a mini-map of
+    it, if `mapped`."""
+
+    pages: list[list[Block]]  # the last spread may have but its left page
+    mapped: bool
+    km: tuple[float, float] = (0.0, 0.0)
+
+
 class Booklet:
     """The booklet of a road book, in a format: its blocks, its pages, its sides to print."""
 
@@ -150,6 +164,7 @@ class Booklet:
         self.clock = Clock(book)
         self.width = f.body[0] - f.km_col  # the lines right of the km column
         self.hours_for = set(cfg["hours"]["categories"]) if book.hours is not None else set()
+        self.mapped = book.route_map is not None  # the spreads get mini-maps, the middle the overview
         self.warnings = self.gaps()  # on their pages, and on the cover
 
     # ------------------------------------------------------------ the blocks
@@ -209,7 +224,8 @@ class Booklet:
             {"left": left[i] if i < len(left) else "", "right": right[i] if i < len(right) else None}
             for i in range(max(len(left), len(right)))
         ]
-        return Block("stop", s.km, self.rows_h(len(rows)), rows, end=s.km_end)
+        far = any(p.offset_m > OFF_ROUTE_M for p in s.pois)  # somewhere to find off the road: a map helps
+        return Block("stop", s.km, self.rows_h(len(rows)), rows, {"far": far}, end=s.km_end)
 
     def rows_h(self, n: int) -> float:
         return self.f.head + (n - 1) * self.f.line + self.f.gap
@@ -363,10 +379,12 @@ class Booklet:
 
     # ------------------------------------------------------------ the pages
 
-    def paginate(self, blocks: list[Block]) -> list[list[Block]]:
-        """The blocks on pages, in order: a heading with what follows it, a warning with the stop before it; what
-        doesn't fit on a page's rest starts the next; a stop too tall for any page split across pages."""
+    def paginate(self, blocks: list[Block]) -> list[Spread]:
+        """The blocks on pages, two facing pages at a time, in order: a heading with what follows it, a warning with
+        the stop before it; what doesn't fit on a page's rest starts the next; a stop too tall for any page split
+        across pages. A spread with a stop off the road gets a mini-map on its left page, which then holds less."""
         cap = self.f.blocks_h
+        small = cap - self.f.minimap - self.f.gap if self.mapped else cap
         groups: list[list[Block]] = []
         for b in blocks:
             if groups and (groups[-1][-1].keep == "next" or b.keep == "prev"):
@@ -375,20 +393,40 @@ class Booklet:
                 groups.append([b])
         units: list[list[Block]] = []
         for g in groups:
-            if sum(b.h for b in g) <= cap:
+            if sum(b.h for b in g) <= small:
                 units.append(g)
             else:  # each on its own, the too tall ones split
-                units += [[part] for b in g for part in self.split(b, cap)]
-        pages: list[list[Block]] = [[]]
-        used = 0.0
-        for u in units:
-            h = sum(b.h for b in u)
-            if pages[-1] and used + h > cap:
-                pages.append([])
-                used = 0.0
-            pages[-1] += u
-            used += h
-        return pages
+                units += [[part] for b in g for part in self.split(b, small)]
+        spreads: list[Spread] = []
+        i = 0
+        while i < len(units):
+            pages, after = self._fill(units, i, (cap, cap))
+            mapped = self.mapped and any(b.data.get("far") for page in pages for b in page)
+            if mapped:  # room for its map: some of it may go on to the next spread
+                pages, after = self._fill(units, i, (small, cap))
+            spreads.append(Spread(pages, mapped))
+            i = after
+        for n, sp in enumerate(spreads):  # from its first block to the next spread's, or on to its last stop's end
+            blocks = [b for page in sp.pages for b in page]
+            until = spreads[n + 1].pages[0][0].km if n + 1 < len(spreads) else self.book.length_km
+            sp.km = (blocks[0].km, max([until, *(b.end for b in blocks if b.end is not None)]))
+        return spreads
+
+    @staticmethod
+    def _fill(units: list[list[Block]], i: int, caps: tuple[float, ...]) -> tuple[list[list[Block]], int]:
+        """Pages of `caps` mm filled with the units from the `i`th on, each unit whole; and the first unit left."""
+        pages = []
+        for cap in caps:
+            if i == len(units):
+                break
+            page: list[Block] = []
+            used = 0.0
+            while i < len(units) and (not page or used + sum(b.h for b in units[i]) <= cap):
+                page += units[i]
+                used += sum(b.h for b in units[i])
+                i += 1
+            pages.append(page)
+        return pages, i
 
     def split(self, b: Block, cap: float) -> list[Block]:
         """A block cut into parts that each fit a page: a stop's rows go on under its km and town, "continued"."""
@@ -407,19 +445,25 @@ class Booklet:
         return parts
 
     def pages(self) -> list[dict[str, Any]]:
-        """Every page in reading order: the cover, the stops, the map across the centre spread, Notes, the back."""
-        stops = self.paginate(self.blocks())
-        content = [
-            self.stops_page(blocks, stops[i + 1][0].km if i + 1 < len(stops) else None)
-            for i, blocks in enumerate(stops)
-        ]
-        spread = self.book.route_map is not None
-        n = page_count(1 + len(content) + 2 * spread + 1, self.f)
+        """Every page in reading order: the cover, the stops, the map across the centre spread, Notes, the back.
+
+        The stops start on page 2, a left-hand page, and the map takes two: each spread of stops faces its own.
+        """
+        spreads = self.paginate(self.blocks())
+        flat = [(sp, k, blocks) for sp in spreads for k, blocks in enumerate(sp.pages)]
+        content = []
+        for i, (sp, k, blocks) in enumerate(flat):
+            page = self.stops_page(blocks, flat[i + 1][2][0].km if i + 1 < len(flat) else None)
+            if k == 0:
+                page["starts"] = sp.km[0]  # marked on the overview
+                page["minimap"] = self.minimap_svg(sp.km) if sp.mapped else ""
+            content.append(page)
+        n = page_count(1 + len(content) + 2 * self.mapped + 1, self.f)
         out: list[dict[str, Any]] = [{"kind": "cover", **self.cover()}]
         mid = centre(n)
         while len(out) < n - 1:
-            if spread and len(out) == mid:
-                out += [{"kind": "map", "svg": self.map_svg()}, {"kind": "map-right"}]
+            if self.mapped and len(out) == mid:
+                out += [{"kind": "map", "svg": ""}, {"kind": "map-right"}]
             elif content:
                 out.append(content.pop(0))
             else:
@@ -427,7 +471,16 @@ class Booklet:
         out.append({"kind": "back", **self.back()})
         for i, p in enumerate(out):
             p |= {"n": i + 1, "of": n, "recto": i % 2 == 0}
-        log.info("Booklet: %s, %d pages: %d of stops%s", self.f.name, n, len(stops), ", the map in the middle" * spread)
+        if self.mapped:
+            out[mid]["svg"] = self.map_svg([(p["starts"], f"p. {p['n']}") for p in out if "starts" in p])
+        log.info(
+            "Booklet: %s, %d pages: %d of stops, %d mini-maps%s",
+            self.f.name,
+            n,
+            len(flat),
+            sum(sp.mapped for sp in spreads),
+            ", the map in the middle" * self.mapped,
+        )
         return out
 
     def stops_page(self, blocks: list[Block], until: float | None) -> dict[str, Any]:
@@ -512,7 +565,9 @@ class Booklet:
     def back(self) -> dict[str, Any]:
         owed = credit(self.book)
         found_hours = self.book.hours is not None and self.book.hours.found
+        m = self.book.route_map  # its mini-maps carry a short credit: the full one is here, and on the overview
         return {
+            "maps": f"Maps: {tile_style(m.style)[1].credit}." if m else "",
             "credit": f"{owed} © OpenStreetMap contributors (ODbL)." if owed else "",
             "check": "Hours change: check the ones you rely on." if found_hours else "",
             "tool": TOOL,
@@ -520,9 +575,34 @@ class Booklet:
             "home": HOME,
         }
 
-    def map_svg(self) -> str:
+    def map_svg(self, pages: list[tuple[float, str]]) -> str:
+        """The overview across the centre spread: the route, its towns and climbs, no POIs, but where each spread
+        starts, "p. 4", the way to the page with the stops there."""
         m = self.book.route_map
-        return map_svg(m, self.book, self.categories, self.cfg["map"]["km_every"]) if m else ""
+        every = self.cfg["map"]["km_every"]
+        return map_svg(m, self.book, self.categories, every, with_pois=False, pages=pages) if m else ""
+
+    def minimap_svg(self, km: tuple[float, float]) -> str:
+        """A spread's mini-map: its stretch of road, with its stops' POIs; "" when the book has none made for it."""
+        m = self.book.minimaps.get(km)
+        return map_svg(m, self.book, self.categories, self.cfg["map"]["km_every"], span=km) if m else ""
+
+
+def minimaps(book: Roadbook, cfg: dict[str, Any], *, offline: bool = False) -> tuple[dict, Report | None]:
+    """The mini-maps of the booklet's spreads that get one, by their stretch, with their tiles, and how those were
+    had; none without a booklet or a map."""
+    f = chosen(cfg)
+    if f is None or book.route_map is None or book.track is None:
+        return {}, None
+    made: dict[tuple[float, float], RouteMap] = {}
+    report = Report()
+    b = Booklet(book, cfg, f)
+    for sp in b.paginate(b.blocks()):
+        if sp.mapped:
+            made[sp.km], got = section(book.track, cfg["map"], (f.body[0], f.minimap), sp.km, offline=offline)
+            report.add(got)
+    log.info("Booklet: %d mini-maps, %d tiles", len(made), report.asked)
+    return made, report
 
 
 def duration(hours: float) -> str:
