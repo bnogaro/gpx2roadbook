@@ -1,3 +1,29 @@
+## v0.6.0 (2026-10-11)
+
+### Feat
+
+- **booklet**: a mini-map for each spread, and the overview without POIs
+- **booklet**: the stops, climbs and map as an A5 or A6 booklet to fold and take on the ride
+- **map**: contour lines with their heights, from Mapzen's Terrain Tiles
+- **map**: a page with a map of the whole route, its POIs, towns and climbs
+- **climb-pages**: cut a short climb into 500 m or 250 m slabs
+- climb pages, each climb's profile a kilometre at a time
+- **gui**: fit phones and narrow windows, and serve phones on the network
+- **gui**: a live preview of the road book, from the cache only
+- **gui**: remember the last settings, reset them, or save them to share
+- **gui**: a window to pick a GPX, set the options and make the road book
+- **hours**: leave a blank to write in the hours OSM doesn't know
+
+### Fix
+
+- **gui**: the run's log shows only the run's steps, not a preview's built meanwhile
+- **gui**: name the road book's buttons Strips, as it holds the strips alone with a booklet
+
+### Refactor
+
+- one run function for the CLI and a GUI
+- describe each setting once, for the CLI, -i and a GUI
+
 ## v0.5.0 (2026-10-09)
 
 ### BREAKING CHANGE
