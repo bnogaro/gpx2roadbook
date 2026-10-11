@@ -47,6 +47,9 @@ gpx2roadbook = "roadbook.cli:app"  # same command under the package's name, so `
 roadbook-gui = "roadbook.gui:main"  # a GUI script: no console window on Windows; needs the "gui" extra
 
 [dependency-groups]
+app = [
+    "pyinstaller>=6.22",  # the downloadable app: scripts/build_app.py
+]
 audit = [
     "pip-audit>=2.10.1",
 ]

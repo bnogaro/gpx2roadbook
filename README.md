@@ -22,6 +22,17 @@ Any other GPX works if it has:
 
 ## Install
 
+### The app, for Windows and macOS
+
+No Python, no terminal: download the zip for your system from the [latest release](https://github.com/bnogaro/gpx2roadbook/releases/latest), `gpx2roadbook-…-windows.zip` or `gpx2roadbook-…-macos.zip`, and unzip it. It's the window described in [The window](#the-window).
+
+- **On Windows**, open `gpx2roadbook.exe` in the `gpx2roadbook` folder; keep it in its folder, beside the `_internal` one it needs. The first time, Windows says it protected your PC from an unknown publisher, because the app isn't signed (that takes a paid yearly certificate). Click **More info**, then **Run anyway**.
+- **On a Mac** with Apple silicon (M1 or later), move `gpx2roadbook.app` to Applications and open it. macOS says it can't check it for malicious software, because Apple hasn't notarized it. On macOS 15 or later, go to System Settings → Privacy & Security and click **Open Anyway**; on earlier versions, right-click the app and choose **Open**.
+- **PDFs** come from Microsoft Edge, which is part of Windows, or Google Chrome.
+- **To update**, download the new zip and replace the app. Your settings and the lookups already made are kept: they're in your user folders, not in the app.
+
+### The command line
+
 You need:
 
 - [uv](https://docs.astral.sh/uv/), which installs Python and the tool for you (or [pipx](https://pipx.pypa.io/), with Python 3.12 or later);
@@ -79,7 +90,7 @@ At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx
 
 ### The window
 
-Rather click than type? With the `gui` extra installed, open the window:
+Rather click than type? Open [the app](#the-app-for-windows-and-macos), or, with the `gui` extra installed, the window:
 
 ```sh
 roadbook-gui                # or: roadbook-gui --browser

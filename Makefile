@@ -1,4 +1,4 @@
-.PHONY: dev lint format test audit build release
+.PHONY: dev lint format test audit build app release
 
 dev:
 	uv sync --all-groups --all-extras
@@ -22,6 +22,10 @@ audit:
 
 build:
 	uv build
+
+# The downloadable app, for the system it runs on, in dist/app/ (see scripts/build_app.py); ZIP=1 zips it too.
+app:
+	uv run --group app --extra gui python scripts/build_app.py $(if $(ZIP),--zip,)
 
 # Opens a "bump: …" PR for the next version; merging it publishes to PyPI. See scripts/release.py.
 # make release DRY_RUN=1 bumps and commits on a local branch only, without pushing or opening a PR.
