@@ -21,14 +21,14 @@
 
 {% macro block(b) -%}
 {%- if b.rows %}
-<div class="b {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm{% if b.data.grade %}; --grade: {{ b.data.grade }}{% endif %}">
+<div class="b {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm{% if b.grade %}; --grade: {{ b.grade }}{% endif %}">
   {%- for r in b.rows %}
   <div class="r{% if loop.first %} head{% endif %}{% if r.right and r.right.closed %} closed{% endif %}"><span class="l">{{ r.left }}</span><span class="c">{{ line(r.right) }}</span></div>
   {%- endfor %}
-  {%- if b.data.svg %}<div class="card">{{ b.data.svg | safe }}</div>{% endif %}
+  {%- if b.svg %}<div class="card">{{ b.svg | safe }}</div>{% endif %}
 </div>
 {%- else %}
-<div class="b band {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm"><div class="t">{{ b.data.text }}</div></div>
+<div class="b band {{ b.kind }}" style="height: {{ '%.2f' % b.h }}mm"><div class="t">{{ b.text }}</div></div>
 {%- endif %}
 {%- endmacro %}
 
@@ -47,7 +47,7 @@
   <div class="pp big">{{ p.profile | safe }}</div>
   {%- for l in p.lists %}
   <h2>{{ l.title }}</h2>
-  {%- for item in l['items'] %}<div class="li">{{ item }}</div>{% endfor %}
+  {%- for item in l.items %}<div class="li">{{ item }}</div>{% endfor %}
   {%- endfor %}
   <div class="keys">
     {%- for k in p.key %}<div class="li">{{ k }}</div>{% endfor %}
