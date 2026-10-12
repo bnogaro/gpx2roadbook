@@ -38,6 +38,8 @@ CONFIGS = {
     "topo": lambda c: c["map"].update(style="topo", contours=False),
     "cp50": lambda c: c["checkpoints"].update(every_km=50),
     "pois": lambda c: c["pois"].update(enabled=["water", "bakery"]),
+    # in French, with hours and climb pages for the most words; a ref without render.language renders it in English
+    "fr": lambda c: (hours(c), c["climb_pages"].update(enabled=True), c["render"].update(language="fr")),
 }
 """
 
@@ -87,6 +89,7 @@ def first_difference(a: Path, b: Path) -> str:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]  # a diff's "≥" on a cp1252 console
     args = sys.argv[1:]
     keep = None
     if "--keep" in args:

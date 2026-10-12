@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any, override
 from .booklet import render_booklet
 from .build import build
 from .config import Settings
+from .i18n import language
 from .parse import GpxError
 from .render import html_to_pdf, render_html
 
@@ -107,7 +108,7 @@ def run(gpx: Path, cfg: dict[str, Any], *, out: Path | None = None, pdf: bool = 
     why.
     """
     settings = Settings.of(cfg)
-    with _warnings() as warnings:
+    with _warnings() as warnings, language(settings.render.language):
         book = build(gpx, settings)
         out = out or default_out(gpx)
         out.write_text(render_html(book, settings), encoding="utf-8")
@@ -145,7 +146,7 @@ def preview(gpx: Path, cfg: dict[str, Any]) -> Preview:
     cached yet are missing, and the book's reports count them (`unasked`). Raises as `run` does.
     """
     settings = Settings.of(cfg)
-    with _warnings() as warnings:
+    with _warnings() as warnings, language(settings.render.language):
         book = build(gpx, settings, offline=True)
         html = render_html(book, settings)
         booklet = render_booklet(book, settings)

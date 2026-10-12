@@ -32,6 +32,11 @@ class Layout(StrEnum):
     line = "line"
 
 
+class Language(StrEnum):  # i18n.LANGUAGES
+    en = "en"
+    fr = "fr"
+
+
 def _start(value: str | None) -> tuple[str | None, str | None]:
     """--start as (date, time) config values: "HH:MM" gives a time; "YYYY-MM-DD HH:MM" the date too."""
     if not value:
@@ -138,6 +143,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
     page: Annotated[
         str | None,
         typer.Option(*st.PAGE.decls, help=st.PAGE.help),
+    ] = None,
+    lang: Annotated[
+        Language | None,
+        typer.Option(*st.LANGUAGE.decls, help=st.LANGUAGE.help),
     ] = None,
     checkpoint_every: Annotated[
         float | None,
@@ -292,6 +301,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.WIDTH, width),
         (st.LENGTH, length),
         (st.PAGE, page),
+        (st.LANGUAGE, lang and lang.value),
         (st.DETAILS, details),
         (st.EMOJI_LINES, emoji_lines),
         (st.HOURS, hours),

@@ -54,6 +54,7 @@ def build() -> Path:
         *data(Path(nicegui.__file__).parent, "nicegui"),
         *data(package / "templates", "roadbook/templates"),
         *data(package / "default.toml", "roadbook"),
+        *data(package / "locales", "roadbook/locales"),
         "--copy-metadata",
         NAME,  # importlib.metadata.version("gpx2roadbook")
         "--collect-all",

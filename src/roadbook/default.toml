@@ -112,6 +112,7 @@ stop_range_m = 1000  # a stop stretching at least this far shows where it ends (
 emoji_lines = 2      # strip layout: lines a crowded stop's emojis may fill (1 = cut to its row, with a "+")
 max_emojis = 0       # 0 = derived from width
 gutter_mm = 4        # strip layout: elevation profile down the right edge, aligned to the rows; 0 = off
+language = "en"      # en | fr: the words of the road book and its booklet
 
 # --- categories: order = display priority. `match` is tested (accent/case-insensitive)
 # --- against the POI <type>, then its <name>. First category that matches wins.
