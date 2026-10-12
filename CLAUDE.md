@@ -28,7 +28,8 @@ Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.p
 ## Layout
 
 - `src/roadbook/build.py`: GPX → road book (stops, climbs, POIs, towns, hours); `api.py` (`run`, `preview`) is the entry for the CLI and GUI
-- `render.py` + `templates/`: the strips and reference sheet (Jinja, typed view-model dataclasses)
+- `render/` + `templates/`: the strips (`strips.py`), reference sheet (`sheet.py`) and climb pages (`climbs.py`); `__init__.py` holds `render_html` and the PDF export (Jinja, typed view-model dataclasses)
+- `i18n.py` + `locales/fr/*.toml`: the words in French, keyed by their English; `_()` in the road book's language, `translate(text, lang)` in the GUI's. See `docs/translating.md`
 - `booklet/`: `content.py` (what goes in), `layout.py` (spreads, pages), `__init__.py` (HTML, mini-maps); `imposition.py` holds the A5/A6 formats and sheet order
 - `routemap.py`, `contours.py`: the SVG map
 - `default.toml` + `config.py`: the settings, a dict where they are edited and saved (CLI flags, GUI, `--config` files), converted once by `api.run`/`api.preview` into the frozen `config.Settings`, whose sections (`MapSettings`, `BookletSettings`…) the run's functions take; `settings.py` describes them for the GUI form and the interactive CLI
@@ -40,5 +41,5 @@ Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.p
 - Refactors must not change output: diff `api.preview(...)` HTML over `samples/*.gpx`, before and after, under several settings (defaults, A6, booklet off, hours with a speed, climb pages on, topo map).
 - A PR that changes a default strip's or the map's look regenerates `docs/img/strip-example.png` / `map.png`.
 - GUI work: read and follow the installed `nicegui/llms.md`.
-- A feature that changes `render.py` or `routemap.py` splits it first, in its own commit of that PR: #103, #104.
+- A feature that changes `routemap.py` splits it first, in its own commit of that PR: #104.
 - On Windows, `uv sync` fails while `roadbook-gui.exe` runs (the file is locked): use another env (`UV_PROJECT_ENVIRONMENT=…`) or `uv run --no-sync`.
