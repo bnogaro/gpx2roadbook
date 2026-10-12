@@ -20,6 +20,7 @@ CLIMB = "#f59e0b"  # a climb's colour without a grade scale
 PIECE_KM = 1.0  # a climb is coloured a kilometre at a time, by each one's average grade, as race books do
 PROFILE_TICK_H = 1.6  # under a booklet page's profile: a tick for each stop
 PROFILE_TOP = 1.0  # above its highest point, for the altitude written there
+SHADE = "#f8d0cc"  # above the ground where the rider has nowhere to drink or eat: light, and grey in black and white
 
 
 def grade_colour(grade: float, scale: Scale) -> str:
@@ -122,12 +123,14 @@ def profile_svg(  # noqa: PLR0913  the grade colours and marks come on top of th
     size: tuple[float, float],
     *,
     marks: Sequence[float] = (),
+    shade: Sequence[tuple[float, float]] = (),
     grades: Scale = (),
     min_span_m: float = 300.0,
 ) -> str:
     """The profile from one km to another across `size` (width, height mm), as a booklet page heads its stops with:
     the ground grey, each climb a kilometre at a time in its grade's colour, a tick under each of `marks` (km), the
-    stretch's highest altitude on the left. Its heights span `min_span_m` at least: rolling ground stays flat."""
+    sky above each of `shade` (from km, to km) tinted, the stretch's highest altitude on the left. Its heights span
+    `min_span_m` at least: rolling ground stays flat."""
     (k0, k1), (w, h) = km_range, size
     k1 = max(k1, k0 + 0.1)
     plot = h - PROFILE_TICK_H
@@ -142,7 +145,15 @@ def profile_svg(  # noqa: PLR0913  the grade colours and marks come on top of th
         pts = " ".join(f"{a:.2f},{b:.2f}" for a, b in zip(x[points], y[points], strict=True))
         return f'<polygon points="{x[points[0]]:.2f},{plot} {pts} {x[points[-1]]:.2f},{plot}" fill="{fill}"/>'
 
-    shapes = [area(np.arange(len(km)), GROUND)]
+    def at(k: float) -> float:
+        return (min(max(k, k0), k1) - k0) / (k1 - k0) * w
+
+    shapes = [
+        f'<rect x="{at(a):.2f}" y="0" width="{at(b) - at(a):.2f}" height="{plot}" fill="{SHADE}"/>'
+        for a, b in shade
+        if a < k1 and b > k0
+    ]
+    shapes.append(area(np.arange(len(km)), GROUND))
     for c in climbs:
         points = np.flatnonzero((km >= c.start_km) & (km <= c.end_km))
         if len(points) < 2:  # noqa: PLR2004  a climb touching the stretch at one point only

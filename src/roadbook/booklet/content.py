@@ -239,6 +239,19 @@ class Block:
     end: float | None = None  # where a stop or a climb ends, when it spans some road
 
 
+@dataclass(frozen=True)
+class Stretch:
+    """A long stretch with nowhere to drink, or nothing to eat, from one stop (or the start) to the next with some (or
+    the finish)."""
+
+    start: float
+    end: float
+    what: str  # "water", "food", "water or food"
+    span: str  # how long: "3h25 (45 km)" with a speed, else "45 km"
+    after: Stop | None = None  # the stop it starts at, None at the start
+    then: Stop | None = None  # the stop it ends at, None at the finish
+
+
 class Content:
     """What the booklet of a road book says, in a format: its blocks, and the warnings its cover lists too."""
 
@@ -252,7 +265,8 @@ class Content:
         self.clock = Clock(book)
         self.width = f.body[0] - f.km_col  # the lines right of the km column
         self.hours_for = set(settings.hours.categories) if book.hours is not None else set()
-        self.warnings = self.gaps()  # on their pages, and on the cover
+        self.stretches = self.long_stretches()  # warned of on their pages, and on the cover
+        self.warnings = self.gaps()
 
     def blocks(self) -> list[Block]:
         """Every block in route order: the stops, climbs, warnings and headings."""
@@ -383,10 +397,10 @@ class Content:
             return True
         return False
 
-    def gaps(self) -> list[Block]:
-        """A warning before each long stretch with nowhere to drink, or nothing to eat: after the last stop with some,
-        at the start if there is none before. Long as a rider drinks and eats: with a speed, in hours of riding, its
-        climbing included (`water_gap_h`, `food_gap_h`); without one, in km (`water_gap_km`, `food_gap_km`)."""
+    def long_stretches(self) -> list[Stretch]:
+        """Each long stretch with nowhere to drink, or nothing to eat: after the last stop with some, from the start
+        if there is none before. Long as a rider drinks and eats: with a speed, in hours of riding, its climbing
+        included (`water_gap_h`, `food_gap_h`); without one, in km (`water_gap_km`, `food_gap_km`)."""
         paced = self.clock.riding(0.0, 0.0) is not None
 
         def long(a: float, b: float) -> float:
@@ -408,18 +422,42 @@ class Content:
                 if long(a, b) >= limit:
                     found.setdefault((a, b), []).append(kind)
         by_km = {s.km: s for s in self.book.stops}
+        return [
+            Stretch(
+                a,
+                b,
+                " or ".join(kinds),
+                f"{duration(long(a, b))} ({b - a:.0f} km)" if paced else f"{b - a:.0f} km",
+                after=by_km.get(a),
+                then=by_km[b] if b < self.book.length_km else None,
+            )
+            for (a, b), kinds in sorted(found.items())
+        ]
+
+    def gaps(self) -> list[Block]:
+        """A warning before each long stretch, where it starts: how long it is, and when the next stop with some is
+        reached."""
         out = []
-        for (a, b), kinds in sorted(found.items()):
-            what = " or ".join(kinds)
-            if b >= self.book.length_km:
+        for g in self.stretches:
+            if g.then is None:
                 then = "to the finish"
             else:
-                stop = by_km[b]
-                eta = f" ({eta_text(stop.window, self.ride.date)})" if stop.window else ""
-                then = f"next at km {b:.1f}{eta}"
-            span = f"{duration(long(a, b))} ({b - a:.0f} km)" if paced else f"{b - a:.0f} km"
-            out.append(self.band("gap", a, f"⚠ {span} without {what}: {then}", keep="prev"))
+                eta = f" ({eta_text(g.then.window, self.ride.date)})" if g.then.window else ""
+                then = f"next at km {g.end:.1f}{eta}"
+            out.append(self.band("gap", g.start, f"⚠ {g.span} without {g.what}: {then}", keep="prev"))
         return out
+
+    def stretch_line(self, g: Stretch, width: float, pt: float) -> str:
+        """A stretch on the cover, from km to km, with the towns there when they fit in `width` mm at `pt`:
+        "km 112.4 Sézanne → 170.2 Montmirail · no water for 2h40 (58 km)"."""
+        end = "finish" if g.then is None else f"{g.end:.1f}"
+        tail = f" · no {g.what} for {g.span}"
+        plain = f"km {g.start:.1f} → {end}{tail}"
+        towns = (g.after.town if g.after else None, g.then.town if g.then else None)
+        if not any(towns):
+            return plain
+        named = f"km {g.start:.1f}{f' {towns[0]}' if towns[0] else ''} → {end}{f' {towns[1]}' if towns[1] else ''}"
+        return f"{named}{tail}" if text_mm(f"{named}{tail}", pt) <= width else plain
 
     # ------------------------------------------------------------ days and nights
 

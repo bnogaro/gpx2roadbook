@@ -285,7 +285,7 @@ class Booklet:
             for c in book.climbs
             if c.name or c.label
         ]
-        warnings = [b.text.removeprefix("⚠ ") for b in content.warnings]
+        warnings = [content.stretch_line(g, f.body[0], f.font) for g in content.stretches]
         present = {poi_category(p) for s in book.stops for p in s.pois}
         emojis = [f"{v.emoji} {k}" for k, v in content.categories.items() if k in present]
         key = wrap(emojis, " · ", f.body[0], f.font - 1) if emojis else []
@@ -294,7 +294,8 @@ class Booklet:
         fixed = 3 * f.line + 8 + COVER_PROFILE * f.profile + 3 + len(key) * f.line + (f.line if grades else 0)
         room = int((f.body[1] - fixed) / f.line)
         lists = []
-        for title, items in (("Checkpoints", checkpoints), ("Warnings", warnings), ("Climbs", climbs)):
+        shaded = "Warnings · shaded on the profile" if book.profile else "Warnings"
+        for title, items in (("Checkpoints", checkpoints), (shaded, warnings), ("Climbs", climbs)):
             if not items or room < 2:  # noqa: PLR2004  a title and one line at least
                 continue
             fits = (
@@ -310,6 +311,7 @@ class Booklet:
                 (0.0, book.length_km),
                 (f.body[0], COVER_PROFILE * f.profile),
                 marks=[it.km for it in book.items if it.kind == "checkpoint"],
+                shade=[(g.start, g.end) for g in content.stretches],
                 grades=content.grades,
             )
             if book.profile
