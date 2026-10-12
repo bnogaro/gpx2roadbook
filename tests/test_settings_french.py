@@ -43,4 +43,4 @@ def test_a_label_that_follows_the_answers_reads_in_french_in_each_state() -> Non
         cfg["hours"]["enabled"] = hours
         labels.add(i18n.translate(st.DATE.text(cfg), "fr"))
     assert len(labels) == 2
-    assert all(label.startswith("Date de la sortie") for label in labels)
+    assert all(label.startswith("Date, AAAA-MM-JJ") for label in labels)
