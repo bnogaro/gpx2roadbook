@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 import opening_hours
 from opening_hours import OpeningHours, State
 
+from .i18n import _
+
 if TYPE_CHECKING:
     from .config import RideSettings
 
@@ -120,7 +122,7 @@ class Verdict:
     """Is a shop open while the rider may pass?"""
 
     state: str  # "open" or "closed" (all along the window), "tight" (it changes within it), "unknown"
-    note: str = ""  # for "tight": what changes and when, "closes 12:30", "opens 07:00"
+    note: str = ""  # for "tight": what changes and when, "closes 12:30", "opens 07:00", in the road book's language
 
 
 def parse(value: str, lat: float, lon: float) -> OpeningHours | None:
@@ -143,26 +145,25 @@ def on_day(value: str, lat: float, lon: float, day: dt.date) -> DayHours | None:
     start = dt.datetime.combine(day, dt.time())
     spans = list(oh.intervals(start, start + _DAY))
     if all(s == State.CLOSED for _, _, s, _ in spans):
-        return DayHours("closed", closed=True)
+        return DayHours(_("closed"), closed=True)
     parts = []
     for a, b, state, comment in spans:
         if state == State.CLOSED:
             continue
-        when = "open 24 h" if (a, b) == (start, start + _DAY) else f"{_hhmm(a, day)}\u2013{_hhmm(b, day)}"
+        when = _("open 24 h") if (a, b) == (start, start + _DAY) else f"{_hhmm(a, day)}\u2013{_hhmm(b, day)}"
         maybe = "?" if state == State.UNKNOWN else ""  # OSM says it may be open, without saying for sure
         note = f' "{comment}"' if comment else ""
         parts.append(f"{when}{maybe}{note}")
     return DayHours(", ".join(parts))
 
 
-_CHANGE = {
-    (State.OPEN, State.CLOSED): "closes",
-    (State.CLOSED, State.OPEN): "opens",
-    (State.UNKNOWN, State.CLOSED): "closes",
-    (State.UNKNOWN, State.OPEN): "opens",
-    (State.OPEN, State.UNKNOWN): "may close",
-    (State.CLOSED, State.UNKNOWN): "may open",
-}
+def _change(before: State, after: State, at: str) -> str:
+    """What a shop does at `at`, when its state changes from `before` to `after`: "closes 12:30", "opens 07:00"…"""
+    if after == State.CLOSED:
+        return _("closes {time}", time=at)
+    if after == State.OPEN:
+        return _("opens {time}", time=at)
+    return _("may close {time}", time=at) if before == State.OPEN else _("may open {time}", time=at)
 
 
 def verdict(value: str, lat: float, lon: float, window: Window) -> Verdict | None:
@@ -174,5 +175,5 @@ def verdict(value: str, lat: float, lon: float, window: Window) -> Verdict | Non
     states = {s for _, _, s, _ in spans}
     if len(states) == 1:
         return Verdict({State.OPEN: "open", State.CLOSED: "closed"}.get(states.pop(), "unknown"))
-    notes = [f"{_CHANGE[a[2], b[2]]} {b[0]:%H:%M}" for a, b in itertools.pairwise(spans) if a[2] != b[2]]
+    notes = [_change(a[2], b[2], f"{b[0]:%H:%M}") for a, b in itertools.pairwise(spans) if a[2] != b[2]]
     return Verdict("tight", ", ".join(notes))

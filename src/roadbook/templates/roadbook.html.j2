@@ -170,7 +170,7 @@
 
 {% if route_map %}
 <div class="map-page">
-  <h1>{{ book.title }} — map</h1>
+  <h1>{{ book.title }} — {{ _('map') }}</h1>
   {{ route_map | safe }}
 </div>
 {% endif %}
@@ -180,25 +180,25 @@
   {% for s in details %}
   <div class="stop"><b>km {{ s.km }}{% if s.town %} · {{ s.town }}{% endif %}{% if s.col %} · {% if s.grade %}<span class="swatch" style="background: {{ s.grade }}"></span>{% endif %}<span class="col">{{ s.col }}</span>{% endif %}</b>{% if s.eta %} <span class="eta">{{ s.eta }}</span>{% endif %}
     {% for emoji, pois in s.groups %}
-    <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% elif p.hours_class == 'write-in' %} <span class="write-in" title="hours unknown"></span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
+    <div>{{ emoji }} {% for p in pois %}{{ p.name }}{% if p.off > 30 %} <span class="off">({{ p.off }} m)</span>{% endif %}{% if p.verdict %} <b class="verdict">{{ p.verdict }}</b>{% endif %}{% if p.hours %} <span class="{{ p.hours_class }}">{{ p.hours }}</span>{% elif p.hours_class == 'write-in' %} <span class="write-in" title="{{ _('hours unknown') }}"></span>{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}</div>
     {% endfor %}
   </div>
   {% endfor %}
-  {% if grade_key %}<p class="key">Climbs by grade:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
-  {% if credit %}<p class="credit">{{ credit }} © OpenStreetMap contributors (ODbL).{% if book.hours and book.hours.found %} Hours change: check the ones you rely on.{% endif %}</p>{% endif %}
-  <p class="colophon">Made with {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
+  {% if grade_key %}<p class="key">{{ _('Climbs by grade:') }}{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
+  {% if credit %}<p class="credit">{{ credit }} {{ _('© OpenStreetMap contributors (ODbL).') }}{% if book.hours and book.hours.found %} {{ _('Hours change: check the ones you rely on') }}.{% endif %}</p>{% endif %}
+  <p class="colophon">{{ _('Made with') }} {{ tool }} {{ version }} · <a href="https://{{ home }}">{{ home }}</a></p>
 </div>
 {% endif %}
 {% if climb_cards %}
 <div class="climb-pages">
-  <h1>{{ book.title }} — climbs</h1>
+  <h1>{{ book.title }} — {{ _('climbs') }}</h1>
   {% for c in climb_cards %}
   <div class="climb-card">
     <div class="title">{% if c.grade %}<span class="swatch" style="background: {{ c.grade }}"></span>{% endif %}<span class="name">{{ c.name }}</span> · {{ c.stats }} · <span class="at">{{ c.km }}</span></div>
     {{ c.svg | safe }}
   </div>
   {% endfor %}
-  {% if grade_key %}<p class="key">Grade of each slab:{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
+  {% if grade_key %}<p class="key">{{ _('Grade of each slab:') }}{% for label, colour in grade_key %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</p>{% endif %}
 </div>
 {% endif %}
 </body>

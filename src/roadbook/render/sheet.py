@@ -8,6 +8,7 @@ import re
 from dataclasses import dataclass, replace
 from typing import TYPE_CHECKING
 
+from roadbook.i18n import _, date_text
 from roadbook.opening import Ride, on_day
 from roadbook.svg import grade_colour
 
@@ -39,9 +40,6 @@ def pretty_hours(value: str) -> str:
     return " · ".join(_TIME_RANGE.sub("\\1\u2013\\2", r).replace(",", ", ") for r in rules)
 
 
-_VERDICT = {"closed": "closed", "unknown": "open?"}  # "open" needs no word; "tight" says what changes
-
-
 @dataclass(frozen=True)
 class ShopHours:
     """How the reference sheet shows a shop's hours: a verdict word if judged, then its hours, and their CSS class."""
@@ -57,7 +55,8 @@ def shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
         # a blank to write them in by hand, once checked elsewhere (the shop's site, a map app) before the ride
         return ShopHours("", "", "write-in")
     v = p.verdict
-    word = (f"⚠ {v.note}" if v.state == "tight" else _VERDICT.get(v.state, "")) if v else ""
+    verdicts = {"closed": _("closed"), "unknown": _("open?")}  # "open" needs no word; "tight" says what changes
+    word = (f"⚠ {v.note}" if v.state == "tight" else verdicts.get(v.state, "")) if v else ""
     found = on_day(p.opening_hours, p.lat, p.lon, day) if day else None
     if found is None:  # no day asked, or a value that isn't OSM syntax (then shown as written, muted)
         return ShopHours(word, pretty_hours(p.opening_hours), "off" if day else "oh")
@@ -73,20 +72,26 @@ def ride_title(book: Roadbook) -> str:
     if ride is None or ride.date is None:
         return ""
     if ride.start is None:
-        return f"opening hours on {ride.date:%a %d %b %Y}" if book.hours is not None else ""
-    pace = f"{ride.speed_kmh:g} km/h"
-    if ride.climb_min_per_100m:
-        pace += f" + {ride.climb_min_per_100m:g} min/100 m climbed"
-    margin = f"±{ride.margin_pct:g} %, ≥{ride.margin_min:g} min"
-    breaks = ", ".join(f"km {km:g} ({minutes:g} min)" for km, minutes in ride.breaks)
-    return f"start {ride.start:%a %d %b %Y %H:%M} at {pace} ({margin})" + (f" · breaks: {breaks}" if breaks else "")
+        return _("opening hours on {date}", date=date_text(ride.date)) if book.hours is not None else ""
+    speed, climbing = f"{ride.speed_kmh:g}", f"{ride.climb_min_per_100m:g}"
+    pace = (
+        _("{speed} km/h + {minutes} min/100 m climbed", speed=speed, minutes=climbing)
+        if ride.climb_min_per_100m
+        else _("{speed} km/h", speed=speed)
+    )
+    margin = _("±{pct} %, ≥{minutes} min", pct=f"{ride.margin_pct:g}", minutes=f"{ride.margin_min:g}")
+    breaks = ", ".join(_("km {km} ({minutes} min)", km=f"{km:g}", minutes=f"{m:g}") for km, m in ride.breaks)
+    when = f"{date_text(ride.start.date())} {ride.start:%H:%M}"
+    title = _("start {when} at {pace} ({margin})", when=when, pace=pace, margin=margin)
+    return title + " · " + _("breaks: {breaks}", breaks=breaks) if breaks else title
 
 
 def eta_text(w: Window, ride_day: dt.date | None) -> str:
     """ "~09:40-10:50" (en dash), with the weekday when the rider gets there on another day than the start."""
 
     def at(t: dt.datetime) -> str:
-        return f"{t:%a %H:%M}" if t.date() != ride_day else f"{t:%H:%M}"
+        day = date_text(t.date(), year=False).split(" ", 1)[0]  # its first word: the weekday's name
+        return f"{day} {t:%H:%M}" if t.date() != ride_day else f"{t:%H:%M}"
 
     return f"~{at(w.early)}\u2013{at(w.late)}"
 
@@ -152,12 +157,15 @@ def _details(
 
 
 def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> SheetEntry:
-    cat = f"Cat {c.label} · " if c.label else ""
-    stats = PoiLine(f"{cat}{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗️{c.gain_m:.0f} m", 0)
+    stats = [_("Cat {label}", label=c.label)] if c.label else []
+    stats += [
+        _("{length} km at {grade} %", length=f"{c.length_km:.1f}", grade=f"{c.avg_grade:.1f}"),
+        f"↗️{c.gain_m:.0f} m",
+    ]
     return SheetEntry(
         c.start_km,
         f"{c.start_km:.1f} → {c.end_km:.1f}",
-        [("⛰️", [stats])],
+        [("⛰️", [PoiLine(" · ".join(stats), 0)])],
         col=c.name or "",
         grade=grade_colour(c.avg_grade, grades) if grades else "",  # a swatch before the name, as on the strip
     )
@@ -165,11 +173,11 @@ def _climb_entry(c: Climb, grades: tuple[tuple[float, str], ...]) -> SheetEntry:
 
 def grade_key(grades: tuple[tuple[float, str], ...]) -> list[tuple[str, str]]:
     """The reference sheet's key to the climb colours: ("under 3 %", colour), ("3 to 6 %", colour), …"""
-    steps = [f"{start:g}" for start, _ in grades]
-    labels = [f"under {steps[1]} %" if len(steps) > 1 else "climbs"]
-    labels += [f"{a}\u2013{b} %" for a, b in itertools.pairwise(steps[1:])]
-    labels += [f"{steps[-1]} % and more"] if len(steps) > 1 else []
-    return list(zip(labels, [c for _, c in grades], strict=True))
+    steps = [f"{start:g}" for start, _colour in grades]
+    labels = [_("under {grade} %", grade=steps[1]) if len(steps) > 1 else _("climbs")]
+    labels += [_("{low}\u2013{high} %", low=a, high=b) for a, b in itertools.pairwise(steps[1:])]
+    labels += [_("{grade} % and more", grade=steps[-1])] if len(steps) > 1 else []
+    return list(zip(labels, [c for _start, c in grades], strict=True))
 
 
 def credit(book: Roadbook) -> str:
@@ -180,14 +188,14 @@ def credit(book: Roadbook) -> str:
     used = [
         what
         for what, done in (
-            ("opening hours", book.hours),
-            ("town names", book.towns),
-            ("climb names", book.climb_names),
-            ("place names", book.places),
+            (_("opening hours"), book.hours),
+            (_("town names"), book.towns),
+            (_("climb names"), book.climb_names),
+            (_("place names"), book.places),
         )
         if done is not None and done.found
     ]
     if not used:
         return ""
-    listed = used[0] if len(used) == 1 else f"{', '.join(used[:-1])} and {used[-1]}"
+    listed = used[0] if len(used) == 1 else _("{items} and {last}", items=", ".join(used[:-1]), last=used[-1])
     return listed[0].upper() + listed[1:]

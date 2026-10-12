@@ -5,6 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from .i18n import _
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -25,12 +27,17 @@ def _given(it: Item, _book: Roadbook) -> str:
 
 def _to_go(it: Item, book: Roadbook) -> str:
     # numbered checkpoints count down to the finish; a named one ("Lunch") keeps its name alone
-    return f"{it.label} · {book.length_km - it.km:.0f} to go" if it.label.startswith("CP") else it.label
+    return (
+        _("{label} · {n} to go", label=it.label, n=f"{book.length_km - it.km:.0f}")
+        if it.label.startswith("CP")
+        else it.label
+    )
 
 
 def _category(it: Item, _book: Roadbook) -> str:
     c = climb_of(it)
-    return f"Cat {c.label}" if c.label and not it.emojis else ""  # with a stop on board it moves to the superscript
+    # with a stop on board it moves to the superscript
+    return _("Cat {label}", label=c.label) if c.label and not it.emojis else ""
 
 
 def _elevation(it: Item, _book: Roadbook) -> str:

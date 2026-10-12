@@ -168,6 +168,12 @@ For the full list:
 roadbook --help
 ```
 
+### Language
+
+The road book speaks English by default, or French with `--lang fr` (`language = "fr"` under `[render]` in a `--config` file, or the language field in the window). It sets every word printed: the strips (`CP1 · 120 restants`), the reference sheet, the climb pages, the map page and the booklet. Dates follow it (`dim. 11 oct. 2026`), and numbers keep their decimal point (`4.3 km`). Names from OpenStreetMap stay as OpenStreetMap has them, and the map credits its sources in English.
+
+The window has a language of its own, switched by its EN / FR button and remembered, whatever the road book's.
+
 ## Customising
 
 Every setting lives in [`src/roadbook/default.toml`](https://github.com/bnogaro/gpx2roadbook/blob/main/src/roadbook/default.toml). Don't edit it. Write a small TOML file with only the keys you want to change and pass it with `--config`. It is merged over the defaults, table by table.

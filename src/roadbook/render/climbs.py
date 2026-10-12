@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from roadbook.i18n import _
 from roadbook.svg import climb_svg, grade_colour
 
 from .sheet import poi_category
@@ -44,10 +45,14 @@ def climb_card(
     on_it = lambda km: min(max(km, c.start_km), c.end_km)  # noqa: E731  a stop at the foot or top, on its edge
     marks = [*page.places, *((on_it(s.km), emojis(s)) for s in page.stops)]
     sections = [(s.start_km, s.end_km, s.ele_start, s.ele_end) for s in page.sections]
-    stats = [f"Cat {c.label}"] if c.label else []
-    stats += [f"{c.length_km:.1f} km at {c.avg_grade:.1f} %", f"max {c.max_grade:.1f} %", f"↗️{c.gain_m:.0f} m"]
+    stats = [_("Cat {label}", label=c.label)] if c.label else []
+    stats += [
+        _("{length} km at {grade} %", length=f"{c.length_km:.1f}", grade=f"{c.avg_grade:.1f}"),
+        _("max {grade} %", grade=f"{c.max_grade:.1f}"),
+        f"↗️{c.gain_m:.0f} m",
+    ]
     return ClimbCard(
-        name=c.name or f"Climb at km {c.start_km:.1f}",
+        name=c.name or _("Climb at km {km}", km=f"{c.start_km:.1f}"),
         stats=" · ".join(stats),
         km=f"km {c.start_km:.1f} → {c.end_km:.1f}",
         grade=grade_colour(c.avg_grade, grades) if grades else "",
