@@ -89,6 +89,7 @@ def first_difference(a: Path, b: Path) -> str:
 
 
 def main() -> int:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]  # a diff's "≥" on a cp1252 console
     args = sys.argv[1:]
     keep = None
     if "--keep" in args:
