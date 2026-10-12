@@ -11,7 +11,8 @@ from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import COUNT_W, EMOJI_W, MAIN_H, RowLayout, _row, _wrap, render_html
+from roadbook.render import render_html
+from roadbook.render.strips import COUNT_W, EMOJI_W, MAIN_H, RowLayout, _row, _wrap
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
