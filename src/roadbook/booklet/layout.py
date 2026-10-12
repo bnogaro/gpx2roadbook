@@ -19,6 +19,7 @@ from dataclasses import dataclass, replace
 from importlib.metadata import version
 from typing import TYPE_CHECKING, ClassVar
 
+from roadbook.i18n import _, date_text
 from roadbook.imposition import centre, page_count
 from roadbook.render import HOME, TOOL, credit, grade_key, poi_category, ride_title
 from roadbook.routemap import svg as map_svg
@@ -45,6 +46,25 @@ class Spread:
     pages: list[list[Block]]  # the last spread may have but its left page
     mapped: bool
     km: tuple[float, float] = (0.0, 0.0)
+
+
+def category_name(kind: str) -> str:
+    """A POI category's name, as the cover's key shows it: one of the defaults' in the road book's language, one of
+    the rider's own as named."""
+    names = {
+        "water": _("water"),
+        "toilets": _("toilets"),
+        "bakery": _("bakery"),
+        "cafe": _("cafe"),
+        "food": _("food"),
+        "fastfood": _("fastfood"),
+        "grocery": _("grocery"),
+        "fuel": _("fuel"),
+        "vending": _("vending"),
+        "icecream": _("icecream"),
+        "lodging": _("lodging"),
+    }
+    return names.get(kind, kind)
 
 
 # ------------------------------------------------------------ the pages, by kind
@@ -207,7 +227,7 @@ class Booklet:
             take, rows = rows[:fit], rows[fit:]
             parts.append(replace(b, h=rows_h(self.f, len(take)), rows=take))
             if rows:
-                rows = [Row(head.left, Town(f"{town} (continued)".strip())), *rows]
+                rows = [Row(head.left, Town(_("{town} (continued)", town=town).strip())), *rows]
         return parts
 
     def pages(self) -> list[Page]:
@@ -270,7 +290,9 @@ class Booklet:
             if self.book.profile
             else ""
         )
-        return StopsPage(blocks=blocks, km=f"km {a:.1f} → {b:.1f}", day=f"{t:%a %d %b}" if t else "", profile=profile)
+        return StopsPage(
+            blocks=blocks, km=f"km {a:.1f} → {b:.1f}", day=date_text(t.date(), year=False) if t else "", profile=profile
+        )
 
     def cover(self) -> CoverPage:
         """The ride at a glance: its totals and timing, its profile, its checkpoints, climbs and warnings, as many as
@@ -280,30 +302,38 @@ class Booklet:
             f"km {it.km:.1f} · {it.label}{content.at_text(it.km)}" for it in book.items if it.kind == "checkpoint"
         ]
         climbs = [
-            f"km {c.start_km:.1f} · {c.name or 'Climb'}{f' · Cat {c.label}' if c.label else ''} · "
-            f"{c.length_km:.1f} km at {c.avg_grade:.1f} % · ↗{c.gain_m:.0f} m"
+            f"km {c.start_km:.1f} · {c.name or _('Climb')}{f' · Cat {c.label}' if c.label else ''} · "
+            + _(
+                "{length} km at {grade} % · ↗{gain} m",
+                length=f"{c.length_km:.1f}",
+                grade=f"{c.avg_grade:.1f}",
+                gain=f"{c.gain_m:.0f}",
+            )
             for c in book.climbs
             if c.name or c.label
         ]
         warnings = [content.stretch_line(g, f.body[0], f.font) for g in content.stretches]
         present = {poi_category(p) for s in book.stops for p in s.pois}
-        emojis = [f"{v.emoji} {k}" for k, v in content.categories.items() if k in present]
+        emojis = [f"{v.emoji} {category_name(k)}" for k, v in content.categories.items() if k in present]
         key = wrap(emojis, " · ", f.body[0], f.font - 1) if emojis else []
         grades = grade_key(content.grades) if book.climbs and content.grades else []
         # the lines left under the title, totals, timing and profile, and over the keys: the lists share them
         fixed = 3 * f.line + 8 + COVER_PROFILE * f.profile + 3 + len(key) * f.line + (f.line if grades else 0)
         room = int((f.body[1] - fixed) / f.line)
         lists = []
-        shaded = "Warnings · shaded on the profile" if book.profile else "Warnings"
-        for title, items in (("Checkpoints", checkpoints), (shaded, warnings), ("Climbs", climbs)):
+        shaded = _("Warnings · shaded on the profile") if book.profile else _("Warnings")
+        for title, items in ((_("Checkpoints"), checkpoints), (shaded, warnings), (_("Climbs"), climbs)):
             if not items or room < 2:  # noqa: PLR2004  a title and one line at least
                 continue
             fits = (
-                items if len(items) <= room - 1 else [*items[: room - 2], f"… and {len(items) - room + 2} more inside"]
+                items
+                if len(items) <= room - 1
+                else [*items[: room - 2], _("… and {n} more inside", n=len(items) - room + 2)]
             )
             lists.append(CoverList(title, fits))
             room -= len(fits) + 1
-        total = f"{book.length_km:.0f} km · ↗{book.gain_m:.0f} m ↘{book.loss_m:.0f} m · {len(book.stops)} stops"
+        stops = _("{n} stops", n=len(book.stops))
+        total = f"{book.length_km:.0f} km · ↗{book.gain_m:.0f} m ↘{book.loss_m:.0f} m · {stops}"
         profile = (
             profile_svg(
                 book.profile,
@@ -332,9 +362,9 @@ class Booklet:
         found_hours = self.book.hours is not None and self.book.hours.found
         m = self.book.route_map  # its mini-maps carry a short credit: the full one is here, and on the overview
         return BackPage(
-            maps=f"Maps: {tile_style(m.style)[1].credit}." if m else "",
-            credit=f"{owed} © OpenStreetMap contributors (ODbL)." if owed else "",
-            check="Hours change: check the ones you rely on." if found_hours else "",
+            maps=_("Maps: {credit}.", credit=tile_style(m.style)[1].credit) if m else "",
+            credit=_("{owed} © OpenStreetMap contributors (ODbL).", owed=owed) if owed else "",
+            check=_("Hours change: check the ones you rely on.") if found_hours else "",
             tool=TOOL,
             version=version(TOOL),
             home=HOME,
