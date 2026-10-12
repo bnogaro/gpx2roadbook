@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from .i18n import _, current
 from .imposition import chosen as booklet_format
 from .kinds import KINDS, climb_of
 from .model import Glyph
@@ -597,6 +598,8 @@ def render_html(book: Roadbook, settings: Settings) -> str:
     )
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     return env.get_template("roadbook.html.j2").render(
+        _=_,
+        lang=current(),
         book=book,
         layout=layout,
         strips=strips,

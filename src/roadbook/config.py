@@ -13,6 +13,8 @@ from dataclasses import dataclass, fields
 from importlib import resources
 from typing import TYPE_CHECKING, Any, Self
 
+from .i18n import LANGUAGES
+
 if TYPE_CHECKING:
     from pathlib import Path
 
@@ -345,6 +347,14 @@ class RenderSettings:
     emoji_lines: int
     max_emojis: int
     gutter_mm: float
+    language: str
+
+    @classmethod
+    def of(cls, table: dict[str, Any]) -> Self:
+        if table["language"] not in LANGUAGES:
+            msg = f"render.language {table['language']!r}: not one of {', '.join(LANGUAGES)}"
+            raise ValueError(msg)
+        return cls(**table)
 
 
 @dataclass(frozen=True)
@@ -400,7 +410,7 @@ class Settings:
                 booklet=BookletSettings.of(table("booklet", BookletSettings)),
                 ride=RideSettings.of(table("ride", RideSettings)),
                 checkpoints=CheckpointsSettings.of(table("checkpoints", CheckpointsSettings)),
-                render=RenderSettings(**table("render", RenderSettings)),
+                render=RenderSettings.of(table("render", RenderSettings)),
                 categories={
                     name: Category.of(_section(each, f"categories.{name}", Category))
                     for name, each in _section(cfg.get("categories"), "categories").items()

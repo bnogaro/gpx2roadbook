@@ -132,6 +132,7 @@ Either way, cut the strips along the dashed lines. The booklet prints double-sid
 | --- | --- |
 | `--width MM`, `--length MM` | Size of each strip: the short side (default 35 for `strip`, 16 for `line`) and the long side (default 200). |
 | `--page A4` | Paper size, e.g. `A4`, `A5`, `Letter`. |
+| `--lang fr` | The road book's and booklet's language: `en` (default) or `fr`. |
 | `--checkpoint-every KM` | Add a checkpoint row every N km (🚩 `CP1 · 120 to go`). |
 | `--checkpoint KM:LABEL` | Add one checkpoint, e.g. `--checkpoint 87.5:Lunch`. Repeat it for more. |
 | `--categories water,bakery,toilets` | Keep only these POI categories. The names are the `[categories.*]` sections of `default.toml`. |

@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING
 
 from jinja2 import Environment, PackageLoader, select_autoescape
 
+from roadbook.i18n import _, current
 from roadbook.imposition import chosen, sides
 from roadbook.osm import Report
 from roadbook.routemap import section
@@ -78,7 +79,7 @@ def render_booklet(book: Roadbook, settings: Settings) -> str | None:
     env = Environment(loader=PackageLoader("roadbook", "templates"), autoescape=select_autoescape(["html", "j2"]))
     notes_lines = int((f.body[1] - f.header) / (2 * f.line))
     return env.get_template("booklet.html.j2").render(
-        book=book, f=f, sides=printed, pages=len(pages), notes_lines=notes_lines
+        _=_, lang=current(), book=book, f=f, sides=printed, pages=len(pages), notes_lines=notes_lines
     )
 
 

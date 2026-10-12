@@ -38,6 +38,8 @@ CONFIGS = {
     "topo": lambda c: c["map"].update(style="topo", contours=False),
     "cp50": lambda c: c["checkpoints"].update(every_km=50),
     "pois": lambda c: c["pois"].update(enabled=["water", "bakery"]),
+    # in French, with hours and climb pages for the most words; a ref without render.language renders it in English
+    "fr": lambda c: (hours(c), c["climb_pages"].update(enabled=True), c["render"].update(language="fr")),
 }
 """
 

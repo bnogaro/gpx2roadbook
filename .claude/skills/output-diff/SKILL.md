@@ -13,7 +13,7 @@ uv run --no-sync python .claude/skills/output-diff/output_diff.py HEAD~1     # a
 uv run --no-sync python .claude/skills/output-diff/output_diff.py --keep DIR # keep both sides' HTML in DIR
 ```
 
-- **Each side:** the 3 samples × 9 settings: defaults, A6, booklet off, off + line layout, hours with a speed and a break, climb pages, topo without contours, checkpoints every 50 km, two POI categories. That's 27 strips files and 21 booklets, 48 in all.
+- **Each side:** the 3 samples × 9 settings: defaults, A6, booklet off, off + line layout, hours with a speed and a break, climb pages, topo without contours, checkpoints every 50 km, two POI categories, French (with hours and climb pages). That's 30 strips files and 24 booklets, 54 in all.
 - **Pinned:** the ref's `roadbook` package is checked out in a temporary worktree and put first on `PYTHONPATH`. The environment, the samples and the caches are the working tree's, so only the code differs.
 - **Offline:** `api.preview` asks nothing of OpenStreetMap, so both sides read the same caches.
 - **Exit code:** 0 if every file is identical, 1 otherwise, with the first lines that differ in each file; 2 if a render failed.

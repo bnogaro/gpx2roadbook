@@ -10,6 +10,7 @@ import datetime as dt
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+from .i18n import LANGUAGES
 from .opening import parse_break
 from .render import LAYOUT_WIDTH
 from .tiles import STYLES
@@ -163,6 +164,15 @@ PAGE = Setting(
     "render",
     "page",
     choices=("A4", "A5", "A3", "Letter", "Legal"),
+    group=COMMON,
+)
+LANGUAGE = Setting(
+    "--lang",
+    "The road book's and booklet's language: en (English) or fr (French).",
+    "Language of the road book",
+    "render",
+    "language",
+    choices=LANGUAGES,
     group=COMMON,
 )
 CHECKPOINT_EVERY = Setting(
@@ -441,6 +451,7 @@ REFRESH = Setting(
 SETTINGS = (
     LAYOUT,
     PAGE,
+    LANGUAGE,
     CHECKPOINT_EVERY,
     CHECKPOINTS,
     TOWNS,
