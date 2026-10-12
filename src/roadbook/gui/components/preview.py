@@ -7,11 +7,13 @@ import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from nicegui import run, ui
+from nicegui import binding, run, ui
 
 from roadbook import settings as st
 from roadbook.api import GpxError, preview
-from roadbook.gui.components.run_panel import LOOKUPS
+from roadbook.gui.components.run_panel import lookups
+from roadbook.gui.components.words import tooltip
+from roadbook.i18n import translate
 from roadbook.imposition import chosen
 
 if TYPE_CHECKING:
@@ -20,6 +22,7 @@ if TYPE_CHECKING:
 
     from roadbook.api import Preview
     from roadbook.gui.models.form import Form
+    from roadbook.gui.models.language import Language
 
 WATCH_S = 0.25  # how often the settings are looked at
 DEBOUNCE_S = 0.6  # how long they must stand still before the preview is built again
@@ -61,12 +64,19 @@ def booklet_width(cfg: dict[str, Any]) -> float:
     return 2 * f.page[0] + 16 if f else 0.0
 
 
-def notes(shot: Preview) -> list[str]:
-    """What the preview leaves out, and why: the lookups not cached yet, then what the build warned of."""
+def notes(shot: Preview, lang: str) -> list[str]:
+    """What the preview leaves out, and why: the lookups not cached yet, in `lang`, then what the build warned of, as
+    its log words it (English)."""
     said = [
-        f"{what}: {r.unasked} {items} not looked up yet. The preview only uses what is already cached;"
-        " making the road book looks them up."
-        for what, attr, _, items in LOOKUPS
+        translate(
+            "{what}: {n} {things} not looked up yet. The preview only uses what is already cached;"
+            " making the road book looks them up.",
+            lang,
+            what=what,
+            n=r.unasked,
+            things=items,
+        )
+        for what, attr, _, items in lookups(lang)
         if (r := getattr(shot.book, attr)) is not None and r.unasked
     ]
     return said + shot.warnings
@@ -75,10 +85,11 @@ def notes(shot: Preview) -> list[str]:
 class PreviewPanel:
     """Tabs for the strips and the booklet (or the reference sheet), the zoom, and the road book at its true size."""
 
-    def __init__(self, form: Form) -> None:
+    def __init__(self, form: Form, language: Language) -> None:
         self.form = form
+        self.language = language
         self.shot: Preview | None = None
-        self.error = ""  # why there is no preview, when the GPX can't make one
+        self.error: Exception | None = None  # why there is no preview, when the GPX or the settings can't make one
         self.seen = ""  # the settings last looked at...
         self.since = 0.0  # ...since when
         self.shown: str | None = None  # the settings the preview was built from
@@ -87,48 +98,73 @@ class PreviewPanel:
         self.frame: Element | None = None
         with ui.row().classes("w-full items-center gap-1"):
             with ui.tabs(on_change=self.pick).classes("grow") as tabs:
-                ui.tab("strips", "Strips", icon="view_week").mark("preview-strips")
-                self.sheet = ui.tab("sheet", "Booklet", icon="menu_book").mark("preview-sheet")
+                strips = ui.tab("strips", icon="view_week").mark("preview-strips")
+                binding.bind_from(
+                    strips.props, "label", language, "lang", backward=lambda lang: translate("Strips", lang)
+                )
+                self.sheet = ui.tab("sheet", icon="menu_book").mark("preview-sheet")  # labelled by reframe()
             tabs.value = self.tab
             with ui.row().classes("items-center no-wrap gap-1"):  # the zoom keeps together, on a phone too
-                ui.button(icon="zoom_out", on_click=lambda: self.zoom_by(-1)).props("flat dense round").tooltip(
-                    "Zoom out"
-                ).mark("zoom-out")
-                ui.button(on_click=self.fit).bind_text_from(
-                    self, "zoom", backward=lambda z: "Fit" if z is None else f"{z:.0%}"
-                ).props("flat dense no-caps").classes("w-14").tooltip("Fit the width, at most true size").mark("zoom")
-                ui.button(icon="zoom_in", on_click=lambda: self.zoom_by(1)).props("flat dense round").tooltip(
-                    "Zoom in"
-                ).mark("zoom-in")
+                zoom_out = ui.button(icon="zoom_out", on_click=lambda: self.zoom_by(-1)).props("flat dense round")
+                tooltip(zoom_out, language, lambda lang: translate("Zoom out", lang)).mark("zoom-out")
+                zoom = ui.button(on_click=self.fit).props("flat dense no-caps").classes("w-16")
+                zoom.bind_text_from(self, "zoom", backward=lambda z: self.zoom_text(z, language.lang))
+                zoom.bind_text_from(language, "lang", backward=lambda lang: self.zoom_text(self.zoom, lang))
+                tooltip(zoom, language, lambda lang: translate("Fit the width, at most true size", lang)).mark("zoom")
+                zoom_in = ui.button(icon="zoom_in", on_click=lambda: self.zoom_by(1)).props("flat dense round")
+                tooltip(zoom_in, language, lambda lang: translate("Zoom in", lang)).mark("zoom-in")
         self.view()
+        language.on_switch(self.reframe)  # the tab's label, and the page saying there is no reference sheet
         ui.timer(WATCH_S, self.watch)
+
+    @staticmethod
+    def zoom_text(zoom: float | None, lang: str) -> str:
+        return translate("Fit", lang) if zoom is None else f"{zoom:.0%}"
 
     @ui.refreshable_method
     def view(self) -> None:
         """The preview itself, built again with each new one."""
         self.frame = None
-        if self.shot is None:
-            text = self.error or "Pick a GPX file to see its road book here."
-            ui.label(text).classes("text-grey-7 text-sm").mark("preview-empty")
+        shot = self.shot
+        if shot is None:
+            ui.label().bind_text_from(self.language, "lang", backward=self.empty).classes("text-grey-7 text-sm").mark(
+                "preview-empty"
+            )
+            self.reframe()
             return
-        for note in notes(self.shot):
-            ui.label(note).classes("text-orange-800 text-xs").mark("preview-note")
+        for n in range(len(notes(shot, self.language.lang))):
+            ui.label().bind_text_from(self.language, "lang", backward=lambda lang, n=n: notes(shot, lang)[n]).classes(
+                "text-orange-800 text-xs"
+            ).mark("preview-note")
         # no sandbox, though the road book runs no script: Chromium then leaves a zoomed reference sheet blank
         self.frame = ui.element("iframe").classes("w-full h-[75vh] border").mark("preview-frame")
         self.reframe()
 
+    def empty(self, lang: str) -> str:
+        """Why there is no preview."""
+        if isinstance(self.error, GpxError):
+            return str(self.error)  # the road book's own words, English
+        if self.error is not None:  # a setting half typed: wait for the next
+            return translate("No preview with these settings: {error}", lang, error=self.error)
+        return translate("Pick a GPX file to see its road book here.", lang)
+
     def reframe(self) -> None:
         """Show the tab and zoom picked, without building again."""
+        lang = self.language.lang
+        booklet = None if self.shot is None else self.shot.booklet
+        if self.shot is None or booklet is not None:
+            self.sheet.props["label"] = translate("Booklet", lang)
+        else:
+            self.sheet.props["label"] = translate("Reference sheet", lang)
         if self.frame is None or self.shot is None:
             return
-        booklet = self.shot.booklet
-        self.sheet.props["label"] = "Booklet" if booklet is not None else "Reference sheet"
         sheets = ('<div class="map-page">', '<div class="details">', '<div class="climb-pages">')
         if self.tab == "sheet" and booklet is not None:
             html = framed(booklet, "booklet", self.zoom, booklet_width(self.form.settings()))
         elif self.tab == "sheet" and not any(s in self.shot.html for s in sheets):
-            html = f"<p style='font-family: sans-serif'>No reference sheet: turn on “{st.DETAILS.text(self.form.cfg)}”"
-            html += " in the advanced settings.</p>"
+            details = translate(st.DETAILS.text(self.form.cfg), lang)
+            said = translate("No reference sheet: turn on “{setting}” in the advanced settings.", lang, setting=details)
+            html = f"<p style='font-family: sans-serif'>{said}</p>"
         else:
             html = framed(self.shot.html, self.tab, self.zoom, widest(self.form.settings()))
         self.frame.props["srcdoc"] = html
@@ -161,13 +197,11 @@ class PreviewPanel:
     async def build(self, cfg: dict[str, Any]) -> None:
         """Build and render on a worker thread (run.io_bound): a long route takes a moment."""
         gpx = Path(self.form.gpx)
-        shot, error = None, ""
+        shot, error = None, None
         if self.form.gpx and await run.io_bound(gpx.is_file):
             try:
                 shot = await run.io_bound(preview, gpx, cfg)  # None: the app is shutting down
-            except GpxError as exc:
-                error = str(exc)
-            except (ValueError, TypeError, KeyError) as exc:  # a setting half typed: wait for the next
-                error = f"No preview with these settings: {exc}"
+            except (ValueError, TypeError, KeyError) as exc:  # a GpxError (a ValueError), or a setting half typed
+                error = exc
         self.shot, self.error = shot, error
         self.view.refresh()

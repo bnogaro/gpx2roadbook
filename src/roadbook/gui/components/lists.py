@@ -7,15 +7,20 @@ from typing import TYPE_CHECKING
 from nicegui import ui
 
 from roadbook import settings as st
+from roadbook.gui.components.words import tooltip
 from roadbook.gui.models.form import Row
+from roadbook.i18n import translate
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from nicegui.events import ValueChangeEventArguments
 
     from roadbook.gui.models.form import Form
+    from roadbook.gui.models.language import Language
 
 
-def categories(form: Form) -> None:
+def categories(form: Form, language: Language) -> None:
     """One chip per category, its emoji first, selected when it is shown; the order stays the config's."""
     order = list(form.cfg["categories"])
 
@@ -27,33 +32,49 @@ def categories(form: Form) -> None:
             picked.discard(name)
         st.CATEGORIES.set(form.cfg, [c for c in order if c in picked])
 
-    ui.label(st.CATEGORIES.text(form.cfg)).classes("text-sm text-grey-8")
-    with ui.row().classes("gap-1").tooltip(st.CATEGORIES.help).mark(st.CATEGORIES.flag.removeprefix("--")):
+    ui.label().bind_text_from(
+        language, "lang", backward=lambda lang: translate(st.CATEGORIES.text(form.cfg), lang)
+    ).classes("text-sm text-grey-8")
+    with ui.row().classes("gap-1").mark(st.CATEGORIES.flag.removeprefix("--")) as chips:
         for name, spec in form.cfg["categories"].items():
             ui.chip(
-                f"{spec['emoji']} {name}",
                 selectable=True,
                 selected=name in st.CATEGORIES.get(form.cfg),
                 color="primary",
                 text_color="white",
                 on_selection_change=lambda e, n=name: toggle(n, e),
+            ).bind_text_from(
+                language, "lang", backward=lambda lang, n=name, emoji=spec["emoji"]: f"{emoji} {translate(n, lang)}"
             ).bind_selected_from(form.cfg["pois"], "enabled", backward=lambda enabled, n=name: n in enabled).props(
                 "outline dense"
             ).mark(f"category-{name}")
+    tooltip(chips, language, lambda lang: translate(st.CATEGORIES.help, lang))
 
 
 class Rows:
     """Editable rows for a list setting: km and minutes for breaks, km and a label for checkpoints."""
 
-    def __init__(self, rows: list[Row], setting: st.Setting, value_label: str, *, minutes: bool) -> None:
+    def __init__(
+        self,
+        rows: list[Row],
+        setting: st.Setting,
+        value_label: Callable[[str], str],
+        language: Language,
+        *,
+        minutes: bool,
+    ) -> None:
         self.rows = rows
         self.setting = setting
-        self.value_label = value_label
+        self.value_label = value_label  # the value field's label, in a language
+        self.language = language
         self.minutes = minutes  # the value is a number of minutes, else a label
         self.name = setting.flag.removeprefix("--")
-        ui.label(setting.text({})).classes("text-sm text-grey-8").tooltip(setting.help)
+        heading = ui.label().bind_text_from(language, "lang", backward=lambda lang: translate(setting.text({}), lang))
+        tooltip(heading.classes("text-sm text-grey-8"), language, lambda lang: translate(setting.help, lang))
         self.show()
-        ui.button("Add", icon="add", on_click=self.add).props("flat dense").mark(f"{self.name}-add")
+        ui.button(icon="add", on_click=self.add).bind_text_from(
+            language, "lang", backward=lambda lang: translate("Add", lang)
+        ).props("flat dense").mark(f"{self.name}-add")
 
     @ui.refreshable_method
     def show(self) -> None:
@@ -63,14 +84,12 @@ class Rows:
                     "w-24"
                 ).mark(f"{self.name}-km-{n}")
                 if self.minutes:
-                    ui.number(self.value_label, min=0).bind_value(row, "value", forward=lambda v: v or 0.0).classes(
-                        "w-24"
-                    ).mark(f"{self.name}-value-{n}")
+                    value = ui.number(min=0).bind_value(row, "value", forward=lambda v: v or 0.0).classes("w-24")
                 else:
-                    ui.input(self.value_label).bind_value(row, "value").classes("w-32").mark(f"{self.name}-value-{n}")
-                ui.button(icon="delete", on_click=lambda r=row: self.remove(r)).props("flat dense round").tooltip(
-                    "Remove"
-                ).mark(f"{self.name}-remove-{n}")
+                    value = ui.input().bind_value(row, "value").classes("w-32")
+                value.bind_label_from(self.language, "lang", backward=self.value_label).mark(f"{self.name}-value-{n}")
+                remove = ui.button(icon="delete", on_click=lambda r=row: self.remove(r)).props("flat dense round")
+                tooltip(remove, self.language, lambda lang: translate("Remove", lang)).mark(f"{self.name}-remove-{n}")
 
     def add(self) -> None:
         self.rows.append(Row(0.0, 0.0 if self.minutes else ""))

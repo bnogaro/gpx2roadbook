@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, override
 from .booklet import render_booklet
 from .build import build
 from .config import Settings
-from .i18n import language
+from .i18n import language, translate
 from .parse import GpxError
 from .render import html_to_pdf, render_html
 
@@ -78,14 +78,26 @@ def _warnings() -> Iterator[list[str]]:
         logger.removeHandler(collect)
 
 
-def lookup_line(what: str, r: Report | None, found: str, items: str) -> tuple[str, str | None] | None:
+def lookup_line(what: str, r: Report | None, found: str, items: str, lang: str = "en") -> tuple[str, str | None] | None:
     """What an OpenStreetMap lookup found, e.g. "Towns: 5 of 7 busy stops named (Nominatim)", and a warning if some
-    went unanswered; None when it wasn't asked for, or had nothing to look up (a flat route has no climbs to name)."""
+    went unanswered; None when it wasn't asked for, or had nothing to look up (a flat route has no climbs to name).
+
+    Worded in `lang`, a GUI's, which words `what`, `found` and `items` too; the CLI's summary stays English.
+    """
     if r is None or not r.asked:
         return None
-    where = [*r.sources, *([f"{r.cached} from cache"] if r.cached else [])]
-    line = f"{what}: {r.found} of {r.asked} {found}" + (f" ({', '.join(where)})" if where else "")
-    failure = f"{what}: {r.service} did not answer for some {items}; run again later." if r.failed else None
+    where = [*r.sources, *([translate("{n} from cache", lang, n=r.cached)] if r.cached else [])]
+    line = translate("{what}: {found} of {asked} {things}", lang, what=what, found=r.found, asked=r.asked, things=found)
+    line += f" ({', '.join(where)})" if where else ""
+    failure = None
+    if r.failed:
+        failure = translate(
+            "{what}: {service} did not answer for some {things}; run again later.",
+            lang,
+            what=what,
+            service=r.service,
+            things=items,
+        )
     return line, failure
 
 

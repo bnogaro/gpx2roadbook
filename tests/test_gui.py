@@ -26,6 +26,7 @@ from roadbook.gui.models import memory
 from roadbook.gui.models.form import Form, Row
 from roadbook.gui.pages import main
 from roadbook.gui.pages.main import is_here, page
+from roadbook.i18n import catalog
 from roadbook.model import Roadbook
 from roadbook.osm import Report
 
@@ -98,6 +99,10 @@ async def test_picking_a_gpx_and_making_the_road_book(user: User, tmp_path: Path
     command = next(iter(user.find(marker="command").elements)).text  # ty: ignore[unresolved-attribute]  # a label
     assert "--categories toilets,bakery,cafe" in command
     await user.should_see(kind=ui.log)
+    _switch(user, "fr")  # what the run made, said again in French
+    await user.should_see("POI sur 690, en")
+    await user.should_see("PDF des bandes")
+    await user.should_see(f"Enregistré\N{NO-BREAK SPACE}: {tmp_path / 'ride.roadbook.html'}")
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
@@ -134,6 +139,9 @@ async def test_the_preview_follows_the_settings_from_the_cache_only(
     await user.should_see(marker="preview-frame", retries=50)
     assert set(offline_calls) == {True}  # never online
     await user.should_see("Towns: 2 stops not looked up yet")
+    _switch(user, "fr")
+    await user.should_see("Villes\N{NO-BREAK SPACE}: 2 arrêts restent à chercher")
+    _switch(user, "en")
     assert not (tmp_path / "ride.roadbook.html").is_file()  # a preview writes nothing
     assert ".details, .climb-pages { display: none; }" in _srcdoc(user)
     await user.should_see("Fit")  # the width of the pane, at most true size
@@ -181,7 +189,7 @@ def test_the_map_shows_with_the_reference_sheet_and_says_which_tiles_it_lacks() 
     assert ".map-page" in hidden("strips")
     assert ".map-page" not in hidden("sheet")
     book = Roadbook("t", 1, 0, 0, [], [], [], 0, 0, tiles=Report(asked=12, cached=4, unasked=8))
-    assert notes(Preview(book, html))[0].startswith("Map: 8 tiles not looked up yet.")
+    assert notes(Preview(book, html), "en")[0].startswith("Map: 8 tiles not looked up yet.")
 
 
 def test_only_this_computer_is_here() -> None:
@@ -196,7 +204,11 @@ def test_only_this_computer_is_here() -> None:
 async def phone(monkeypatch: pytest.MonkeyPatch) -> AsyncIterator[User]:
     """A device on the network, as roadbook-gui --lan serves it."""
     monkeypatch.setattr(main, "is_here", lambda _ip: False)
-    async with user_simulation(root=lambda: page(lan=True)) as simulated:
+
+    async def root() -> None:
+        await page(lan=True)
+
+    async with user_simulation(root=root) as simulated:
         yield simulated
 
 
@@ -314,6 +326,94 @@ async def test_save_as_writes_where_the_dialog_says_in_a_window(
         user.find(marker="save-as").click()
         await user.should_see("Saved")
     assert tomllib.loads(shared.read_text(encoding="utf-8")) == {}  # the defaults: nothing to say
+
+
+async def test_the_switch_words_the_whole_window_in_french_and_back_keeping_what_was_typed(
+    user: User, remembered: Path
+) -> None:
+    _write(remembered, '[render]\nlayout = "line"\n')  # not a first launch: the road book keeps its language
+    await user.open("/")
+    await user.should_see("Advanced settings")
+    await user.should_see("line")
+    _pick(user, "date", "2026-10-17")
+    user.find(marker="out").type("ride.html")
+    _switch(user, "fr")
+    for french in ("Réglages avancés", "Créer le roadbook", "Mise en page", "ruban", "🚰 eau", "Bandes", "Ajuster"):
+        await user.should_see(french)
+    await user.should_not_see("Advanced settings")
+    assert not _english_left(user)
+    await user.should_see("2026-10-17")  # what was typed and picked, kept
+    await user.should_see("ride.html")
+    assert _value(user, "lang") == "en"  # the road book's language is its own
+    _switch(user, "en")
+    await user.should_see("Advanced settings")
+    await user.should_see("line")
+    await user.should_not_see("Réglages avancés")
+    await user.should_see("ride.html")
+
+
+def _english_left(user: User) -> list[str]:
+    """What the window shows that is still an English message with a French of its own: texts, labels, hints,
+    tooltips and a menu's choices, shown or folded away."""
+    english = {text for text, french in catalog("fr").items() if french != text}
+    shown: list[str] = []
+    for element in user.client.elements.values():  # ty: ignore[unresolved-attribute]  # opened: a client
+        shown += [getattr(element, "text", ""), element.props.get("label", ""), element.props.get("hint", "")]
+        shown += [
+            str(option.get("label", "")) for option in element.props.get("options", []) if isinstance(option, dict)
+        ]
+    return [text for text in shown if text in english]
+
+
+async def test_the_window_s_language_is_remembered_apart_from_the_settings(user: User, remembered: Path) -> None:
+    _write(remembered, '[ride]\ndate = "2026-10-17"\n')
+    await user.open("/")
+    await user.should_see("2026-10-17")
+    _switch(user, "fr")
+    await _remembered_language(remembered, "fr")
+    assert _read(remembered) == {"ride": {"date": "2026-10-17"}}  # a --config file: no window in it
+    await user.open("/")  # the next launch
+    await user.should_see("Réglages avancés")
+    _write(memory.language_path(), "language = 'de'\n")  # broken: English, as on a first launch
+    await user.open("/")
+    await user.should_see("Advanced settings")
+
+
+async def _remembered_language(remembered: Path, lang: str) -> None:
+    file = memory.language_path()
+    assert file.parent == remembered.parent  # next to the settings, in a file of its own
+    for _ in range(40):
+        if file.is_file() and memory.read_language(file) == lang:
+            return
+        await asyncio.sleep(0.1)
+    raise AssertionError(file)
+
+
+async def test_on_a_first_launch_a_french_window_makes_a_french_road_book(user: User, remembered: Path) -> None:
+    await user.open("/")
+    await user.should_see("Advanced settings")
+    await asyncio.sleep(0.1)  # the last settings looked for, and none found
+    _switch(user, "fr")
+    assert await _saved(remembered, lambda cfg: cfg.get("render", {}).get("language") == "fr")
+    _switch(user, "en")
+    await _remembered_language(remembered, "en")
+    await user.open("/")  # not a first launch any more: the two languages are each their own
+    await asyncio.sleep(0.1)
+    _switch(user, "fr")
+    _pick(user, "lang", "en")
+    await _remembered_language(remembered, "fr")
+    _switch(user, "en")
+    _switch(user, "fr")
+    assert _value(user, "lang") == "en"
+
+
+def _switch(user: User, lang: str) -> None:
+    for toggle in user.find(marker="language").elements:
+        toggle.value = lang  # ty: ignore[unresolved-attribute]  # as a click does
+
+
+def _value(user: User, marker: str) -> Any:  # noqa: ANN401  a field's value
+    return next(iter(user.find(marker=marker).elements)).value  # ty: ignore[unresolved-attribute]
 
 
 async def _saved(file: Path, done: Callable[[dict[str, Any]], bool]) -> dict[str, Any]:
