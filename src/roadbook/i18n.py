@@ -116,9 +116,11 @@ def language(lang: str) -> Iterator[None]:
 
 
 def date_text(day: dt.date, *, year: bool = True, long: bool = False) -> str:
-    """A date as a road book prints it, in its language: "Mon 12 Oct 2026", "lun. 12 oct. 2026"; its day and month
+    """A date as a road book prints it, in its language: "Mon 05 Oct 2026", "lun. 5 oct. 2026"; its day and month
     in full if `long`: "Monday 12 October 2026"."""
     lang = _language.get()
     days, months = (_LONG_DAYS, _LONG_MONTHS) if long else (_DAYS, _MONTHS)
-    text = f"{days[lang][day.weekday()]} {day.day:02d} {months[lang][day.month - 1]}"
+    # French writes the first of the month "1er", and no day with a 0 ahead of it; English keeps strftime's %d
+    number = f"{day.day:02d}" if lang == "en" else ("1er" if day.day == 1 else str(day.day))
+    text = f"{days[lang][day.weekday()]} {number} {months[lang][day.month - 1]}"
     return f"{text} {day.year}" if year else text

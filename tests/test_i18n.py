@@ -111,8 +111,9 @@ def test_dates_are_named_in_the_language_not_the_locale() -> None:
     day = dt.date(2026, 10, 5)
     assert i18n.date_text(day) == "Mon 05 Oct 2026"
     with i18n.language("fr"):
-        assert i18n.date_text(day) == "lun. 05 oct. 2026"
-        assert i18n.date_text(day, year=False) == "lun. 05 oct."
+        assert i18n.date_text(day) == "lun. 5 oct. 2026"
+        assert i18n.date_text(day, year=False) == "lun. 5 oct."
+        assert i18n.date_text(dt.date(2026, 11, 1), year=False, long=True) == "dimanche 1er novembre"
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
