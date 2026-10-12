@@ -25,6 +25,7 @@ from roadbook.profile import Profile
 from roadbook.render import render_html
 from roadbook.snap import Snapper
 from roadbook.sun import local, sun_times
+from roadbook.svg import SHADE
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 A5, A6 = FORMATS["a5"], FORMATS["a6"]
@@ -228,6 +229,32 @@ def test_a_long_stretch_with_nowhere_to_drink_or_eat_is_warned_of_after_its_last
     gaps = _content(_book(stops, km=150), water_gap_km=60, food_gap_km=50).gaps()
     assert gaps[-1].text == "⚠ 60 km without water or food: to the finish"
     assert all(b.keep == "prev" for b in gaps)  # on the page of the stop it follows
+
+
+def test_the_cover_lists_each_stretch_from_km_to_km_with_its_towns_when_they_fit() -> None:
+    stops = [Stop([_poi(5, "bakery")], town="Sault"), Stop([_poi(20, "water")]), Stop([_poi(90, "grocery")])]
+    book = _book(stops, km=150)
+    b = _booklet(book, water_gap_km=60, food_gap_km=50)
+    assert [lst.items for lst in b.cover().lists if lst.title.startswith("Warnings")] == [
+        [
+            "km 5.0 Sault → 90.0 · no food for 85 km",
+            "km 20.0 → 90.0 · no water for 70 km",
+            "km 90.0 → finish · no water or food for 60 km",
+        ]
+    ]
+    stops[2].town = "A town whose name is far too long to fit beside the rest of the line"
+    lines = [b.content.stretch_line(g, FORMATS["a6"].body[0], FORMATS["a6"].font) for g in b.content.stretches]
+    assert lines[1] == "km 20.0 → 90.0 · no water for 70 km"  # the towns left out, rather than the line cut
+    assert "Sault" not in lines[0]
+
+
+def test_the_cover_profile_shades_the_stretches_warned_of() -> None:
+    stops = [Stop([_poi(20, "water"), _poi(20, "bakery")])]
+    cover = _booklet(_book(stops, km=100), water_gap_km=60, food_gap_km=60).cover()
+    assert cover.profile.count(f'fill="{SHADE}"') == 1  # km 20 to the finish
+    assert "shaded on the profile" in cover.lists[0].title
+    cover = _booklet(_book(stops, km=100), water_gap_km=0, food_gap_km=0).cover()
+    assert SHADE not in cover.profile
 
 
 def test_a_shop_closed_when_passing_or_unknown_at_night_does_not_count() -> None:
