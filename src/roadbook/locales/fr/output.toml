@@ -40,7 +40,7 @@
 "{low}–{high} %" = "{low}–{high}\u00a0%"
 "{grade} % and more" = "{grade}\u00a0% et plus"
 "Climbs by grade:" = "Montées par pente\u00a0:"
-"Grade of each slab:" = "Pente de chaque tronçon\u00a0:"
+"Grade of each slab:" = "Pente de chaque segment\u00a0:"
 
 # what the reference sheet owes OpenStreetMap: render/sheet.py credit(), "Opening hours, town names and climb names"
 "opening hours" = "horaires d'ouverture"
