@@ -105,7 +105,7 @@ class Row:
     emoji_lines: list[list[Glyph]]  # a crowded stop's emojis carried on below the main line
     more: bool  # some emojis are still left out: a "+" after the last
     w: float  # mm along a ribbon
-    sub: str = ""  # a climb's length and grade, under the main line
+    sub: str = ""  # a climb's length and grade, or a checkpoint's km to go, under the main line
     sub_short: str = ""  # a ribbon's: a climb's length and grade, or where a long stop ends
     km_end: str = ""  # a long stop's last km, at the foot of the km column
     gain: str = ""  # a climb's ↗ metres, at the end of its sub line
@@ -145,7 +145,7 @@ def _row(it: Item, book: Roadbook, layout: RowLayout) -> Row:
             label = ""
     else:
         emojis, extra, more, emoji_w = _emoji_lines(it.emojis, avail, max_emojis, layout)
-    sub = sub_short = km_end = gain = ""
+    sub, sub_short, km_end, gain = kind.line(it, book), "", "", ""
     if kind.stats:
         c = climb_of(it)
         length = f"{c.length_km:.0f}" if c.length_km >= WHOLE_KM else f"{c.length_km:.1f}"

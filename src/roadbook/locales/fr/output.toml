@@ -4,12 +4,12 @@
 "road book" = "roadbook"
 
 # the strips' labels: build.py, kinds.py. Each sits on its row's main line, between its emojis and the ↓ distance,
-# and is cut where it runs out of room: "Départ" is about as wide as "START", "DÉPART" wider, and a checkpoint's km to go come
-# first, as in English, so they are the last to go
+# and is cut where it runs out of room, about 8 mm: "Départ" is about as wide as "START", "DÉPART" wider
 "START" = "Départ"
 "FINISH" = "Arrivée"
 "Cat {label}" = "Cat {label}"
-"{label} · {n} to go" = "{label} · {n} restants"
+# a checkpoint's km to the finish, on the sub line under "CP1", where a climb's stats go: about 20 mm, cut with a …
+"{n} km to go" = "{n}\u00a0km restants"
 
 # a shop's hours on the ride day, and whether it is open when the rider passes: opening.py, render/sheet.py
 "closed" = "fermé"

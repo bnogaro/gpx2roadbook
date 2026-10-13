@@ -26,12 +26,9 @@ def _given(it: Item, _book: Roadbook) -> str:
 
 
 def _to_go(it: Item, book: Roadbook) -> str:
-    # numbered checkpoints count down to the finish; a named one ("Lunch") keeps its name alone
-    return (
-        _("{label} · {n} to go", label=it.label, n=f"{book.length_km - it.km:.0f}")
-        if it.label.startswith("CP")
-        else it.label
-    )
+    # numbered checkpoints count down to the finish, on a line of their own: the main line has room for "CP1" and
+    # little more. A named one ("Lunch") keeps its name alone
+    return _("{n} km to go", n=f"{book.length_km - it.km:.0f}") if it.label.startswith("CP") else ""
 
 
 def _category(it: Item, _book: Roadbook) -> str:
@@ -48,6 +45,10 @@ def _no_sup(_it: Item) -> str:
     return ""
 
 
+def _no_line(_it: Item, _book: Roadbook) -> str:
+    return ""
+
+
 def _category_sup(it: Item) -> str:
     return climb_of(it).label if it.emojis else ""
 
@@ -60,13 +61,14 @@ class Kind:
     sup: Callable[[Item], str] = _no_sup  # superscript on the row's own emoji
     label_if_room: bool = False  # the label gives way when the stops riding on the row leave no room for it
     stats: bool = False  # a sub line with the climb's length, grade and gain
+    line: Callable[[Item, Roadbook], str] = _no_line  # a sub line's text, for a row without stats
 
 
 # at equal km, a summit closes its climb before anything else opens
 KINDS = {
     "start": Kind(0, "🟢"),
     "summit": Kind(1, "🔝", label=_elevation, label_if_room=True),
-    "checkpoint": Kind(2, "🚩", label=_to_go),
+    "checkpoint": Kind(2, "🚩", line=_to_go),
     "stop": Kind(3),
     "climb": Kind(4, "⛰️", label=_category, sup=_category_sup, stats=True),
     "finish": Kind(9, "🏁"),

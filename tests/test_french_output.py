@@ -55,7 +55,7 @@ def test_a_french_road_book_holds_the_french_words() -> None:
     for words in (
         "Départ",
         "Arrivée",
-        "CP1 · 256 restants",
+        f"256{NB}km restants",
         f"départ dim. 11 oct. 2026 07:30 à 24{NB}km/h",
         f"pauses{NB}: km 95 (45{NB}min)",
         "— montées",  # the climb pages' title
