@@ -19,8 +19,8 @@ def start(*, native: bool, lan: bool = False) -> None:
         ui.run(page, title="gpx2roadbook", favicon="🚴", reload=False, native=True, window_size=(1280, 900))
         return
 
-    def root() -> None:
-        page(lan=lan)
+    async def root() -> None:
+        await page(lan=lan)
 
     host = "0.0.0.0" if lan else "127.0.0.1"  # noqa: S104  all interfaces only when asked for, with --lan
     ui.run(root, title="gpx2roadbook", favicon="🚴", reload=False, host=host, port=PORT)

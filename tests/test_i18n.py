@@ -66,12 +66,16 @@ def test_a_message_and_its_french_have_the_same_fields() -> None:
         assert set(FIELD.findall(english)) == set(FIELD.findall(french)), english
 
 
-def test_no_two_catalog_files_translate_one_message() -> None:
-    seen: dict[str, str] = {}
+def test_two_catalog_files_translate_one_message_alike() -> None:
+    # a word both the booklet and the GUI say ("water", "climbs") may be in both their files, as long as it reads the
+    # same: the catalogs merge into one, where the last file would otherwise win unseen
+    seen: dict[str, tuple[str, str]] = {}
     for file in sorted(FR.glob("*.toml")):
-        for english in tomllib.loads(file.read_text(encoding="utf-8")):
-            assert english not in seen, f"{english!r} in both {seen[english]} and {file.name}"
-            seen[english] = file.name
+        for english, french in tomllib.loads(file.read_text(encoding="utf-8")).items():
+            if english in seen:
+                where, before = seen[english]
+                assert french == before, f"{english!r} is {before!r} in {where}, {french!r} in {file.name}"
+            seen[english] = file.name, french
 
 
 def test_a_message_reads_in_english_without_a_translation(monkeypatch: pytest.MonkeyPatch) -> None:
