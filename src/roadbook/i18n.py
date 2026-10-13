@@ -36,6 +36,41 @@ _MONTHS = {
     "en": ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"),
     "fr": ("janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."),
 }
+# and in full, as a booklet heads a new day: "Monday 12 October", "lundi 12 octobre"
+_LONG_DAYS = {
+    "en": ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"),
+    "fr": ("lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"),
+}
+_LONG_MONTHS = {
+    "en": (
+        "January",
+        "February",
+        "March",
+        "April",
+        "May",
+        "June",
+        "July",
+        "August",
+        "September",
+        "October",
+        "November",
+        "December",
+    ),
+    "fr": (
+        "janvier",
+        "février",
+        "mars",
+        "avril",
+        "mai",
+        "juin",
+        "juillet",
+        "août",
+        "septembre",
+        "octobre",
+        "novembre",
+        "décembre",
+    ),
+}
 
 
 @cache
@@ -80,8 +115,12 @@ def language(lang: str) -> Iterator[None]:
         _language.reset(token)
 
 
-def date_text(day: dt.date, *, year: bool = True) -> str:
-    """A date as a road book prints it, in its language: "Mon 12 Oct 2026", "lun. 12 oct. 2026"."""
+def date_text(day: dt.date, *, year: bool = True, long: bool = False) -> str:
+    """A date as a road book prints it, in its language: "Mon 05 Oct 2026", "lun. 5 oct. 2026"; its day and month
+    in full if `long`: "Monday 12 October 2026"."""
     lang = _language.get()
-    text = f"{_DAYS[lang][day.weekday()]} {day.day:02d} {_MONTHS[lang][day.month - 1]}"
+    days, months = (_LONG_DAYS, _LONG_MONTHS) if long else (_DAYS, _MONTHS)
+    # French writes the first of the month "1er", and no day with a 0 ahead of it; English keeps strftime's %d
+    number = f"{day.day:02d}" if lang == "en" else ("1er" if day.day == 1 else str(day.day))
+    text = f"{days[lang][day.weekday()]} {number} {months[lang][day.month - 1]}"
     return f"{text} {day.year}" if year else text

@@ -1,0 +1,53 @@
+# French for the booklet: its cover, pages of stops, Notes and back, by their English: see i18n.py.
+
+"booklet" = "livret"
+"To print: A4, double-sided, flip on the short edge, at actual size (100 %). Fold the stack in half and staple it at the fold." = "Pour imprimer : A4, recto verso, retournement sur le bord court, taille réelle (100 %). Pliez la pile en deux et agrafez-la au pli."
+"To print: A4, double-sided, flip on the long edge, at actual size (100 %). Cut the stack across the middle, put the bottom pile under the top one, fold it all in half and staple it at the fold." = "Pour imprimer : A4, recto verso, retournement sur le bord long, taille réelle (100 %). Coupez la pile en deux dans sa largeur, mettez la moitié du bas sous celle du haut, pliez le tout en deux et agrafez-le au pli."
+
+# the cover
+"{n} stops" = "{n} arrêts"
+"Checkpoints" = "Points de contrôle"
+"Warnings" = "Alertes"
+"Warnings · shaded on the profile" = "Alertes · en grisé sur le profil"
+"Climbs" = "Montées"
+"… and {n} more inside" = "… et {n} autres dans le livret"
+"{length} km at {grade} % · ↗{gain} m" = "{length} km à {grade} % · ↗{gain} m"
+"finish" = "arrivée"
+"no water for {span}" = "sans eau sur {span}"
+"no food for {span}" = "sans ravito sur {span}"
+"no water or food for {span}" = "sans eau ni ravito sur {span}"
+"Grades:" = "Pentes :"
+# the key's POI categories, the default ones
+"water" = "eau"
+"toilets" = "toilettes"
+"bakery" = "boulangerie"
+"cafe" = "café"
+"food" = "restauration"
+"fastfood" = "restauration rapide"
+"grocery" = "épicerie"
+"fuel" = "station-service"
+"vending" = "distributeur"
+"icecream" = "glacier"
+"lodging" = "hébergement"
+
+# the pages of stops
+"Start" = "Départ"
+"Finish" = "Arrivée"
+"Sunrise ~{time}" = "Lever du soleil ~{time}"
+"Sunset ~{time}" = "Coucher du soleil ~{time}"
+"{town} (continued)" = "{town} (suite)"
+"+ {n} more" = "+ {n} de plus"
+"Climb" = "Montée"
+"{length} km at {grade} % · max {max} % · ↗{gain} m" = "{length} km à {grade} % · max {max} % · ↗{gain} m"
+"⚠ {span} without water: {then}" = "⚠ {span} sans eau {then}"
+"⚠ {span} without food: {then}" = "⚠ {span} sans ravito {then}"
+"⚠ {span} without water or food: {then}" = "⚠ {span} sans eau ni ravito {then}"
+"next at km {km}" = "→ km {km}"
+"to the finish" = "→ arrivée"
+
+# Notes, and the back
+"Notes" = "Notes"
+"Maps: {credit}." = "Cartes : {credit}."
+"{owed} © OpenStreetMap contributors (ODbL)." = "{owed} © les contributeurs d'OpenStreetMap (ODbL)."
+"Hours change: check the ones you rely on." = "Les horaires changent : vérifiez ceux sur lesquels vous comptez."
+"Made with {tool} {version} · {home}" = "Fait avec {tool} {version} · {home}"

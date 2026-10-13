@@ -1,7 +1,9 @@
 import datetime as dt
+import html
 import itertools
 import math
 import re
+import tomllib
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -10,6 +12,7 @@ import numpy as np
 import pytest
 from typer.testing import CliRunner
 
+from roadbook import api, i18n
 from roadbook import settings as st
 from roadbook.booklet import Block, Booklet, Clock, Content, render_booklet, text_mm, where, wrap
 from roadbook.booklet.content import Count, Hours, Line, More, Shop, Town
@@ -300,6 +303,11 @@ def test_a_timed_ride_marks_sunset_sunrise_and_each_new_day() -> None:
     assert bands[0][1].startswith("🌇 Sunset ~")
     assert bands[1][1] == "Monday 12 October"
     assert bands[2][1].startswith("🌅 Sunrise ~")
+    with i18n.language("fr"):
+        sunset, day, sunrise = (blk.text for blk in b.days_and_nights())
+        assert sunset.startswith("🌇 Coucher du soleil ~")
+        assert day == "lundi 12 octobre"
+        assert sunrise.startswith("🌅 Lever du soleil ~")
     sunset = next(blk for blk in b.days_and_nights() if blk.kind == "sun")
     t = b.clock.at(sunset.km)
     sun = b.clock.sun(sunset.km, start.date())
@@ -490,6 +498,37 @@ def test_each_spread_s_mini_map_is_made_with_the_book(name: str) -> None:
     assert html.count('<div class="mm">') == len(mapped)
     cfg["map"]["enabled"] = False
     assert build(HILLY, Settings.of(cfg)).minimaps == {}
+
+
+@pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
+def test_a_french_booklet_says_its_own_words_in_french() -> None:
+    cfg = load_config()
+    cfg["render"]["language"] = "fr"
+    cfg["booklet"] |= {"format": "A6", "water_gap_h": 1.5}
+    cfg["ride"] |= {"date": "2026-10-11", "start": "07:30", "speed_kmh": 24}
+    cfg["climb_pages"]["enabled"] = True
+    booklet = api.preview(HILLY, cfg).booklet
+    assert booklet is not None
+    seen = re.sub(r"<style>.*?</style>|<svg.*?</svg>", " ", booklet, flags=re.DOTALL)
+    seen = html.unescape(re.sub(r"<[^>]+>", "\n", seen))
+    for french in (
+        "— livret",
+        "🟢 Départ · dim. 11 oct. 07:30",
+        "🏁 Arrivée · km",
+        "🌇 Coucher du soleil ~",
+        "sans eau → km",
+        "Alertes · en grisé sur le profil",
+        "Montées",
+        "Pentes\u00a0:",
+        "Fait avec gpx2roadbook",
+    ):
+        assert french in seen, french
+    # none of booklet.toml's messages is left in English, whatever its fields (render's words are #110's to translate)
+    catalog = Path(i18n.__file__).parent / "locales" / "fr" / "booklet.toml"
+    for english, french in tomllib.loads(catalog.read_text(encoding="utf-8")).items():
+        if english != french:
+            said = ".+?".join(re.escape(part) for part in re.split(r"\{\w+\}", english))
+            assert not re.search(rf"(?<!\w){said}(?!\w)", seen), english
 
 
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")

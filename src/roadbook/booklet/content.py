@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 import numpy as np
 
+from roadbook.i18n import _, date_text
 from roadbook.opening import Ride
 from roadbook.render import climb_card, eta_text, poi_category, shop_hours
 from roadbook.sun import local, sun_times
@@ -41,7 +42,7 @@ WIDE_HOURS_INDENT = 4.0  # mm, those lines' indent
 RANK = {"start": 0, "day": 1, "sun": 2, "checkpoint": 3, "stop": 4, "gap": 5, "climb": 6, "finish": 9}  # at one km
 
 # about how wide a character is, in ems: on the wide side, so what is cut to fit does fit
-NARROW = set(" .,:;'|!iljft()[]/·")
+NARROW = set(" \u00a0.,:;'|!iljft()[]/·")  # the no-break space: French's, before its units and colons
 WIDE = set("mwMW%@")
 UNSEEN = {0x200D, *range(0xFE00, 0xFE10)}  # joiners and variation selectors
 
@@ -298,10 +299,10 @@ class Content:
 
     def start_text(self) -> str:
         t = self.clock.at(0.0)
-        return "🟢 Start" + (f" · {t:%a %d %b %H:%M}" if t else "")
+        return f"🟢 {_('Start')}" + (f" · {date_text(t.date(), year=False)} {t:%H:%M}" if t else "")
 
     def finish_text(self) -> str:
-        return f"🏁 Finish · km {self.book.length_km:.1f}{self.at_text(self.book.length_km)}"
+        return f"🏁 {_('Finish')} · km {self.book.length_km:.1f}{self.at_text(self.book.length_km)}"
 
     # ------------------------------------------------------------ the stops
 
@@ -374,8 +375,14 @@ class Content:
     def climb(self, c: Climb, card: ClimbCard | None) -> Block:
         """A climb where it starts: its name and category, where it ends, its figures, and its profile if it has a
         climb page."""
-        stats = f"{c.length_km:.1f} km at {c.avg_grade:.1f} % · max {c.max_grade:.0f} % · ↗{c.gain_m:.0f} m"
-        rows = [Row(f"{c.start_km:.1f}", Col(c.name or "Climb", c.label)), Row(f"→ {c.end_km:.1f}", Text(stats))]
+        stats = _(
+            "{length} km at {grade} % · max {max} % · ↗{gain} m",
+            length=f"{c.length_km:.1f}",
+            grade=f"{c.avg_grade:.1f}",
+            max=f"{c.max_grade:.0f}",
+            gain=f"{c.gain_m:.0f}",
+        )
+        rows = [Row(f"{c.start_km:.1f}", Col(c.name or _("Climb"), c.label)), Row(f"→ {c.end_km:.1f}", Text(stats))]
         svg = card.svg if card else ""
         grade = grade_colour(c.avg_grade, self.grades) if self.grades else ""
         h = rows_h(self.f, len(rows)) + (svg_height(svg) + 1 if svg else 0)
@@ -440,18 +447,30 @@ class Content:
         out = []
         for g in self.stretches:
             if g.then is None:
-                then = "to the finish"
+                then = _("to the finish")
             else:
                 eta = f" ({eta_text(g.then.window, self.ride.date)})" if g.then.window else ""
-                then = f"next at km {g.end:.1f}{eta}"
-            out.append(self.band("gap", g.start, f"⚠ {g.span} without {g.what}: {then}", keep="prev"))
+                then = _("next at km {km}", km=f"{g.end:.1f}") + eta
+            if g.what == "water":  # a message for each, as a language words what is missing its own way
+                text = _("⚠ {span} without water: {then}", span=g.span, then=then)
+            elif g.what == "food":
+                text = _("⚠ {span} without food: {then}", span=g.span, then=then)
+            else:
+                text = _("⚠ {span} without water or food: {then}", span=g.span, then=then)
+            out.append(self.band("gap", g.start, text, keep="prev"))
         return out
 
     def stretch_line(self, g: Stretch, width: float, pt: float) -> str:
         """A stretch on the cover, from km to km, with the towns there when they fit in `width` mm at `pt`:
         "km 112.4 Sézanne → 170.2 Montmirail · no water for 2h40 (58 km)"."""
-        end = "finish" if g.then is None else f"{g.end:.1f}"
-        tail = f" · no {g.what} for {g.span}"
+        end = _("finish") if g.then is None else f"{g.end:.1f}"
+        if g.what == "water":
+            lacks = _("no water for {span}", span=g.span)
+        elif g.what == "food":
+            lacks = _("no food for {span}", span=g.span)
+        else:
+            lacks = _("no water or food for {span}", span=g.span)
+        tail = f" · {lacks}"
         plain = f"km {g.start:.1f} → {end}{tail}"
         towns = (g.after.town if g.after else None, g.then.town if g.then else None)
         if not any(towns):
@@ -472,13 +491,16 @@ class Content:
             if t is None:  # pragma: no cover  timed at its start, so all along
                 break
             if day is not None and t.date() != day:
-                out.append(self.band("day", km, f"{t:%A %d %B}"))
+                out.append(self.band("day", km, date_text(t.date(), year=False, long=True)))
             day = t.date()
             sun = self.clock.sun(km, day)
             now_dark = sun is not None and not sun[0] <= t < sun[1]
             if dark is not None and sun is not None and now_dark != dark:
-                out.append(
-                    self.band("sun", km, f"🌇 Sunset ~{sun[1]:%H:%M}" if now_dark else f"🌅 Sunrise ~{sun[0]:%H:%M}")
+                text = (
+                    f"🌇 {_('Sunset ~{time}', time=f'{sun[1]:%H:%M}')}"
+                    if now_dark
+                    else f"🌅 {_('Sunrise ~{time}', time=f'{sun[0]:%H:%M}')}"
                 )
+                out.append(self.band("sun", km, text))
             dark = now_dark
         return out

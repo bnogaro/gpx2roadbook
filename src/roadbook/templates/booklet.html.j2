@@ -11,7 +11,7 @@
 {%- elif r.kind == 'hours' -%}
 <span class="u {{ r.cls }}">{{ r.text }}</span>
 {%- elif r.kind == 'more' -%}
-<span class="more">+ {{ r.n }} more {{ r.emoji }}</span>
+<span class="more">{{ _('+ {n} more', n=r.n) }} {{ r.emoji }}</span>
 {%- elif r.kind == 'col' -%}
 <span class="col">⛰️ {{ r.name }}</span>{% if r.cat %}<span class="cat">Cat {{ r.cat }}</span>{% endif %}
 {%- elif r.kind == 'text' -%}
@@ -51,7 +51,7 @@
   {%- endfor %}
   <div class="keys">
     {%- for k in p.key %}<div class="li">{{ k }}</div>{% endfor %}
-    {%- if p.grades %}<div class="li">Grades:{% for label, colour in p.grades %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</div>{% endif %}
+    {%- if p.grades %}<div class="li">{{ _('Grades:') }}{% for label, colour in p.grades %}<span class="swatch" style="background: {{ colour }}"></span>{{ label }}{% endfor %}</div>{% endif %}
   </div>
 {%- elif p.kind == 'stops' %}
   <div class="ph"><span>{{ p.km }}</span>{% if p.day %}<span class="day">{{ p.day }}</span>{% endif %}<span class="no">{{ p.n }} / {{ p.of }}</span></div>
@@ -59,14 +59,14 @@
   <div class="pp">{{ p.profile | safe }}</div>
   {%- for b in p.blocks %}{{ block(b) }}{% endfor %}
 {%- elif p.kind == 'notes' %}
-  <div class="ph"><span>Notes</span><span class="no">{{ p.n }} / {{ p.of }}</span></div>
+  <div class="ph"><span>{{ _('Notes') }}</span><span class="no">{{ p.n }} / {{ p.of }}</span></div>
   {%- for _ in range(notes_lines) %}<div class="rule"></div>{% endfor %}
 {%- elif p.kind == 'back' %}
   <div class="colophon">
     {%- if p.maps %}<p>{{ p.maps }}</p>{% endif %}
     {%- if p.credit %}<p>{{ p.credit }}</p>{% endif %}
     {%- if p.check %}<p>{{ p.check }}</p>{% endif %}
-    <p>Made with {{ p.tool }} {{ p.version }} · {{ p.home }}</p>
+    <p>{{ _('Made with {tool} {version} · {home}', tool=p.tool, version=p.version, home=p.home) }}</p>
   </div>
 {%- endif %}
 </div>
@@ -77,7 +77,7 @@
 <html lang="{{ lang }}">
 <head>
 <meta charset="utf-8">
-<title>{{ book.title }} — booklet</title>
+<title>{{ book.title }} — {{ _('booklet') }}</title>
 <style>
   @page { size: {{ f.sheet[0] }}mm {{ f.sheet[1] }}mm; margin: 0; }
   :root {
@@ -180,11 +180,9 @@
 <div class="note">
   <b>{{ pages }} pages, {{ f.name }}.</b>
   {%- if f.rows == 1 %}
-  To print: A4, double-sided, flip on the short edge, at actual size (100 %). Fold the stack in half and staple it at
-  the fold.
+  {{ _('To print: A4, double-sided, flip on the short edge, at actual size (100 %). Fold the stack in half and staple it at the fold.') }}
   {%- else %}
-  To print: A4, double-sided, flip on the long edge, at actual size (100 %). Cut the stack across the middle, put the
-  bottom pile under the top one, fold it all in half and staple it at the fold.
+  {{ _('To print: A4, double-sided, flip on the long edge, at actual size (100 %). Cut the stack across the middle, put the bottom pile under the top one, fold it all in half and staple it at the fold.') }}
   {%- endif %}
 </div>
 <div class="booklet">
