@@ -1,3 +1,33 @@
+## v0.7.0 (2026-10-13)
+
+### Feat
+
+- **booklet**: water and food stretches in their own bands over the cover's profile
+- **render**: the strips, reference sheet, climb pages and map page in French
+- **booklet**: the booklet in French
+- **i18n**: name a date in full, as the booklet heads a new day
+- **gui**: a switch to French, for the window's own words and its settings
+- **i18n**: a language for the road book, and the catalogs to word it in
+- **booklet**: list the cover's warnings from km to km, shaded on its profile
+- **app**: a downloadable app for Windows and macOS, no Python or terminal needed
+
+### Fix
+
+- **render**: figures in the text font, not the emoji font, where Segoe UI is missing
+- **render**: a checkpoint's countdown on a sub line, where it fits
+- **render**: French "segment" for a climb profile's slab
+- **i18n**: French dates read "1er novembre", "5 oct.", not "01", "05"
+- **gui**: French "arrêts denses" for busy stops
+- **gui**: a shorter French date label, which an empty field shows whole
+
+### Refactor
+
+- **render**: split render.py into strips, sheet and climbs
+- **booklet**: read the shops' hours and climb cards typed
+- **config**: type the settings a run reads, once, as it starts
+- **render**: the strips, reference sheet and climb cards typed
+- **booklet**: its content, layout and HTML apart, its pages typed
+
 ## v0.6.0 (2026-10-11)
 
 ### Feat
