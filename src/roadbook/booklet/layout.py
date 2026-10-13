@@ -23,7 +23,7 @@ from roadbook.i18n import _, date_text
 from roadbook.imposition import centre, page_count
 from roadbook.render import HOME, TOOL, credit, grade_key, poi_category, ride_title
 from roadbook.routemap import svg as map_svg
-from roadbook.svg import profile_svg
+from roadbook.svg import FOOD, WATER, profile_svg
 from roadbook.tiles import style as tile_style
 
 from .content import Block, Content, Row, Town, rows_h, wrap
@@ -86,6 +86,7 @@ class CoverList:
 
     title: str
     items: list[str]
+    key: tuple[tuple[str, str], ...] = ()  # after the title: (colour, what it means), the profile's bands
 
 
 @dataclass
@@ -321,8 +322,20 @@ class Booklet:
         fixed = 3 * f.line + 8 + COVER_PROFILE * f.profile + 3 + len(key) * f.line + (f.line if grades else 0)
         room = int((f.body[1] - fixed) / f.line)
         lists = []
-        shaded = _("Warnings · shaded on the profile") if book.profile else _("Warnings")
-        for title, items in ((_("Checkpoints"), checkpoints), (shaded, warnings), (_("Climbs"), climbs)):
+        # a band over the profile for each thing some stretch is short of, water above food
+        bands = [
+            (colour, [(g.start, g.end) for g in content.stretches if lack in g.lacks], words)
+            for lack, colour, words in (("water", WATER, _("no water")), ("food", FOOD, _("no food")))
+            if any(lack in g.lacks for g in content.stretches)
+        ]
+        warned, banded = _("Warnings"), ()
+        if book.profile and bands:
+            warned, banded = _("Warnings · on the profile:"), tuple((colour, words) for colour, _s, words in bands)
+        for title, items, swatches in (
+            (_("Checkpoints"), checkpoints, ()),
+            (warned, warnings, banded),
+            (_("Climbs"), climbs, ()),
+        ):
             if not items or room < 2:  # noqa: PLR2004  a title and one line at least
                 continue
             fits = (
@@ -330,7 +343,7 @@ class Booklet:
                 if len(items) <= room - 1
                 else [*items[: room - 2], _("… and {n} more inside", n=len(items) - room + 2)]
             )
-            lists.append(CoverList(title, fits))
+            lists.append(CoverList(title, fits, swatches))
             room -= len(fits) + 1
         stops = _("{n} stops", n=len(book.stops))
         total = f"{book.length_km:.0f} km · ↗{book.gain_m:.0f} m ↘{book.loss_m:.0f} m · {stops}"
@@ -341,7 +354,7 @@ class Booklet:
                 (0.0, book.length_km),
                 (f.body[0], COVER_PROFILE * f.profile),
                 marks=[it.km for it in book.items if it.kind == "checkpoint"],
-                shade=[(g.start, g.end) for g in content.stretches],
+                bands=[(colour, spans) for colour, spans, _words in bands],
                 grades=content.grades,
             )
             if book.profile

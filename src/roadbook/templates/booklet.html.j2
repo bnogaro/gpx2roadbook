@@ -46,7 +46,7 @@
   <p class="ride">{{ p.ride }}</p>
   <div class="pp big">{{ p.profile | safe }}</div>
   {%- for l in p.lists %}
-  <h2>{{ l.title }}</h2>
+  <h2>{{ l.title }}{% for colour, words in l.key %}<span class="swatch band" style="background: {{ colour }}"></span>{{ words }}{% endfor %}</h2>
   {%- for item in l.items %}<div class="li">{{ item }}</div>{% endfor %}
   {%- endfor %}
   <div class="keys">
@@ -160,6 +160,7 @@
   .page.recto .keys { --pad-l: var(--inner); --pad-r: var(--margin); }
   .page.verso .keys { --pad-l: var(--margin); --pad-r: var(--inner); }
   .swatch { display: inline-block; width: 2.4mm; height: 2.4mm; margin: 0 0.6mm 0 1.6mm; }
+  .swatch.band { height: 1mm; align-self: center; }  /* as the band it stands for over the profile */
   .rule { height: calc(2 * var(--line)); border-bottom: 0.2mm solid #999; }
   .back .colophon { position: absolute; left: var(--margin); right: var(--margin); bottom: var(--margin);
                     font-size: {{ f.font - 1.5 }}pt; color: #333; }

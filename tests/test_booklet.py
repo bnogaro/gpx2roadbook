@@ -28,7 +28,7 @@ from roadbook.profile import Profile
 from roadbook.render import render_html
 from roadbook.snap import Snapper
 from roadbook.sun import local, sun_times
-from roadbook.svg import SHADE
+from roadbook.svg import BAND_GAP, BAND_H, FOOD, GROUND, PROFILE_TOP, WATER
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 A5, A6 = FORMATS["a5"], FORMATS["a6"]
@@ -251,13 +251,37 @@ def test_the_cover_lists_each_stretch_from_km_to_km_with_its_towns_when_they_fit
     assert "Sault" not in lines[0]
 
 
-def test_the_cover_profile_shades_the_stretches_warned_of() -> None:
+def _bands(profile: str) -> list[tuple[str, float, float, float]]:
+    """The cover profile's bands, as (colour, row's top, from, to), mm across the profile; their tracks left out."""
+    rects = re.findall(rf'<rect x="([\d.]+)" y="([\d.]+)" width="([\d.]+)" height="{BAND_H}" fill="(#\w+)"/>', profile)
+    return [(c, float(y), float(x), float(x) + float(w)) for x, y, w, c in rects if c != GROUND]
+
+
+def test_the_cover_profile_bands_water_and_food_apart_where_they_overlap() -> None:
+    # a tap at km 30 is water, not food: no water from 30 to the finish, inside no food from the start to the finish
+    b = _booklet(_book([Stop([_poi(30, "water")])], km=100), water_gap_km=40, food_gap_km=60)
+    cover, width = b.cover(), FORMATS["a5"].body[0]
+    row = BAND_H + BAND_GAP
+    assert _bands(cover.profile) == [
+        (WATER, 0.0, pytest.approx(0.3 * width, abs=0.01), pytest.approx(width, abs=0.01)),
+        (FOOD, row, 0.0, pytest.approx(width, abs=0.01)),  # the row under water's, each with its own ends
+    ]
+    assert f'y="{2 * row + PROFILE_TOP + 1.2:.2f}"' in cover.profile  # the highest point's altitude under them
+    warned = cover.lists[0]
+    assert warned.title == "Warnings · on the profile:"
+    assert warned.key == ((WATER, "no water"), (FOOD, "no food"))
+
+
+def test_the_cover_profile_bands_only_what_some_stretch_is_short_of() -> None:
     stops = [Stop([_poi(20, "water"), _poi(20, "bakery")])]
-    cover = _booklet(_book(stops, km=100), water_gap_km=60, food_gap_km=60).cover()
-    assert cover.profile.count(f'fill="{SHADE}"') == 1  # km 20 to the finish
-    assert "shaded on the profile" in cover.lists[0].title
+    cover = _booklet(_book(stops, km=100), water_gap_km=0, food_gap_km=60).cover()
+    assert [colour for colour, *_ in _bands(cover.profile)] == [FOOD]  # one row, at the top
+    assert _bands(cover.profile)[0][1] == 0.0
+    assert cover.lists[0].key == ((FOOD, "no food"),)
     cover = _booklet(_book(stops, km=100), water_gap_km=0, food_gap_km=0).cover()
-    assert SHADE not in cover.profile
+    assert "<rect" not in cover.profile  # no bands, and no room kept for them
+    assert f'y="{PROFILE_TOP + 1.2:.2f}"' in cover.profile
+    assert not cover.lists  # nothing to warn of
 
 
 def test_a_shop_closed_when_passing_or_unknown_at_night_does_not_count() -> None:
@@ -517,7 +541,7 @@ def test_a_french_booklet_says_its_own_words_in_french() -> None:
         "🏁 Arrivée · km",
         "🌇 Coucher du soleil ~",
         "sans eau → km",
-        "Alertes · en grisé sur le profil",
+        "Alertes · sur le profil\u00a0:",
         "Montées",
         "Pentes\u00a0:",
         "Fait avec gpx2roadbook",

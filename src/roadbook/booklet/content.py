@@ -247,7 +247,7 @@ class Stretch:
 
     start: float
     end: float
-    what: str  # "water", "food", "water or food"
+    lacks: tuple[str, ...]  # what it is short of: ("water",), ("food",) or ("water", "food")
     span: str  # how long: "3h25 (45 km)" with a speed, else "45 km"
     after: Stop | None = None  # the stop it starts at, None at the start
     then: Stop | None = None  # the stop it ends at, None at the finish
@@ -433,7 +433,7 @@ class Content:
             Stretch(
                 a,
                 b,
-                " or ".join(kinds),
+                tuple(kinds),
                 f"{duration(long(a, b))} ({b - a:.0f} km)" if paced else f"{b - a:.0f} km",
                 after=by_km.get(a),
                 then=by_km[b] if b < self.book.length_km else None,
@@ -451,9 +451,9 @@ class Content:
             else:
                 eta = f" ({eta_text(g.then.window, self.ride.date)})" if g.then.window else ""
                 then = _("next at km {km}", km=f"{g.end:.1f}") + eta
-            if g.what == "water":  # a message for each, as a language words what is missing its own way
+            if g.lacks == ("water",):  # a message for each, as a language words what is missing its own way
                 text = _("⚠ {span} without water: {then}", span=g.span, then=then)
-            elif g.what == "food":
+            elif g.lacks == ("food",):
                 text = _("⚠ {span} without food: {then}", span=g.span, then=then)
             else:
                 text = _("⚠ {span} without water or food: {then}", span=g.span, then=then)
@@ -464,9 +464,9 @@ class Content:
         """A stretch on the cover, from km to km, with the towns there when they fit in `width` mm at `pt`:
         "km 112.4 Sézanne → 170.2 Montmirail · no water for 2h40 (58 km)"."""
         end = _("finish") if g.then is None else f"{g.end:.1f}"
-        if g.what == "water":
+        if g.lacks == ("water",):
             lacks = _("no water for {span}", span=g.span)
-        elif g.what == "food":
+        elif g.lacks == ("food",):
             lacks = _("no food for {span}", span=g.span)
         else:
             lacks = _("no water or food for {span}", span=g.span)
