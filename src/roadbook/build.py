@@ -10,6 +10,7 @@ from .climb_pages import pages as climb_pages
 from .climbs import find_climbs
 from .contours import add as add_contours
 from .hours import lookup as find_hours
+from .i18n import _
 from .imposition import chosen as booklet_format
 from .kinds import KINDS
 from .model import Climb, Item, Poi, Roadbook, Stop
@@ -63,7 +64,7 @@ def _snap_to_climbs(stops: list[Stop], climbs: list[Climb], snap_m: float) -> di
     )  # ties go to the earlier stop, then the earlier edge; the stop index keeps Stop itself out of the comparison
     snapped: dict[tuple[int, str], Stop] = {}
     taken: set[int] = set()
-    for *_, j, i, k, s in pairs:
+    for *_order, j, i, k, s in pairs:
         key = (i, ("foot", "summit")[k])
         if j not in taken and key not in snapped:
             snapped[key] = s
@@ -101,7 +102,7 @@ def _explain_left_out(pois: list[Poi], shown: tuple[str, ...]) -> None:
     if left:
         counts = Counter(why for why, _, _ in left)
         log.info("POIs left out: %s", ", ".join(f"{n} {why}" for why, n in counts.items()))
-    for _, detail, p in left:
+    for _why, detail, p in left:
         log.debug("%r at km %.1f: %s", p.name, p.km, detail)
 
 
@@ -201,7 +202,7 @@ def build(gpx_path: Path, settings: Settings, *, offline: bool = False) -> Roadb
     def item(kind: str, km: float, **kw: Any) -> Item:  # noqa: ANN401  forwards Item's own keyword fields
         return Item(kind=kind, km=km, ele=profile.ele_at(km), **kw)
 
-    items = [item("start", 0.0, label="START")]
+    items = [item("start", 0.0, label=_("START"))]
     for i, (km, label) in enumerate(_checkpoints(length, settings.checkpoints), 1):
         items.append(item("checkpoint", km, label=label or f"CP{i}"))
     snapped = _snap_to_climbs(stops, climbs, settings.climbs.snap_m)
@@ -217,7 +218,7 @@ def build(gpx_path: Path, settings: Settings, *, offline: bool = False) -> Roadb
         top = snapped.get((i, "summit"))
         if top or settings.climbs.summit_rows:
             items.append(item("summit", c.end_km, climb=c, **stop_kw(top)))
-    items.append(item("finish", length, label="FINISH"))
+    items.append(item("finish", length, label=_("FINISH")))
     items.sort(key=lambda it: (it.km, KINDS[it.kind].rank))
 
     for a, b in itertools.pairwise(items):

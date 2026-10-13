@@ -40,6 +40,14 @@ CONFIGS = {
     "pois": lambda c: c["pois"].update(enabled=["water", "bakery"]),
     # in French, with hours and climb pages for the most words; a ref without render.language renders it in English
     "fr": lambda c: (hours(c), c["climb_pages"].update(enabled=True), c["render"].update(language="fr")),
+    # the same without a booklet, for the reference sheet and climb pages in French, and checkpoints for their labels
+    "fr_off": lambda c: (
+        hours(c),
+        c["climb_pages"].update(enabled=True),
+        c["checkpoints"].update(every_km=50),
+        c["booklet"].update(format="off"),
+        c["render"].update(language="fr"),
+    ),
 }
 """
 

@@ -14,7 +14,8 @@ from roadbook.cli import app
 from roadbook.config import Settings, TownsSettings, load_config
 from roadbook.model import Glyph, Item, Poi, Roadbook, Stop
 from roadbook.osm import NOMINATIM, Report
-from roadbook.render import FRAME_PAD, HEAD_H, Row, RowLayout, _add_heads, _paginate, _row, render_html
+from roadbook.render import render_html
+from roadbook.render.strips import FRAME_PAD, HEAD_H, Row, RowLayout, _add_heads, _paginate, _row
 from roadbook.towns import ZOOM, busy, centre, group, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"

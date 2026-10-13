@@ -9,26 +9,16 @@ import pytest
 from typer.testing import CliRunner
 
 from roadbook import build as build_module
-from roadbook import render as render_module
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import Settings, load_config
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.osm import NOMINATIM, OVERPASS, Report
 from roadbook.profile import Profile
-from roadbook.render import (
-    FRAME_PAD,
-    HEAD_H,
-    MAIN_H,
-    Head,
-    Row,
-    RowLayout,
-    _add_heads,
-    _details,
-    _row,
-    credit,
-    render_html,
-)
+from roadbook.render import credit, render_html
+from roadbook.render import strips as render_module
+from roadbook.render.sheet import _details
+from roadbook.render.strips import FRAME_PAD, HEAD_H, MAIN_H, Head, Row, RowLayout, _add_heads, _row
 from roadbook.summits import Place, choose, lookup
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
