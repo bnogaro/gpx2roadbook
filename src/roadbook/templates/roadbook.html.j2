@@ -14,7 +14,8 @@
   }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; font-family: "Segoe UI", "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif; color: #111; }
+{% include "fonts.css.j2" %}
+  body { margin: 0; color: #111; }
   .sheet { display: flex; flex-wrap: wrap; gap: 3mm; align-items: flex-start; }
   .sheet > * { break-inside: avoid; flex: none; }
   .emo { font-size: 10pt; line-height: 1; white-space: nowrap; }

@@ -1,0 +1,7 @@
+{#- The road book's and the booklet's fonts. The emoji fonts carry digits, "#", "*" and the space too, for the keycap
+    emojis, and draw them 1.25 em wide: second in line, after a missing "Segoe UI" (on Linux, macOS), they drew every
+    figure of the strips and pages twice as wide as the text font would. So they are only asked for what is past
+    Latin-1, and what the text font leaves out of it: the emojis, the arrows "Segoe UI" has no glyph for. #}
+  @font-face { font-family: "Roadbook Emoji"; src: local("Segoe UI Emoji"), local("Apple Color Emoji"), local("Noto Color Emoji");
+               unicode-range: U+A9, U+AE, U+2000-10FFFF; }
+  body { font-family: "Segoe UI", "Roadbook Emoji", sans-serif; }

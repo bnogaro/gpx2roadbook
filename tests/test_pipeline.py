@@ -1,18 +1,21 @@
+import html
 import re
+import subprocess
 from importlib.metadata import version
 from pathlib import Path
 
 import numpy as np
 import pytest
 
+from roadbook import api
 from roadbook.build import _snap_to_climbs, build
 from roadbook.config import Settings, load_config
 from roadbook.kinds import KINDS
 from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
-from roadbook.render import render_html
-from roadbook.render.strips import COUNT_W, EMOJI_W, MAIN_H, RowLayout, _row, _wrap
+from roadbook.render import _find_browser, render_html
+from roadbook.render.strips import COUNT_W, EMOJI_W, MAIN_H, SUB_H, RowLayout, _row, _wrap
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -234,7 +237,57 @@ def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() 
         for kind, km, label in (("start", 0, "START"), ("checkpoint", 20, "CP1"), ("checkpoint", 30, "Lunch"))
     ]
     assert [r.emojis for r in rows] == [[Glyph("🟢")], [Glyph("🚩")], [Glyph("🚩")]]
-    assert [r.label for r in rows] == ["START", "CP1 · 30 to go", "Lunch"]
+    assert [r.label for r in rows] == ["START", "CP1", "Lunch"]
+    # the countdown under the label, where a climb's stats go: the main line has no room for it
+    assert [r.sub for r in rows] == ["", "30 km to go", ""]
+    assert [r.h for r in rows] == [MAIN_H, MAIN_H + SUB_H, MAIN_H]
+
+
+# each label and sub line of the checkpoint rows, measured where Chrome lays them out: its text's width, its box's, mm,
+# and what its line is made of, to tell what took the room when it is short
+_MEASURE = """<script>addEventListener("load", () => {
+  const mm = document.createElement("div"); mm.style.width = "100mm"; document.body.append(mm);
+  const per = mm.getBoundingClientRect().width / 100;
+  const wide = (e) => (e.getBoundingClientRect().width / per).toFixed(1);
+  const out = [...document.querySelectorAll(".strip .row.checkpoint :is(.lbl, .sub .fig)")].map((e) =>
+    [e.textContent, e.scrollWidth / per, e.getBoundingClientRect().width / per,
+     [...e.parentElement.children].map((c) => `${c.className} "${c.textContent.trim()}" ${wide(c)}`).join(", ")
+       + ` of ${wide(e.parentElement)}`].join("|"));
+  const pre = document.createElement("pre"); pre.id = "measured"; pre.textContent = out.join("\\n");
+  document.body.append(pre);
+});</script>"""
+
+
+@pytest.mark.skipif(not PROVENCE.exists(), reason="sample GPX not present")
+@pytest.mark.skipif(_find_browser() is None, reason="no Edge/Chrome to lay the strips out")
+@pytest.mark.parametrize("language", ["en", "fr"])
+def test_a_checkpoints_label_and_countdown_fit_their_room(language: str, tmp_path: Path) -> None:
+    """Nothing of "CP1" or "256 km to go" is cut, in a 3-digit count, as the strip lays it out (#116)."""
+    cfg = load_config()
+    cfg["checkpoints"]["every_km"] = 50
+    cfg["booklet"]["format"] = "off"
+    cfg["render"]["language"] = language
+    page = tmp_path / "strips.html"
+    page.write_text(api.preview(PROVENCE, cfg).html.replace("</body>", _MEASURE + "</body>"), encoding="utf-8")
+    browser = _find_browser()
+    assert browser is not None
+    dom = subprocess.run(  # noqa: S603  fixed argv, no shell; the browser is the PDF export's
+        [browser, "--headless", "--disable-gpu", "--virtual-time-budget=5000", "--dump-dom", page.as_uri()],
+        capture_output=True,
+        check=True,
+        encoding="utf-8",
+        timeout=60,
+    ).stdout
+    found = re.search(r'<pre id="measured">(.*?)</pre>', dom, re.DOTALL)
+    assert found, "the page was not measured"
+    measured = [line.split("|") for line in html.unescape(found.group(1)).splitlines()]
+    assert any(re.search(r"\b\d{3}\b", text) for text, *_ in measured)  # the 3-digit counts, the widest
+    cut = [
+        f"{text!r} needs {float(needs):.1f} mm, has {float(has):.1f}: {line}"
+        for text, needs, has, line in measured
+        if float(needs) > float(has) + 0.1
+    ]
+    assert not cut, "\n".join(cut)
 
 
 def test_summit_elevation_gives_way_to_its_stop() -> None:

@@ -87,8 +87,8 @@
   }
   * { box-sizing: border-box; }
   html { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  body { margin: 0; font-family: "Segoe UI", "Segoe UI Emoji", "Noto Color Emoji", "Apple Color Emoji", sans-serif;
-         font-size: {{ f.font }}pt; color: #111; }
+{% include "fonts.css.j2" %}
+  body { margin: 0; font-size: {{ f.font }}pt; color: #111; }
   p { margin: 0; }
 
   /* printed: each A4 side, its pages at their places on it */
