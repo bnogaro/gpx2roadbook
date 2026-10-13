@@ -243,12 +243,16 @@ def test_marker_rows_show_their_own_emoji_and_numbered_checkpoints_count_down() 
     assert [r.h for r in rows] == [MAIN_H, MAIN_H + SUB_H, MAIN_H]
 
 
-# each label and sub line of the checkpoint rows, measured where Chrome lays them out: its text's width, its box's, mm
+# each label and sub line of the checkpoint rows, measured where Chrome lays them out: its text's width, its box's, mm,
+# and what its line is made of, to tell what took the room when it is short
 _MEASURE = """<script>addEventListener("load", () => {
   const mm = document.createElement("div"); mm.style.width = "100mm"; document.body.append(mm);
   const per = mm.getBoundingClientRect().width / 100;
+  const wide = (e) => (e.getBoundingClientRect().width / per).toFixed(1);
   const out = [...document.querySelectorAll(".strip .row.checkpoint :is(.lbl, .sub .fig)")].map((e) =>
-    [e.textContent, e.scrollWidth / per, e.getBoundingClientRect().width / per].join("|"));
+    [e.textContent, e.scrollWidth / per, e.getBoundingClientRect().width / per,
+     [...e.parentElement.children].map((c) => `${c.className} "${c.textContent.trim()}" ${wide(c)}`).join(", ")
+       + ` of ${wide(e.parentElement)}`].join("|"));
   const pre = document.createElement("pre"); pre.id = "measured"; pre.textContent = out.join("\\n");
   document.body.append(pre);
 });</script>"""
@@ -277,9 +281,13 @@ def test_a_checkpoints_label_and_countdown_fit_their_room(language: str, tmp_pat
     found = re.search(r'<pre id="measured">(.*?)</pre>', dom, re.DOTALL)
     assert found, "the page was not measured"
     measured = [line.split("|") for line in html.unescape(found.group(1)).splitlines()]
-    assert any(re.search(r"\b\d{3}\b", text) for text, _, _ in measured)  # the 3-digit counts, the widest
-    for text, needs, has in measured:
-        assert float(needs) <= float(has) + 0.1, f"{text!r} needs {float(needs):.1f} mm, has {float(has):.1f}"
+    assert any(re.search(r"\b\d{3}\b", text) for text, *_ in measured)  # the 3-digit counts, the widest
+    cut = [
+        f"{text!r} needs {float(needs):.1f} mm, has {float(has):.1f}: {line}"
+        for text, needs, has, line in measured
+        if float(needs) > float(has) + 0.1
+    ]
+    assert not cut, "\n".join(cut)
 
 
 def test_summit_elevation_gives_way_to_its_stop() -> None:
