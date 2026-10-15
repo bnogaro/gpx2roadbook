@@ -131,6 +131,7 @@
   .r.closed .n, .r.closed .w, .r.closed .e { opacity: 0.55; }  /* closed when passing: there, but stepped back */
   .town { font-weight: 700; font-size: {{ f.font + 0.5 }}pt; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .eta { flex: none; margin-left: auto; font-weight: 600; font-variant-numeric: tabular-nums; }
+  /* its padding: imposition.CLIMB_PAD, which the km column makes room for */
   .climb { background: #fdf0dc; box-shadow: inset 1.2mm 0 0 var(--grade, #f59e0b); padding-left: 1.6mm; }
   .climb .r .l { width: calc(var(--km-col) - 1.6mm); color: #92400e; }
   .col { font-weight: 800; color: #92400e; overflow: hidden; text-overflow: ellipsis; min-width: 0; }

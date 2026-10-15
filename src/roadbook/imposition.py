@@ -14,9 +14,16 @@ middle pages side by side: the centre spread, where the map goes, across the fol
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 log = logging.getLogger(__name__)
+
+PT = 25.4 / 72  # mm a point
+# a stop's km, bold: a digit's width and the point's, ems (Segoe UI draws "999.9" 2.62 em wide)
+KM_DIGIT_EM, KM_POINT_EM = 0.59, 0.26
+KM_GAP = 1.5  # mm between a stop's km and its town
+CLIMB_PAD = 1.6  # mm a climb's km stands in, right of its grade bar: the template's `.climb { padding-left }`
+CLIMB_GAP = 0.3  # mm at least between a climb's km and its name
 
 
 @dataclass(frozen=True)
@@ -37,11 +44,18 @@ class Format:
     km_font: float  # a stop's km, pt
     line: float  # a line
     head: float  # a stop's first line, with its km
-    km_col: float  # the km column, on the left of each stop
     header: float  # the running header: km, day, page
     profile: float  # the profile under it
     gap: float  # between two stops
     minimap: float  # the mini-map of a spread's stretch, on its left-hand page
+    km_col: float = 0.0  # the km column, on the left of each stop: as wide as the route's km need, see fitted()
+
+    def fitted(self, length_km: float, *, climbs: bool) -> Format:
+        """The format with its km column as wide as a route this long needs, and no wider: its longest km, then a
+        gap; a climb's km stands in past its grade bar, so a route with climbs needs a little more."""
+        digits = len(f"{length_km:.1f}") - 1
+        km = (digits * KM_DIGIT_EM + KM_POINT_EM) * self.km_font * PT
+        return replace(self, km_col=round(max(km + KM_GAP, CLIMB_PAD + km + CLIMB_GAP if climbs else 0.0), 2))
 
     @property
     def body(self) -> tuple[float, float]:
@@ -72,7 +86,6 @@ FORMATS = {
         km_font=13.0,
         line=4.2,
         head=5.6,
-        km_col=15.0,
         header=6.0,
         profile=11.0,
         gap=1.8,
@@ -90,7 +103,6 @@ FORMATS = {
         km_font=11.5,
         line=3.7,
         head=5.0,
-        km_col=12.5,
         header=5.0,
         profile=8.0,
         gap=1.5,

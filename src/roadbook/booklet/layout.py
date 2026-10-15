@@ -158,9 +158,9 @@ class Booklet:
     """The booklet of a road book, in a format: its content on pages, two facing at a time, and its other pages."""
 
     def __init__(self, book: Roadbook, settings: Settings, f: Format) -> None:
-        self.book, self.f = book, f
+        self.book, self.f = book, f.fitted(book.length_km, climbs=bool(book.climbs))
         self.km_every = settings.map.km_every  # a km marker on the maps every so many km; 0, to suit their scale
-        self.content = Content(book, settings, f)
+        self.content = Content(book, settings, self.f)
         self.mapped = book.route_map is not None  # the spreads get mini-maps, the middle the overview
 
     def spreads(self) -> list[Spread]:

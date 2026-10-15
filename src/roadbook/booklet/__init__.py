@@ -67,7 +67,9 @@ def render_booklet(book: Roadbook, settings: Settings) -> str | None:
     f = chosen(settings.booklet.format)
     if f is None:
         return None
-    pages = Booklet(book, settings, f).pages()
+    booklet = Booklet(book, settings, f)
+    f = booklet.f  # its km column fitted to the route
+    pages = booklet.pages()
     printed = [
         [
             Placed(slot.x, slot.y, pages[slot.page])

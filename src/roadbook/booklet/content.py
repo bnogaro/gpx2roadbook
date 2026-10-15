@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 import numpy as np
 
 from roadbook.i18n import _, date_text
+from roadbook.imposition import PT
 from roadbook.opening import Ride
 from roadbook.render import climb_card, eta_text, poi_category, shop_hours
 from roadbook.sun import local, sun_times
@@ -33,7 +34,6 @@ if TYPE_CHECKING:
     from roadbook.model import Climb, Poi, Roadbook, Stop
     from roadbook.render import ClimbCard
 
-PT = 25.4 / 72  # mm a point
 OFF_ROUTE_M = 30  # a place further than this from the route says how far
 SIDE = {-1: "←", 1: "→"}  # the side of the road, as the rider goes
 SUN_STEP_KM = 1.0  # sunset and sunrise are placed to the km
