@@ -373,7 +373,7 @@ km 151.7 ~14:45–17:15
 ```
 
 - **A window, not a time.** You won't ride exactly at the planned speed, so each stop gets the earliest and latest time you may reach it: ±15 % of the time ridden so far, at least ±20 min (`--margin`). The window widens along the route, as small differences add up.
-- **closed**: closed the whole time you may be there. The shop's hours that day follow, in grey, so you can see when it opens instead.
+- **closed when you pass (open 06:00–13:00, 15:30–19:00)**: closed the whole time you may be there. The hours it is open that day follow in brackets, in grey, so you can see when it opens instead. A shop closed all day just says **closed**.
 - **⚠ closes 12:15**, **⚠ opens 09:30**: it opens or closes while you may be there. Whether you make it depends on your pace, so check before counting on it.
 - Shops shown with just their hours are open the whole time.
 - **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
