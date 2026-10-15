@@ -4,7 +4,8 @@ Its pages are laid out here, not by the browser: each line is drawn its set heig
 on a page is known, each page can say which km it covers and start at a stop, and the pages can be printed imposed,
 in the order that folds into a booklet (imposition.py). In reading order:
 
-- the cover: the ride at a glance, its checkpoints, climbs and warnings, the keys to the emojis and grades;
+- the cover: the ride at a glance, its checkpoints, climbs and warnings, the keys to the km column's figures, the
+  emojis and grades;
 - the stops, two facing pages at a time, each page with its stretch's profile, the left one of a spread with a
   mini-map of it when a stop is off the road;
 - the map across the centre spread, Notes pages to fill the last sheet, and the credits on the back.
@@ -99,7 +100,7 @@ class CoverPage(Page):
     ride: str  # its day, and the arrival estimate's assumptions
     profile: str
     lists: list[CoverList]
-    key: list[str]  # the emojis', on as many lines as they need
+    key: list[str]  # the figures under a stop's km, then the emojis, on as many lines as they need
     grades: list[tuple[str, str]]  # the climbs' colours: label, colour
 
 
@@ -316,7 +317,9 @@ class Booklet:
         warnings = [content.stretch_line(g, f.body[0], f.font) for g in content.stretches]
         present = {poi_category(p) for s in book.stops for p in s.pois}
         emojis = [f"{v.emoji} {category_name(k)}" for k, v in content.categories.items() if k in present]
-        key = wrap(emojis, " · ", f.body[0], f.font - 1) if emojis else []
+        key = [
+            line for parts in (content.km_key(), emojis) if parts for line in wrap(parts, " · ", f.body[0], f.font - 1)
+        ]
         grades = grade_key(content.grades) if book.climbs and content.grades else []
         # the lines left under the title, totals, timing and profile, and over the keys: the lists share them
         fixed = 3 * f.line + 8 + COVER_PROFILE * f.profile + 3 + len(key) * f.line + (f.line if grades else 0)
