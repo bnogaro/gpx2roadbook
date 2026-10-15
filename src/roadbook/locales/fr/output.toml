@@ -13,6 +13,9 @@
 
 # a shop's hours on the ride day, and whether it is open when the rider passes: opening.py, render/sheet.py
 "closed" = "fermé"
+# closed all along the rider's estimated window, then the hours it is open instead
+"closed when you pass" = "fermé à votre passage"
+"(open {hours})" = "(ouvert {hours})"
 "open?" = "ouvert\u00a0?"
 "open 24 h" = "ouvert 24\u00a0h"
 "closes {time}" = "ferme à {time}"

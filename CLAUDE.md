@@ -23,7 +23,7 @@ make app        # downloadable app via PyInstaller (scripts/build_app.py), ZIP=1
 make release    # opens the "bump: …" PR; merging it publishes to PyPI (DRY_RUN=1 for local only)
 ```
 
-Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.py -k name`.
+Python 3.12+ (the dev env is pinned to 3.14 by `.python-version`: on Windows, 3.15 has no pyyaml wheel), uv only (no pip). Single test: `uv run pytest tests/test_booklet.py -k name`.
 
 ## Layout
 
@@ -37,7 +37,7 @@ Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.p
 
 ## Conventions and gotchas
 
-- Conventional Commits (commitizen hook). PRs are **rebase-merged**; never rewrite main's history.
+- Conventional Commits (commitizen hook). PRs are merged with a **merge commit** (the repo allows no rebase or squash merges); never rewrite main's history.
 - Refactors must not change output: diff `api.preview(...)` HTML over `samples/*.gpx`, before and after, under several settings (defaults, A6, booklet off, hours with a speed, climb pages on, topo map).
 - A PR that changes a default strip's or the map's look regenerates `docs/img/strip-example.png` / `map.png`.
 - GUI work: read and follow the installed `nicegui/llms.md`.

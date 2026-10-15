@@ -20,7 +20,7 @@ from .parse import GpxError
 from .render import html_to_pdf, render_html
 
 if TYPE_CHECKING:
-    from collections.abc import Iterator
+    from collections.abc import Generator
     from pathlib import Path
 
     from .model import Roadbook
@@ -67,7 +67,7 @@ class _Collect(logging.Handler):
 
 
 @contextmanager
-def _warnings() -> Iterator[list[str]]:
+def _warnings() -> Generator[list[str]]:
     """The warnings logged within, on this thread."""
     collect = _Collect()
     logger = logging.getLogger("roadbook")

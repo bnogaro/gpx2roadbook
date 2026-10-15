@@ -20,7 +20,19 @@ from roadbook.booklet.layout import CoverPage, MapPage, StopsPage
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import Settings, load_config
-from roadbook.imposition import FORMATS, centre, chosen, page_count, sides
+from roadbook.imposition import (
+    CLIMB_GAP,
+    CLIMB_PAD,
+    FORMATS,
+    KM_DIGIT_EM,
+    KM_GAP,
+    PT,
+    Format,
+    centre,
+    chosen,
+    page_count,
+    sides,
+)
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.opening import Ride, Verdict, Window
 from roadbook.osm import M_PER_DEG, Report
@@ -68,6 +80,24 @@ def test_cut_a6_sheets_stack_in_order() -> None:
     first, *_ = sides(16, A6)  # 4 signature sheets on 2 A4 ones: the first on top of sheet 1, the third below it
     assert [(s.page + 1, s.x, s.y) for s in first] == [(16, 0, 0), (1, 105, 0), (12, 0, 148.5), (5, 105, 148.5)]
     assert page_count(9, A6) == 16  # no blank half sheet to fold in
+
+
+@pytest.mark.parametrize("f", [A5, A6])
+def test_the_km_column_fits_the_route_s_longest_km(f: Format) -> None:
+    def col(km: float, *, climbs: bool = False) -> float:
+        return f.fitted(km, climbs=climbs).km_col
+
+    digit = KM_DIGIT_EM * f.km_font * PT
+    assert col(306.2) - col(99.9) == pytest.approx(digit, abs=0.01)  # a digit more, a digit's width more
+    assert col(1234.5) - col(306.2) == pytest.approx(digit, abs=0.01)
+    assert col(999.96) == col(1000.0)  # as it is printed: "1000.0"
+    # a climb's km stands in past its grade bar, and still clears its name
+    assert col(306.2, climbs=True) - col(306.2) == pytest.approx(CLIMB_PAD + CLIMB_GAP - KM_GAP, abs=0.01)
+    book = _book([Stop([_poi(40, "bakery")])], km=306.2)
+    assert _content(book, f.name.lower()).width == pytest.approx(f.body[0] - col(306.2))  # what the lines get
+    cfg = load_config()
+    cfg["booklet"]["format"] = f.name
+    assert f"--km-col: {col(306.2)}mm" in (render_booklet(book, Settings.of(cfg)) or "")
 
 
 def test_the_format_follows_the_setting(caplog: pytest.LogCaptureFixture) -> None:
@@ -191,7 +221,7 @@ def test_a_shop_closed_when_the_rider_passes_comes_last_stepped_back() -> None:
     assert head.eta == f"~09:00{EN}10:00"
     shops = _shops(lines)
     assert [(line.name, line.closed) for line in shops] == [("Open", False), ("Shut", True)]
-    assert (shops[1].verdict, shops[1].hours) == ("closed", f"06:00{EN}07:00")
+    assert (shops[1].verdict, shops[1].hours) == ("closed when you pass", f"(open 06:00{EN}07:00)")
 
 
 def test_hours_too_long_for_the_line_go_under_it() -> None:
@@ -282,6 +312,26 @@ def test_the_cover_profile_bands_only_what_some_stretch_is_short_of() -> None:
     assert "<rect" not in cover.profile  # no bands, and no room kept for them
     assert f'y="{PROFILE_TOP + 1.2:.2f}"' in cover.profile
     assert not cover.lists  # nothing to warn of
+
+
+def test_the_cover_keys_the_figures_under_a_stops_km_that_the_booklet_shows() -> None:
+    climb = Climb(50, 53, 150, 5.0, 8.0, "3")
+    one, spread = Stop([_poi(10, "water")]), Stop([_poi(30, "bakery"), _poi(31, "grocery")])  # 1 km of road
+    since, stop_ends = "+12.3: km from the stop before", "→ 45.6: km where the stop ends"
+    assert _content(_book([one])).km_key() == []  # no stop before it, nothing that ends further on
+    assert _content(_book([one, spread])).km_key() == [since, stop_ends]
+    assert _content(_book([one], climbs=[climb])).km_key() == ["→ 45.6: km where the climb ends"]
+    assert _content(_book([one, spread], climbs=[climb])).km_key() == [
+        since,
+        "→ 45.6: km where the stop or climb ends",
+    ]
+    for f in ("a5", "a6"):  # first among the keys, wrapped to the page
+        key = _booklet(_book([one, spread]), f).cover().key
+        assert key[0].startswith(since)
+        assert all(text_mm(line, FORMATS[f].font - 1) <= FORMATS[f].body[0] for line in key)
+        assert any("water" in line for line in key)  # the emojis' key after it
+    with i18n.language("fr"):
+        assert _content(_book([one, spread])).km_key()[0] == "+12.3\N{NO-BREAK SPACE}: km depuis l'arrêt précédent"
 
 
 def test_a_shop_closed_when_passing_or_unknown_at_night_does_not_count() -> None:

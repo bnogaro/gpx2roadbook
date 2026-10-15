@@ -27,7 +27,6 @@ from .sheet import _details, credit, eta_text, grade_key, poi_category, pretty_h
 from .strips import (
     DIST_W,
     HDR_H,
-    KM_COL,
     LAYOUT_WIDTH,
     PAD,
     Geometry,
@@ -38,6 +37,7 @@ from .strips import (
     _gutters,
     _paginate,
     _row,
+    km_col,
 )
 
 if TYPE_CHECKING:
@@ -101,7 +101,8 @@ def render_html(book: Roadbook, settings: Settings) -> str:
 
     # strip: what is left of the row once the km column is taken.
     # line: tokens may grow; cap so a single stop can't eat the whole ribbon.
-    avail = width - KM_COL - 3 * PAD if layout == "strip" else 40.0
+    col = km_col(book.length_km)
+    avail = width - col - 3 * PAD if layout == "strip" else 40.0
     gutter = r.gutter_mm if layout == "strip" and book.profile is not None else 0
     avail -= gutter
     if layout == "strip":  # the ↓ distance to the next row takes the end of the main line
@@ -173,7 +174,7 @@ def render_html(book: Roadbook, settings: Settings) -> str:
         tool=TOOL,
         version=version(TOOL),
         home=HOME,
-        g=Geometry(gutter),
+        g=Geometry(gutter, col),
     )
 
 
