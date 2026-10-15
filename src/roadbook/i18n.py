@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     import datetime as dt
-    from collections.abc import Iterator
+    from collections.abc import Generator
 
 LANGUAGES = ("en", "fr")  # English first: the code's own
 
@@ -103,7 +103,7 @@ def current() -> str:
 
 
 @contextmanager
-def language(lang: str) -> Iterator[None]:
+def language(lang: str) -> Generator[None]:
     """Word the road book in `lang` within."""
     if lang not in LANGUAGES:
         msg = f"language {lang!r}: not one of {', '.join(LANGUAGES)}"
