@@ -20,7 +20,19 @@ from roadbook.booklet.layout import CoverPage, MapPage, StopsPage
 from roadbook.build import build
 from roadbook.cli import app
 from roadbook.config import Settings, load_config
-from roadbook.imposition import FORMATS, centre, chosen, page_count, sides
+from roadbook.imposition import (
+    CLIMB_GAP,
+    CLIMB_PAD,
+    FORMATS,
+    KM_DIGIT_EM,
+    KM_GAP,
+    PT,
+    Format,
+    centre,
+    chosen,
+    page_count,
+    sides,
+)
 from roadbook.model import Climb, Item, Poi, Roadbook, Stop, Track
 from roadbook.opening import Ride, Verdict, Window
 from roadbook.osm import M_PER_DEG, Report
@@ -68,6 +80,24 @@ def test_cut_a6_sheets_stack_in_order() -> None:
     first, *_ = sides(16, A6)  # 4 signature sheets on 2 A4 ones: the first on top of sheet 1, the third below it
     assert [(s.page + 1, s.x, s.y) for s in first] == [(16, 0, 0), (1, 105, 0), (12, 0, 148.5), (5, 105, 148.5)]
     assert page_count(9, A6) == 16  # no blank half sheet to fold in
+
+
+@pytest.mark.parametrize("f", [A5, A6])
+def test_the_km_column_fits_the_route_s_longest_km(f: Format) -> None:
+    def col(km: float, *, climbs: bool = False) -> float:
+        return f.fitted(km, climbs=climbs).km_col
+
+    digit = KM_DIGIT_EM * f.km_font * PT
+    assert col(306.2) - col(99.9) == pytest.approx(digit, abs=0.01)  # a digit more, a digit's width more
+    assert col(1234.5) - col(306.2) == pytest.approx(digit, abs=0.01)
+    assert col(999.96) == col(1000.0)  # as it is printed: "1000.0"
+    # a climb's km stands in past its grade bar, and still clears its name
+    assert col(306.2, climbs=True) - col(306.2) == pytest.approx(CLIMB_PAD + CLIMB_GAP - KM_GAP, abs=0.01)
+    book = _book([Stop([_poi(40, "bakery")])], km=306.2)
+    assert _content(book, f.name.lower()).width == pytest.approx(f.body[0] - col(306.2))  # what the lines get
+    cfg = load_config()
+    cfg["booklet"]["format"] = f.name
+    assert f"--km-col: {col(306.2)}mm" in (render_booklet(book, Settings.of(cfg)) or "")
 
 
 def test_the_format_follows_the_setting(caplog: pytest.LogCaptureFixture) -> None:

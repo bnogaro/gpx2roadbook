@@ -15,7 +15,7 @@ from roadbook.model import Climb, Glyph, Item, Poi, Roadbook, Stop, Track
 from roadbook.pois import classify, cluster, emoji_counts
 from roadbook.profile import Profile, turning_points
 from roadbook.render import _find_browser, render_html
-from roadbook.render.strips import COUNT_W, EMOJI_W, MAIN_H, SUB_H, RowLayout, _row, _wrap
+from roadbook.render.strips import COUNT_W, DIGIT_W, EMOJI_W, MAIN_H, SUB_H, RowLayout, _row, _wrap, km_col
 from roadbook.snap import Snapper
 
 SAMPLE = Path(__file__).parent.parent / "samples" / "paris_le_mans.gpx"
@@ -334,6 +334,29 @@ def test_gutter_follows_gutter_mm() -> None:
     assert html.count('<svg class="gutter"') == html.count('<div class="strip">') > 0
     cfg["render"]["gutter_mm"] = 0
     assert 'class="gutter"' not in render_html(book, Settings.of(cfg))
+
+
+def test_the_km_column_is_as_wide_as_the_route_s_longest_km() -> None:
+    assert km_col(306.2) - km_col(99.9) == pytest.approx(DIGIT_W)  # a digit more, a digit's width more
+    assert km_col(1234.5) - km_col(306.2) == pytest.approx(DIGIT_W)
+    assert km_col(999.96) == km_col(1000.0)  # as it is printed: "1000.0"
+    assert km_col(306.2) < 9.5  # the column every route had, whatever its length
+
+
+def _crowded(length_km: float) -> str:
+    """The emojis a crowded stop shows on the strip of a route `length_km` long, its "+" with them."""
+    cfg = load_config()
+    cfg["render"]["emoji_lines"] = 1
+    stop = Item("stop", 10.0, 0, emojis=[Glyph(e) for e in "🚰🚻🥖🍔🛒"], dist_to_next=1.0)
+    items = [Item("start", 0, 0, dist_to_next=10.0), stop, Item("finish", length_km, 0)]
+    html = render_html(Roadbook("t", length_km, 0, 0, items, [], [], 0, 0), Settings.of(cfg))
+    assert f"--km-col: {km_col(length_km)}mm" in html
+    return re.findall(r'<span class="emo">([^<]*)</span>', html)[1]
+
+
+def test_the_room_a_short_route_s_km_leave_goes_to_the_emojis() -> None:
+    assert _crowded(50.0) == "🚰🚻🥖+"
+    assert _crowded(1500.0) == "🚰🚻+"
 
 
 @pytest.mark.parametrize(

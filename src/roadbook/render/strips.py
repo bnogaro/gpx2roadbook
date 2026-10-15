@@ -17,7 +17,10 @@ if TYPE_CHECKING:
 
 # Row geometry (mm). Must match the CSS variables in the template.
 MAIN_H, SUB_H, HDR_H, PAD, EMO_H = 4.8, 3.2, 4.4, 1.0, 4.4
-KM_COL, EMOJI_W, COUNT_W, MORE_W = 9.5, 4.9, 1.3, 2.0
+EMOJI_W, COUNT_W, MORE_W = 4.9, 1.3, 2.0
+# a row's km, 7.5 pt bold with tabular figures: a digit's width and the point's, on the wide side (Segoe UI draws
+# them 1.53 and 0.68 mm), for the km column to be no wider than the route's longest km needs
+DIGIT_W, POINT_W = 1.6, 0.75
 LAYOUT_WIDTH = {"strip": 35.0, "line": 16.0}
 WHOLE_KM = 10.0  # a climb this long shows its length in whole km ("21km"): the decimal is noise
 DIST_W = 6.0  # an inline "↓10.6" distance to the next row, at the end of the main line
@@ -246,14 +249,21 @@ class Geometry:
     """The row geometry the template's CSS variables take, mm."""
 
     gutter: float  # the profile's width, 0 without one
+    km_col: float  # the km column, its left padding included: see km_col()
     main_h: float = MAIN_H
     head_h: float = HEAD_H
     frame_pad: float = FRAME_PAD
     sub_h: float = SUB_H
     hdr_h: float = HDR_H
-    km_col: float = KM_COL
     pad: float = PAD
     emo_h: float = EMO_H
+
+
+def km_col(length_km: float) -> float:
+    """The km column of a route this long, mm: the row's padding, then its longest km, right-aligned, and no blank
+    left of it: a 300 km route's "299.9" leaves its rows a digit more room than a 1200 km one's "1199.9"."""
+    digits = len(f"{length_km:.1f}") - 1
+    return round(PAD + digits * DIGIT_W + POINT_W, 2)
 
 
 def _gutters(
