@@ -248,9 +248,13 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         float | None,
         typer.Option(*st.SPEED.decls, help=st.SPEED.help),
     ] = None,
-    margin: Annotated[
+    margin_early: Annotated[
         float | None,
-        typer.Option(*st.MARGIN.decls, help=st.MARGIN.help),
+        typer.Option(*st.MARGIN_EARLY.decls, help=st.MARGIN_EARLY.help),
+    ] = None,
+    margin_late: Annotated[
+        float | None,
+        typer.Option(*st.MARGIN_LATE.decls, help=st.MARGIN_LATE.help),
     ] = None,
     climb: Annotated[
         float | None,
@@ -320,7 +324,8 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.DATE, start_date or (date and date.date().isoformat())),
         (st.START, start_time),
         (st.SPEED, speed),
-        (st.MARGIN, margin),
+        (st.MARGIN_EARLY, margin_early),
+        (st.MARGIN_LATE, margin_late),
         (st.CLIMB, climb),
         (st.BREAKS, [*cfg["ride"]["breaks"], *map(_break, break_ or [])] or None),
         (st.CHECKPOINT_EVERY, checkpoint_every),

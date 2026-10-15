@@ -154,7 +154,7 @@ Either way, cut the strips along the dashed lines. The booklet prints double-sid
 | `--hours` | Add shops' opening hours to the booklet, or the reference sheet, from OpenStreetMap (see [Opening hours](#opening-hours)). Needs internet the first time. |
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
-| `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
+| `--margin-early PCT`, `--margin-late PCT` | How early or late you may be on those estimates, as a share of the time ridden (default 5 % early, 20 % late, at least 20 min either way). |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
 | `--refresh` | Look up opening hours, town names, climb names, the places on climbs and the map's tiles again, instead of using the answers cached from earlier runs. |
@@ -372,14 +372,14 @@ km 151.7 ~14:45–17:15
 🛒 Carrefour Express 08:00–20:00
 ```
 
-- **A window, not a time.** You won't ride exactly at the planned speed, so each stop gets the earliest and latest time you may reach it: ±15 % of the time ridden so far, at least ±20 min (`--margin`). The window widens along the route, as small differences add up.
+- **A window, not a time.** You won't ride exactly at the planned speed, so each stop gets the earliest and latest time you may reach it: 5 % of the time ridden so far before the estimate, 20 % after it, since riding faster than planned is rarer than riding slower, and at least 20 min either way (`--margin-early`, `--margin-late`). The window widens along the route, as small differences add up. A --config file from an older version that sets `margin_pct` keeps its window, that share on both sides.
 - **closed**: closed the whole time you may be there. The shop's hours that day follow, in grey, so you can see when it opens instead.
 - **⚠ closes 12:15**, **⚠ opens 09:30**: it opens or closes while you may be there. Whether you make it depends on your pace, so check before counting on it.
 - Shops shown with just their hours are open the whole time.
 - **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
 - **Climbing slows you down.** Each 100 m climbed adds 5 minutes (`--climb`), on top of the distance at your flat speed. So the stop after a big climb comes later than at a constant speed, and the flat stretches after it go quicker. Fitted on real 100–250 km rides with 800–4,100 m of climbing, this got the ride time within about half an hour. Descents are not counted separately: the 5 minutes are what a climb costs once the descent after it has given some time back.
 - **Planned breaks**, such as `--break 95:45` for a 45-minute lunch at km 95, delay every stop after them. They don't widen the margin, since you plan them.
-- The booklet's cover, or the sheet's title, sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (±15 %, ≥20 min) · breaks: km 95 (45 min)*.
+- The booklet's cover, or the sheet's title, sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (-5 %/+20 %, ≥20 min) · breaks: km 95 (45 min)*.
 
 ## Development
 

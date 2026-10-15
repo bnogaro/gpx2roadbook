@@ -79,7 +79,12 @@ def ride_title(book: Roadbook) -> str:
         if ride.climb_min_per_100m
         else _("{speed} km/h", speed=speed)
     )
-    margin = _("±{pct} %, ≥{minutes} min", pct=f"{ride.margin_pct:g}", minutes=f"{ride.margin_min:g}")
+    margin = _(
+        "-{early} %/+{late} %, ≥{minutes} min",
+        early=f"{ride.margin_early_pct:g}",
+        late=f"{ride.margin_late_pct:g}",
+        minutes=f"{ride.margin_min:g}",
+    )
     breaks = ", ".join(_("km {km} ({minutes} min)", km=f"{km:g}", minutes=f"{m:g}") for km, m in ride.breaks)
     when = f"{date_text(ride.start.date())} {ride.start:%H:%M}"
     title = _("start {when} at {pace} ({margin})", when=when, pace=pace, margin=margin)
