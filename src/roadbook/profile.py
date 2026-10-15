@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -30,13 +31,54 @@ def turning_points(e: np.ndarray, swing: float) -> list[int]:
     return sorted(set(pts))
 
 
+# No road a GPX route follows climbs or drops more than WALL_GRADE over WALL_M: the steepest paved streets pass 30 %
+# for a few dozen metres only. A GPX's elevation (a DEM's, sampled every 20 m or so) does, where the track runs along
+# a cliff, a cutting or a gorge's edge: entrainement_ubf km 122.3-123.1 goes 331 m -> 431 m -> 310 m, 41 % over 200 m
+# up and as steep down, a hill that is not there. The samples' real climbs stay under 25 % over 200 m in the raw data
+# (Menté 24.8, Portet d'Aspet 20.0, Ventoux 19.5), so the line sits well clear of them.
+# Not caught: a bump within what a road allows, such as the Col de la Pigière's (ubf_300_poi km 175.7, +35 m at 21 %
+# over 200 m then 15 m back, where the road tops out around 6.5 %). Its raw grade and its height are those of the
+# real climbs' steepest bits, Menté's and Portet d'Aspet's, which no rule on the elevation alone can tell from it.
+WALL_GRADE = 0.30
+WALL_M = 200
+WALL_GAP_M = 400  # an impossible rise and an impossible drop this close are one hump, its top included
+
+
+def flatten_walls(e: np.ndarray, step: float) -> np.ndarray:
+    """`e`, on a grid of `step` metres, with every stretch steeper than any road replaced by a straight line.
+
+    A stretch is the impossible grade's windows, joined to the next one within WALL_GAP_M (a hump's two sides and its
+    top go together, and come out flat), then widened until the line across it is one a road can take: a step that
+    stays up keeps its height, spread out at WALL_GRADE.
+    """
+    k = max(1, math.ceil(WALL_M / step))
+    if len(e) <= k:
+        return e
+    steep = np.flatnonzero(np.abs(e[k:] - e[:-k]) > WALL_GRADE * k * step)
+    if not steep.size:
+        return e
+    spans: list[list[int]] = []
+    for i in steep.tolist():  # window i runs from point i to point i + k
+        if spans and i <= spans[-1][1] + WALL_GAP_M / step:
+            spans[-1][1] = i + k
+        else:
+            spans.append([i, i + k])
+    out = e.copy()
+    for span in spans:
+        a, b = span
+        while abs(out[b] - out[a]) > WALL_GRADE * (b - a) * step and (a > 0 or b < len(e) - 1):
+            a, b = max(0, a - 1), min(len(e) - 1, b + 1)
+        out[a : b + 1] = np.linspace(out[a], out[b], b - a + 1)
+    return out
+
+
 class Profile:
     """Smoothed elevation profile on a regular distance grid, with gain/loss queries."""
 
     def __init__(self, track: Track, step_m: float = 25, smooth_m: float = 200, swing_m: float = 3) -> None:
         self.step = step_m
         self.x = np.arange(0, track.dist[-1] + step_m, step_m)
-        raw = np.interp(self.x, track.dist, track.ele)
+        raw = flatten_walls(np.interp(self.x, track.dist, track.ele), step_m)
         med = np.median(sliding_window_view(np.pad(raw, 2, mode="edge"), 5), axis=1)
         k = max(1, round(smooth_m / step_m)) | 1
         self.smooth_m = k * step_m  # what the moving average spans: no grade over less is the road's own

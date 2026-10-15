@@ -10,7 +10,7 @@ from roadbook.cli import app
 from roadbook.climbs import find_climbs
 from roadbook.config import Settings, load_config
 from roadbook.model import Track
-from roadbook.profile import Profile
+from roadbook.profile import WALL_GRADE, Profile, flatten_walls
 
 HILLY = Path(__file__).parent.parent / "samples" / "entrainement_ubf.gpx"
 CLIMBS = Settings.of(load_config()).climbs
@@ -76,8 +76,8 @@ def test_ubf_merges_the_climb_split_at_km_114_only() -> None:
     ]
     assert (111.5, 116.2, "3") in climbs
     assert not [c for c in climbs if 111.5 < c[0] < 116.2]
-    # 1.6 km and 134 m apart: two climbs
-    assert [c[:2] for c in climbs if 121 < c[0] < 125] == [(121.2, 122.8), (124.4, 131.0)]
+    # the "climb" at km 121.2-122.8 was a hill no road climbs (41 % over 200 m, up and back down): flattened away
+    assert [c[:2] for c in climbs if 119 < c[0] < 125] == [(124.4, 131.0)]
 
 
 def test_an_ascent_under_min_gain_is_no_climb() -> None:
@@ -90,7 +90,7 @@ def test_an_ascent_under_min_gain_is_no_climb() -> None:
 @pytest.mark.skipif(not HILLY.exists(), reason="sample GPX not present")
 def test_min_climb_flag_sets_the_threshold(tmp_path: Path) -> None:
     out = tmp_path / "rb.html"
-    for flag, climbs in (([], 10), (["--min-climb", "30"], 18)):
+    for flag, climbs in (([], 9), (["--min-climb", "30"], 17)):
         result = CliRunner().invoke(app, [str(HILLY), "-o", str(out), *flag])
         assert result.exit_code == 0, result.output
         assert f"; {climbs} climbs" in result.output
@@ -119,3 +119,36 @@ def test_a_short_steep_ramp_keeps_its_grade() -> None:
     # 400 m at 12 % up a 3 % climb: a real ramp, longer than the max's window, is no bump
     (climb,) = find_climbs(_profile((2000, 60), (400, 48), (2000, 60)), CLIMBS)
     assert climb.max_grade == pytest.approx(12, abs=1)
+
+
+def _climb_with(extra: np.ndarray, dist: np.ndarray) -> Profile:
+    """5 km at 3 % between 1 km of gentle descent on either side, every 20 m, plus `extra` metres at `dist`."""
+    ele = np.interp(dist, [0, 1000, 6000, 7000], [110, 100, 250, 240]) + extra
+    lat = dist / 111_195.0
+    return Profile(Track("t", lat, np.zeros_like(lat), ele, dist), step_m=25, smooth_m=200, swing_m=3)
+
+
+def test_a_hill_no_road_could_climb_is_flattened() -> None:
+    # 80 m up and down again within 400 m, as entrainement_ubf's km 122 does: 40 % a side, more than any road
+    dist = np.arange(0, 7001, 20.0)
+    (climb,) = find_climbs(_climb_with(80 * np.clip(1 - np.abs(dist - 3500) / 200, 0, None), dist), CLIMBS)
+    assert climb.gain_m == pytest.approx(150, abs=5)
+    assert climb.max_grade < 5
+
+
+def test_a_step_no_road_could_climb_is_spread_out() -> None:
+    # 60 m in 100 m that stays up: the height is the route's, its grade is no road's, so it is spread at a road's
+    dist = np.arange(0, 7001, 20.0)
+    (climb,) = find_climbs(_climb_with(60 * np.clip((dist - 3450) / 100, 0, 1), dist), CLIMBS)
+    assert climb.gain_m == pytest.approx(210, abs=5)
+    assert 15 < climb.max_grade <= WALL_GRADE * 100
+
+
+def test_a_real_wall_keeps_its_grade() -> None:
+    # 300 m at 20 %: as steep as roads get, but a road's
+    (climb,) = find_climbs(_profile((2000, 60), (300, 60), (2000, 60)), CLIMBS)
+    assert climb.max_grade == pytest.approx(20, abs=2)  # the smoothing rounds its corners off
+
+
+def test_a_track_shorter_than_the_wall_window_is_left_alone() -> None:
+    assert list(flatten_walls(np.array([0.0, 50.0, 0.0]), 25)) == [0, 50, 0]

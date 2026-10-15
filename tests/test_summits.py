@@ -377,9 +377,9 @@ def test_the_cli_says_how_many_climbs_it_named(monkeypatch: pytest.MonkeyPatch, 
     out = tmp_path / "out.html"
     result = CliRunner().invoke(app, [str(HILLY), "--climb-names", "-o", str(out)])
     assert result.exit_code == 0, result.output
-    assert "Climb names: 3 of 10 climbs named (Overpass)" in result.output
+    assert "Climb names: 3 of 9 climbs named (Overpass)" in result.output
     result = CliRunner().invoke(app, [str(HILLY), "--climb-names", "-o", str(out)])
-    assert "Climb names: 3 of 10 climbs named (10 from cache)" in result.output
+    assert "Climb names: 3 of 9 climbs named (9 from cache)" in result.output
     _named(monkeypatch, tmp_path / "other", FakeHttp(down=(*OVERPASS, SEARCH)))
     result = CliRunner().invoke(app, [str(HILLY), "--climb-names", "-o", str(out)])
     assert result.exit_code == 0
