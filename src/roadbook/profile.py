@@ -8,6 +8,8 @@ from numpy.lib.stride_tricks import sliding_window_view
 if TYPE_CHECKING:
     from .model import Track
 
+DESCENT_GRADE = 3.0  # % down: steeper, a road is ridden at the descent speed; gentler, as on the flat
+
 
 def turning_points(e: np.ndarray, swing: float) -> list[int]:
     """Indices of alternating peaks/valleys, ignoring swings smaller than `swing` metres."""
@@ -47,6 +49,11 @@ class Profile:
         d = np.diff(filtered, prepend=filtered[0])
         self._gain = np.cumsum(np.clip(d, 0, None))
         self._loss = np.cumsum(np.clip(-d, 0, None))
+        # the grade over the smoothing's span, not from turn to turn: a descent and the false flat after it are two
+        h = max(1, round(self.smooth_m / step_m / 2))
+        ends = np.pad(self.e, h, mode="edge")
+        grade = (ends[2 * h :] - ends[: -2 * h]) / (2 * h * step_m)
+        self._down = np.cumsum(np.where(grade <= -DESCENT_GRADE / 100, step_m, 0.0))
 
     @property
     def total_gain(self) -> float:
@@ -72,3 +79,7 @@ class Profile:
 
     def loss(self, km_a: float, km_b: float) -> float:
         return float(np.interp(km_b * 1000, self.x, self._loss) - np.interp(km_a * 1000, self.x, self._loss))
+
+    def descent_km(self, km_a: float, km_b: float) -> float:
+        """How many km between two km go down steeper than `DESCENT_GRADE`."""
+        return float(np.interp(km_b * 1000, self.x, self._down) - np.interp(km_a * 1000, self.x, self._down)) / 1000

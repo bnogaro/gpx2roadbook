@@ -44,6 +44,17 @@ def test_profile_gain_loss_on_a_ramp() -> None:
     assert p.loss(0, 5) == pytest.approx(0, abs=1)
 
 
+def test_profile_descent_km_counts_the_km_going_down_steeper_than_3_percent() -> None:
+    d = np.arange(0, 15_001, 50.0)
+    # 5 km up at 5 %, 5 km down at 5 %, then 5 km down at 2 %: as good as flat
+    ele = np.interp(d, [0, 5000, 10_000, 15_000], [0, 250, 0, -100])
+    p = Profile(_track(d, ele), step_m=25, smooth_m=100, swing_m=3)
+    assert p.descent_km(0, 5) == pytest.approx(0, abs=0.1)
+    assert p.descent_km(0, 10) == pytest.approx(5, abs=0.1)
+    assert p.descent_km(6, 8) == pytest.approx(2, abs=0.1)
+    assert p.descent_km(10, 15) == pytest.approx(0, abs=0.1)
+
+
 def test_profile_ele_range_spans_the_stretch_or_falls_back_to_its_start() -> None:
     d = np.arange(0, 5001, 50.0)
     p = Profile(_track(d, d * 0.05), step_m=25, smooth_m=100, swing_m=3)

@@ -84,7 +84,7 @@ Not sure which options to use? Let `roadbook` ask:
 roadbook -i                 # or: roadbook -i my_ride.gpx
 ```
 
-It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout, paper size and booklet (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, climb names, summit rows, climb pages, the map, its style and its contour lines, and the booklet's warnings); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
+It asks for the GPX file (if you didn't give one, with Tab to complete the path), then the layout, paper size and booklet (pick with the arrow keys), checkpoints, whether to name towns and to look up opening hours, then the ride date, start time, speed and planned breaks for arrival times (leave the date empty to skip them), the POI categories to show (tick them with Space), PDF and output file. Each starts on its default, so Enter keeps it. A last checklist shows the advanced settings with their current values (strip size, how POIs are grouped into stops, smallest climb, emoji lines, reference sheet, arrival margin, descent speed, climb minutes, climb names, summit rows, climb pages, the map, its style and its contour lines, and the booklet's warnings); tick the ones to change. Options given on the command line become the defaults. It needs a real terminal (on Windows: Windows Terminal, PowerShell or cmd).
 
 At the end it prints the equivalent command, e.g. `Same as: roadbook my_ride.gpx --page A5 --min-climb 50`, so next time you can run it straight away.
 
@@ -155,6 +155,7 @@ Either way, cut the strips along the dashed lines. The booklet prints double-sid
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
 | `--margin PCT` | How far off those estimates may be, as a share of the time ridden (default 15 %, at least 20 min). |
+| `--descent-speed KM/H` | Your average speed down a descent steeper than 3 %. `--speed` is then your speed on the flat only (default `0`: descents at `--speed`). |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
 | `--refresh` | Look up opening hours, town names, climb names, the places on climbs and the map's tiles again, instead of using the answers cached from earlier runs. |
@@ -377,7 +378,8 @@ km 151.7 ~14:45–17:15
 - **⚠ closes 12:15**, **⚠ opens 09:30**: it opens or closes while you may be there. Whether you make it depends on your pace, so check before counting on it.
 - Shops shown with just their hours are open the whole time.
 - **On the strip**, a POI emoji is greyed out when every shop it stands for is known to be closed when you pass. Shops with unknown hours never grey out an emoji.
-- **Climbing slows you down.** Each 100 m climbed adds 5 minutes (`--climb`), on top of the distance at your flat speed. So the stop after a big climb comes later than at a constant speed, and the flat stretches after it go quicker. Fitted on real 100–250 km rides with 800–4,100 m of climbing, this got the ride time within about half an hour. Descents are not counted separately: the 5 minutes are what a climb costs once the descent after it has given some time back.
+- **Climbing slows you down.** Each 100 m climbed adds 5 minutes (`--climb`), on top of the distance at your flat speed. So the stop after a big climb comes later than at a constant speed, and the flat stretches after it go quicker. Fitted on real 100–250 km rides with 800–4,100 m of climbing, this got the ride time within about half an hour. By default, descents are not counted separately: the 5 minutes are what a climb costs once the descent after it has given some time back, and `--speed` is a little above what you hold on the flat, the descents making up for it.
+- **Descents, if you know your speed there.** With `--descent-speed 45`, every km going down steeper than 3 % is ridden at 45 km/h, and the rest at `--speed`, which is then truly your flat speed. The descents no longer give time back to the climbs, so raise `--climb` to what climbing alone costs you.
 - **Planned breaks**, such as `--break 95:45` for a 45-minute lunch at km 95, delay every stop after them. They don't widen the margin, since you plan them.
 - The booklet's cover, or the sheet's title, sums up the assumptions, e.g. *start Sat 17 Oct 2026 07:00 at 28 km/h + 5 min/100 m climbed (±15 %, ≥20 min) · breaks: km 95 (45 min)*.
 

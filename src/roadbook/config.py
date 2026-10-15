@@ -292,6 +292,7 @@ class RideSettings:
     speed_kmh: float
     climb_min_per_100m: float
     breaks: tuple[tuple[float, float], ...]  # (km, minutes), as given
+    descent_kmh: float
     margin_pct: float
     margin_min: float
 
@@ -303,6 +304,7 @@ class RideSettings:
             speed_kmh=float(table["speed_kmh"] or 0),
             climb_min_per_100m=float(table["climb_min_per_100m"] or 0),
             breaks=tuple((float(km), float(minutes)) for km, minutes in table["breaks"]),
+            descent_kmh=float(table["descent_kmh"] or 0),
             margin_pct=float(table["margin_pct"]),
             margin_min=float(table["margin_min"]),
         )

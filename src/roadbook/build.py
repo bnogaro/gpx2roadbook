@@ -76,10 +76,12 @@ def _judge(stops: list[Stop], ride: Ride, profile: Profile) -> None:
     """Give each stop the window when the rider may be there, and each shop with hours whether it is open then."""
     if ride.start is None:
         return  # no arrival times
+    descents = f", {ride.descent_kmh:g} km/h downhill" if ride.descent_kmh else ""
     climbing = f", +{ride.climb_min_per_100m:g} min per 100 m climbed" if ride.climb_min_per_100m else ""
-    log.info("Arrival times: from %s at %g km/h%s", f"{ride.start:%a %d %b %H:%M}", ride.speed_kmh, climbing)
+    start = f"{ride.start:%a %d %b %H:%M}"
+    log.info("Arrival times: from %s at %g km/h%s%s", start, ride.speed_kmh, descents, climbing)
     for s in stops:
-        s.window = ride.window(s.km, s.km_end, profile.gain)
+        s.window = ride.window(s.km, s.km_end, profile)
         if s.window is None:
             continue
         for p in s.pois:

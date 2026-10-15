@@ -320,6 +320,14 @@ MARGIN = Setting(
     "margin_pct",
     float,
 )
+DESCENT = Setting(
+    "--descent-speed",
+    "Average speed down a descent steeper than 3 %, km/h: --speed is then the flat speed (default 0, at --speed).",
+    "Arrival times: average speed downhill, km/h (0: as on the flat)",
+    "ride",
+    "descent_kmh",
+    float,
+)
 CLIMB = Setting(
     "--climb",
     "Minutes added to arrival times per 100 m climbed (default 5).",
@@ -469,6 +477,7 @@ SETTINGS = (
     EMOJI_LINES,
     DETAILS,
     MARGIN,
+    DESCENT,
     CLIMB,
     SUMMIT_ROWS,
     CLIMB_NAMES,

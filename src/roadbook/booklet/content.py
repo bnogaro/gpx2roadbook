@@ -200,7 +200,7 @@ class Clock:
         ride, profile = self.book.ride, self.book.profile
         if ride is None:
             return None
-        return ride.at(km, profile.gain) if profile else ride.at(km)
+        return ride.at(km, profile) if profile else ride.at(km)
 
     def sun(self, km: float, day: dt.date) -> tuple[dt.datetime, dt.datetime] | None:
         """Sunrise and sunset at `km` on `day`, in the computer's time zone, as the ride's times are."""
@@ -210,11 +210,11 @@ class Clock:
         return None if times is None else (local(times[0]), local(times[1]))
 
     def riding(self, km_from: float, km_to: float) -> float | None:
-        """Hours riding from one km to another, climbing included; None without a speed."""
+        """Hours riding from one km to another, climbing and descents included; None without a speed."""
         ride, profile = self.book.ride, self.book.profile
         if ride is None:
             return None
-        return ride.riding_h(km_from, km_to, profile.gain) if profile else ride.riding_h(km_from, km_to)
+        return ride.riding_h(km_from, km_to, profile) if profile else ride.riding_h(km_from, km_to)
 
     def dark(self, km: float) -> bool:
         t = self.at(km)

@@ -73,12 +73,11 @@ def ride_title(book: Roadbook) -> str:
         return ""
     if ride.start is None:
         return _("opening hours on {date}", date=date_text(ride.date)) if book.hours is not None else ""
-    speed, climbing = f"{ride.speed_kmh:g}", f"{ride.climb_min_per_100m:g}"
-    pace = (
-        _("{speed} km/h + {minutes} min/100 m climbed", speed=speed, minutes=climbing)
-        if ride.climb_min_per_100m
-        else _("{speed} km/h", speed=speed)
-    )
+    pace = _("{speed} km/h", speed=f"{ride.speed_kmh:g}")
+    if ride.descent_kmh:
+        pace = _("{pace}, {speed} km/h downhill", pace=pace, speed=f"{ride.descent_kmh:g}")
+    if ride.climb_min_per_100m:
+        pace = _("{pace} + {minutes} min/100 m climbed", pace=pace, minutes=f"{ride.climb_min_per_100m:g}")
     margin = _("±{pct} %, ≥{minutes} min", pct=f"{ride.margin_pct:g}", minutes=f"{ride.margin_min:g}")
     breaks = ", ".join(_("km {km} ({minutes} min)", km=f"{km:g}", minutes=f"{m:g}") for km, m in ride.breaks)
     when = f"{date_text(ride.start.date())} {ride.start:%H:%M}"
