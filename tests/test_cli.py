@@ -78,6 +78,31 @@ def test_refresh_looks_every_cached_answer_up_again(
 
 
 @pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
+@pytest.mark.parametrize(
+    ("flags", "early", "late"),
+    [
+        ([], 5, 20),
+        (["--margin", "15"], 15, 15),  # the same window either side, as before the split
+        (["--margin", "15", "--margin-late", "30"], 15, 30),  # a side given too wins...
+        (["--margin-early", "8", "--margin", "15"], 8, 15),  # ...whatever the order
+    ],
+)
+def test_margin_sets_both_sides_unless_one_is_given(
+    flags: list[str], early: float, late: float, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    used: list[Settings] = []
+
+    def build(_gpx: Path, settings: Settings) -> None:
+        used.append(settings)
+        raise typer.Exit
+
+    monkeypatch.setattr(api, "build", build)
+    assert CliRunner().invoke(app, [str(FLAT), *flags]).exit_code == 0
+    (s,) = used
+    assert (s.ride.margin_early_pct, s.ride.margin_late_pct) == (early, late)
+
+
+@pytest.mark.skipif(not FLAT.exists(), reason="sample GPX not present")
 def test_without_v_only_warnings_join_the_summary(tmp_path: Path) -> None:
     result = CliRunner().invoke(app, [str(FLAT), "-o", str(tmp_path / "rb.html")])
     assert "Read " not in result.output

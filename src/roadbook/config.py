@@ -39,8 +39,22 @@ def load_config(path: Path | None = None) -> dict[str, Any]:
     default = resources.files("roadbook").joinpath("default.toml")
     cfg = tomllib.loads(default.read_text(encoding="utf-8"))
     if path is not None:
-        merge(cfg, tomllib.loads(path.read_text(encoding="utf-8")))
+        merge(cfg, upgrade(tomllib.loads(path.read_text(encoding="utf-8"))))
     return cfg
+
+
+def upgrade(over: dict[str, Any]) -> dict[str, Any]:
+    """A --config file written by an older version, its settings since renamed or split put in their new place.
+
+    [ride] margin_pct, a window as wide either side of the estimate, became margin_early_pct and margin_late_pct: an
+    old file keeps the window it had, the same share on both sides, unless it also sets the new ones.
+    """
+    ride = over.get("ride")
+    if isinstance(ride, dict) and "margin_pct" in ride:
+        pct = ride.pop("margin_pct")
+        ride.setdefault("margin_early_pct", pct)
+        ride.setdefault("margin_late_pct", pct)
+    return over
 
 
 def differences(cfg: dict[str, Any], base: dict[str, Any]) -> dict[str, Any]:
@@ -292,7 +306,8 @@ class RideSettings:
     speed_kmh: float
     climb_min_per_100m: float
     breaks: tuple[tuple[float, float], ...]  # (km, minutes), as given
-    margin_pct: float
+    margin_early_pct: float
+    margin_late_pct: float
     margin_min: float
 
     @classmethod
@@ -303,7 +318,8 @@ class RideSettings:
             speed_kmh=float(table["speed_kmh"] or 0),
             climb_min_per_100m=float(table["climb_min_per_100m"] or 0),
             breaks=tuple((float(km), float(minutes)) for km, minutes in table["breaks"]),
-            margin_pct=float(table["margin_pct"]),
+            margin_early_pct=float(table["margin_early_pct"]),
+            margin_late_pct=float(table["margin_late_pct"]),
             margin_min=float(table["margin_min"]),
         )
 

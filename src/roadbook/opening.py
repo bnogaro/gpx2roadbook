@@ -70,8 +70,9 @@ class Ride:
     date: dt.date | None = None
     start: dt.datetime | None = None  # set only when the date, start time and speed are all known
     speed_kmh: float = 0.0  # on the flat, short stops included
-    margin_pct: float = 15.0
-    margin_min: float = 20.0
+    margin_early_pct: float = 5.0  # faster than planned: rarer than slower
+    margin_late_pct: float = 20.0
+    margin_min: float = 20.0  # either way
     climb_min_per_100m: float = 0.0
     breaks: tuple[tuple[float, float], ...] = ()  # (km, minutes): a break there delays every stop after it
 
@@ -81,7 +82,7 @@ class Ride:
         date, time, speed = settings.date, settings.start, settings.speed_kmh
         start = dt.datetime.combine(date, time) if date and time and speed > 0 else None
         breaks = tuple(sorted(settings.breaks))
-        margins = settings.margin_pct, settings.margin_min
+        margins = settings.margin_early_pct, settings.margin_late_pct, settings.margin_min
         return cls(date, start, speed, *margins, settings.climb_min_per_100m, breaks)
 
     def riding_h(self, km_from: float, km_to: float, gain: Gain = _flat) -> float | None:
@@ -96,7 +97,8 @@ class Ride:
         riding = self.riding_h(0.0, km, gain) or 0.0  # a start time comes with a speed
         resting = sum(minutes for at_km, minutes in self.breaks if at_km < km) / 60
         # the error grows with the time ridden: a little faster or slower adds up over a long day; breaks are planned
-        spread = max(riding * self.margin_pct / 100, self.margin_min / 60)
+        pct = self.margin_early_pct if sign < 0 else self.margin_late_pct
+        spread = max(riding * pct / 100, self.margin_min / 60)
         at = start + dt.timedelta(hours=riding + resting + sign * spread)
         # to the minute, rounding outwards: a window shown as "06:00-06:21" never ends before what it says
         minute = at.replace(second=0, microsecond=0)

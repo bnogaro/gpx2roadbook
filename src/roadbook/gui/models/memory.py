@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 from platformdirs import user_config_path
 
-from roadbook.config import check, load_config, merge
+from roadbook.config import check, load_config, merge, upgrade
 from roadbook.i18n import LANGUAGES
 
 if TYPE_CHECKING:
@@ -47,7 +47,7 @@ def read(file: Path) -> dict[str, Any] | None:
     if not file.is_file():
         return None
     cfg = load_config()
-    over = tomllib.loads(file.read_text(encoding="utf-8"))
+    over = upgrade(tomllib.loads(file.read_text(encoding="utf-8")))
     check(over, cfg)
     return merge(cfg, over)
 

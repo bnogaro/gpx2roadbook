@@ -63,12 +63,12 @@ def test_ride_settings() -> None:
 
 
 def test_the_arrival_window_widens_with_the_time_ridden() -> None:
-    ride = _ride(date=WEDNESDAY, start="06:00", speed_kmh=25)  # margin: 15 %, at least 20 min
+    ride = _ride(date=WEDNESDAY, start="06:00", speed_kmh=25)  # margin: -5 %/+20 %, at least 20 min
     assert ride.window(0, 0) == Window(_t("06:00"), _t("06:20"))  # never before the start
     assert ride.window(25, 25) == Window(_t("06:40"), _t("07:20"))  # 1 h ridden: the 20 min floor
-    assert ride.window(200, 200) == Window(_t("12:48"), _t("15:12"))  # 8 h ridden: +-15 % = 72 min
+    assert ride.window(200, 200) == Window(_t("13:36"), _t("15:36"))  # 8 h ridden: 5 % = 24 min early, 20 % = 96 late
     # a stop stretching over several km: from its first POI at the earliest to its last at the latest
-    assert ride.window(25, 50) == Window(_t("06:40"), _t("08:20"))
+    assert ride.window(25, 50) == Window(_t("06:40"), _t("08:24"))
     assert _ride(date=WEDNESDAY).window(25, 25) is None
 
 
@@ -79,16 +79,16 @@ def _hilly(a: float, b: float) -> float:
 
 def test_climbing_and_breaks_delay_the_estimate() -> None:
     flat = _ride(date=WEDNESDAY, start="06:00", speed_kmh=25, climb_min_per_100m=0)
-    assert flat.window(100, 100, _hilly) == Window(_t("09:24"), _t("10:36"))  # 4 h, +-36 min
+    assert flat.window(100, 100, _hilly) == Window(_t("09:40"), _t("10:48"))  # 4 h, -20 min (the floor), +48 min
     climbing = _ride(date=WEDNESDAY, start="06:00", speed_kmh=25, climb_min_per_100m=6)
-    # 1000 m climbed on the way: 4 h + 60 min, and the margin grows with it (15 % of 5 h = 45 min)
-    assert climbing.window(100, 100, _hilly) == Window(_t("10:15"), _t("11:45"))
+    # 1000 m climbed on the way: 4 h + 60 min, and the margin grows with it (20 % of 5 h = 60 min late)
+    assert climbing.window(100, 100, _hilly) == Window(_t("10:40"), _t("12:00"))
     assert climbing.window(100, 100) == flat.window(100, 100)  # without a profile, the route counts as flat
     rests = _ride(date=WEDNESDAY, start="06:00", speed_kmh=25, climb_min_per_100m=0, breaks=[[80, 45], [50, 15]])
     # both breaks are before km 100: an hour later, with the same margin (breaks are planned, not guessed)
-    assert rests.window(100, 100) == Window(_t("10:24"), _t("11:36"))
+    assert rests.window(100, 100) == Window(_t("10:40"), _t("11:48"))
     assert rests.window(50, 50) == flat.window(50, 50)  # a break at km 50 only delays what comes after it
-    assert rests.window(60, 60) == Window(_t("08:17"), _t("09:01"))  # 08:24 +15 min break, +-22 min
+    assert rests.window(60, 60) == Window(_t("08:19"), _t("09:08"))  # 08:24 +15 min break, -20/+29 min
 
 
 @pytest.mark.parametrize(
@@ -180,6 +180,7 @@ def test_the_sheet_title_states_the_estimate_s_assumptions() -> None:
     cfg["ride"].update(date="2026-10-17", start="07:00", speed_kmh=26, breaks=[[95, 45]])
     html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert "start Sat 17 Oct 2026 07:00 at 26 km/h + 5 min/100 m climbed" in html
+    assert "(-5 %/+20 %, ≥20 min)" in html
     assert "breaks: km 95 (45 min)" in html
 
 

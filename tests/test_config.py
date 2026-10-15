@@ -1,9 +1,11 @@
 import datetime as dt
 import tomllib
+from pathlib import Path
 
 import pytest
 
-from roadbook.config import Category, Settings, check, differences, dumps, load_config
+from roadbook.config import Category, Settings, check, differences, dumps, load_config, upgrade
+from roadbook.gui.models import memory
 
 
 def test_only_the_differences_are_written_and_read_back_as_they_were() -> None:
@@ -44,6 +46,19 @@ def test_an_outdated_setting_is_named() -> None:
         check({"render": {"layout": 3}}, base)
     with pytest.raises(ValueError, match=r"render should be a table"):
         check({"render": "strip"}, base)
+
+
+def test_a_file_from_before_the_margin_split_keeps_its_window(tmp_path: Path) -> None:
+    old = tmp_path / "old.toml"
+    old.write_text("[ride]\nmargin_pct = 15\n", encoding="utf-8")
+    ride = Settings.of(load_config(old)).ride
+    assert (ride.margin_early_pct, ride.margin_late_pct) == (15, 15)  # as wide either side, as it was
+    # the window keeps it too, and passes the check
+    assert memory.read(old) == load_config(old)
+    assert upgrade({"ride": {"margin_pct": 10, "margin_late_pct": 30}}) == {
+        "ride": {"margin_early_pct": 10, "margin_late_pct": 30}  # a new setting set alongside wins
+    }
+    assert upgrade({"render": {"page": "A5"}}) == {"render": {"page": "A5"}}
 
 
 def test_the_settings_of_a_run_are_typed_once() -> None:

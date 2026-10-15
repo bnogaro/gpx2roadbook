@@ -312,12 +312,20 @@ DETAILS = Setting(
     bool,
     when=lambda cfg: not booklet(cfg),
 )
-MARGIN = Setting(
-    "--margin",
-    "How far off arrival times may be, % of the time ridden (default 15; at least 20 min).",
-    "Arrival times may be off by, % of the time ridden",
+MARGIN_EARLY = Setting(
+    "--margin-early",
+    "How early the rider may be on arrival times, % of the time ridden (default 5; at least 20 min).",
+    "Arrival times may be early by, % of the time ridden",
     "ride",
-    "margin_pct",
+    "margin_early_pct",
+    float,
+)
+MARGIN_LATE = Setting(
+    "--margin-late",
+    "How late the rider may be on arrival times, % of the time ridden (default 20; at least 20 min).",
+    "Arrival times may be late by, % of the time ridden",
+    "ride",
+    "margin_late_pct",
     float,
 )
 CLIMB = Setting(
@@ -468,7 +476,8 @@ SETTINGS = (
     MIN_CLIMB,
     EMOJI_LINES,
     DETAILS,
-    MARGIN,
+    MARGIN_EARLY,
+    MARGIN_LATE,
     CLIMB,
     SUMMIT_ROWS,
     CLIMB_NAMES,
