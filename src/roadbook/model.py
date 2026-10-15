@@ -69,7 +69,7 @@ class Climb:
     end_km: float
     gain_m: float
     avg_grade: float  # percent
-    max_grade: float  # percent over ~200 m
+    max_grade: float  # percent: the steepest climbs.RAMP_M (500 m)
     label: str  # "HC", "1".."4" or "" when below category 4
     name: str | None = None  # the col, pass or peak at its summit, when looked up and OSM has one
 

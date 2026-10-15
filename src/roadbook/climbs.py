@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import TYPE_CHECKING
 
 from .model import Climb
@@ -9,6 +10,14 @@ if TYPE_CHECKING:
 
     from .config import ClimbsSettings
     from .profile import Profile
+
+# the distance a climb's max grade is measured over. Not 100 or 200 m: the elevation of a GPX (a DEM's, sampled every
+# 20 m or so) has humps and steps a couple of hundred metres wide, a bridge, a cutting, a cliff edge, that its 5-point
+# median and the 200 m moving average leave whole, and over 200 m they read as ramps: 15 % on the Col de la Pigière,
+# a 3.3 % climb (ubf_300_poi km 175, a 15 m hump). Over 500 m a hump is diluted into the road around it (9 % there),
+# while a real steep half-kilometre still shows; a step as tall as entrainement_ubf's at km 122 (80 m in 200 m, 29 %
+# over 200 m) is only tamed (17 %)
+RAMP_M = 500
 
 
 def _label(score: float, categories: tuple[tuple[str, float], ...]) -> str:
@@ -57,7 +66,7 @@ def find_climbs(profile: Profile, settings: ClimbsSettings) -> list[Climb]:
     e, x, t = profile.e, profile.x, profile.turns
     ups = [(t[k], t[k + 1]) for k in range(len(t) - 1) if e[t[k + 1]] > e[t[k]]]
 
-    win = max(1, int(200 / profile.step))
+    win = max(1, math.ceil(RAMP_M / profile.step))  # whole steps, so never under RAMP_M whatever the grid
     climbs = []
     for i0, i1 in _merge(ups, e, x, settings):
         if not _is_climb(e, x, (i0, i1), settings):
@@ -69,6 +78,7 @@ def find_climbs(profile: Profile, settings: ClimbsSettings) -> list[Climb]:
         gain = float(e[i1] - e[i0])
         grade = gain / length * 100
         seg = e[i0 : i1 + 1]  # the whole span, so max grade is the steepest ramp of any of its parts
+        # a climb shorter than the window has no ramp steeper than itself to show
         peak = float(((seg[win:] - seg[:-win]).max() / (win * profile.step)) * 100) if len(seg) > win else grade
         climbs.append(
             Climb(
