@@ -155,6 +155,7 @@ Either way, cut the strips along the dashed lines. The booklet prints double-sid
 | `--date YYYY-MM-DD` | With `--hours`: show each shop's hours on your ride day only, or **closed**. |
 | `--start HH:MM`, `--speed KM/H` | With `--date`: estimate when you reach each stop, and say whether its shops will be open then (see [Arrival times](#arrival-times)). |
 | `--margin-early PCT`, `--margin-late PCT` | How early or late you may be on those estimates, as a share of the time ridden (default 5 % early, 20 % late, at least 20 min either way). |
+| `--margin PCT` | Sets both of them to the same share; `--margin-early` or `--margin-late`, given too, wins for its side. |
 | `--climb MIN` | Minutes the estimate adds per 100 m climbed (default 5). `0` treats the route as flat. |
 | `--break KM:MINUTES` | A planned break, e.g. `--break 95:45` for lunch at km 95. It delays every stop after it. Repeat it for more. |
 | `--refresh` | Look up opening hours, town names, climb names, the places on climbs and the map's tiles again, instead of using the answers cached from earlier runs. |
