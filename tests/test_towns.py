@@ -321,7 +321,7 @@ def test_town_lines_do_not_leave_the_finish_alone_on_a_strip(monkeypatch: pytest
     cfg = load_config()
     cfg["towns"]["edge_km"] = 0  # the four answers are for the busy stops
     cfg["towns"].update(enabled=True, shop_min_pois=99)  # only the three towns (Saint-Girons is two stops)
-    cfg["render"]["length_mm"] = 209  # two strips without the town lines; with them, the finish only just overflows
+    cfg["render"]["length_mm"] = 206  # two strips without the town lines; with them, the finish only just overflows
     html = render_html(build(HILLY, Settings.of(cfg)), Settings.of(cfg))
     assert html.count('<div class="head town">') == 3
     headers = re.findall(r'<div class="hdr"><span>([^<]*)</span><span>([^<]*)</span>', html)
