@@ -363,7 +363,7 @@ class Content:
         h = shop_hours(p, day)
         closed = h.hours_class == "closed" or (p.verdict is not None and p.verdict.state == "closed")
         hours, under = h.hours, []
-        if text_mm(h.hours, self.f.font) > HOURS_SHARE * self.width:
+        if text_mm(f"{h.verdict} {h.hours}", self.f.font) > HOURS_SHARE * self.width:  # the verdict shares it
             parts = h.hours.split(" · ")
             under = [Hours(t, h.hours_class) for t in wrap(parts, " · ", self.width - WIDE_HOURS_INDENT, self.f.font)]
             hours = ""

@@ -161,7 +161,7 @@ def test_with_a_start_and_speed_shops_are_judged_on_arrival() -> None:
     html = render_html(book, Settings.of(cfg))
     assert "start Wed 14 Oct 2026 06:00 at 25 km/h" in html
     assert f'<b>km 0.2</b> <span class="eta">~06:00{EN}06:21</span>' in html
-    closed = f'<b class="verdict">closed</b> <span class="off">09:00{EN}19:30</span>'  # and when it opens, muted
+    closed = f'<b class="verdict">closed when you pass</b> <span class="off">(open 09:00{EN}19:30)</span>'  # muted
     assert f'Intermarché Super <span class="off">(265 m)</span> {closed}' in html
     # on the strip, the grocery and fast food emojis are dimmed; the fuel station's hours can't be read, so not it,
     # and the cemetery's tap is no shop

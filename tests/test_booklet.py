@@ -221,7 +221,7 @@ def test_a_shop_closed_when_the_rider_passes_comes_last_stepped_back() -> None:
     assert head.eta == f"~09:00{EN}10:00"
     shops = _shops(lines)
     assert [(line.name, line.closed) for line in shops] == [("Open", False), ("Shut", True)]
-    assert (shops[1].verdict, shops[1].hours) == ("closed", f"06:00{EN}07:00")
+    assert (shops[1].verdict, shops[1].hours) == ("closed when you pass", f"(open 06:00{EN}07:00)")
 
 
 def test_hours_too_long_for_the_line_go_under_it() -> None:

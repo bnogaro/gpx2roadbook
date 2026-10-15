@@ -55,15 +55,22 @@ def shop_hours(p: Poi, day: dt.date | None) -> ShopHours:
         # a blank to write them in by hand, once checked elsewhere (the shop's site, a map app) before the ride
         return ShopHours("", "", "write-in")
     v = p.verdict
-    verdicts = {"closed": _("closed"), "unknown": _("open?")}  # "open" needs no word; "tight" says what changes
+    # "open" needs no word; "tight" says what changes; "closed" is when passing, not "closed during these hours"
+    verdicts = {"closed": _("closed when you pass"), "unknown": _("open?")}
     word = (f"⚠ {v.note}" if v.state == "tight" else verdicts.get(v.state, "")) if v else ""
+    shut = v is not None and v.state == "closed"
     found = on_day(p.opening_hours, p.lat, p.lon, day) if day else None
     if found is None:  # no day asked, or a value that isn't OSM syntax (then shown as written, muted)
-        return ShopHours(word, pretty_hours(p.opening_hours), "off" if day else "oh")
+        return ShopHours(word, _when_open(pretty_hours(p.opening_hours), shut=shut), "off" if day else "oh")
     if found.closed:  # closed all day: the verdict, if any, says it already
         return ShopHours("", found.text, "closed")
     # judged closed or tight: the day's hours are only there to say when instead, so they step back
-    return ShopHours(word, found.text, "off" if word else "oh")
+    return ShopHours(word, _when_open(found.text, shut=shut), "off" if word else "oh")
+
+
+def _when_open(hours: str, *, shut: bool) -> str:
+    """After "closed when you pass", the hours say when the shop is open instead, in brackets: "(open 06:00-13:00)"."""
+    return _("(open {hours})", hours=hours) if shut and hours else hours
 
 
 def ride_title(book: Roadbook) -> str:
