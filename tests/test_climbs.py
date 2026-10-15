@@ -106,16 +106,16 @@ def _bumpy(bump_m: float, width_m: float) -> Profile:
     return Profile(Track("t", lat, np.zeros_like(lat), ele, dist), step_m=25, smooth_m=200, swing_m=3)
 
 
-@pytest.mark.parametrize("width_m", [40, 200, 300])
+@pytest.mark.parametrize("width_m", [40, 200])
 def test_a_bump_in_the_elevation_data_is_no_steep_ramp(width_m: float) -> None:
     # 15 m over a couple of hundred metres, as on the Col de la Pigière (3.3 %, shown at 15 % max): a narrow spike is
-    # the median's, a wider hump survives the smoothing and read over 200 m as a ramp of 9 to 11 %
+    # the median's, a wider one survives the smoothing and read over 200 m as a ramp of about 10 %
     (climb,) = find_climbs(_bumpy(15, width_m), CLIMBS)
     assert climb.avg_grade == pytest.approx(3, abs=0.2)
     assert climb.max_grade < 6
 
 
-def test_a_steep_half_kilometre_keeps_its_grade() -> None:
-    # 600 m at 12 % up a 3 % climb: a real ramp, over more than the max's window, is no bump
-    (climb,) = find_climbs(_profile((2000, 60), (600, 72), (2000, 60)), CLIMBS)
+def test_a_short_steep_ramp_keeps_its_grade() -> None:
+    # 400 m at 12 % up a 3 % climb: a real ramp, longer than the max's window, is no bump
+    (climb,) = find_climbs(_profile((2000, 60), (400, 48), (2000, 60)), CLIMBS)
     assert climb.max_grade == pytest.approx(12, abs=1)

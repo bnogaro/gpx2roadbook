@@ -12,12 +12,12 @@ if TYPE_CHECKING:
     from .profile import Profile
 
 # the distance a climb's max grade is measured over. Not 100 or 200 m: the elevation of a GPX (a DEM's, sampled every
-# 20 m or so) has humps and steps a couple of hundred metres wide, a bridge, a cutting, a cliff edge, that its 5-point
-# median and the 200 m moving average leave whole, and over 200 m they read as ramps: 15 % on the Col de la Pigière,
-# a 3.3 % climb (ubf_300_poi km 175, a 15 m hump). Over 500 m a hump is diluted into the road around it (9 % there),
-# while a real steep half-kilometre still shows; a step as tall as entrainement_ubf's at km 122 (80 m in 200 m, 29 %
-# over 200 m) is only tamed (17 %)
-RAMP_M = 500
+# 20 m or so) has humps a couple of hundred metres wide, a bridge, a cutting, a cliff edge, that its 5-point median
+# and the 200 m moving average leave whole, and over 200 m they read as ramps: 15 % on the Col de la Pigière, a 3.3 %
+# climb (ubf_300_poi km 175, a 15 m hump). Over 300 m such a hump is diluted into the road around it (12.4 % there),
+# while a real steep stretch of a few hundred metres, as on the Portet d'Aspet, keeps its grade; a step as tall as
+# entrainement_ubf's at km 122 (80 m in 200 m, 29 % over 200 m) is only tamed (24 %)
+RAMP_M = 300
 
 
 def _label(score: float, categories: tuple[tuple[str, float], ...]) -> str:
