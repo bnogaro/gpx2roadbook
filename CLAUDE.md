@@ -23,7 +23,7 @@ make app        # downloadable app via PyInstaller (scripts/build_app.py), ZIP=1
 make release    # opens the "bump: …" PR; merging it publishes to PyPI (DRY_RUN=1 for local only)
 ```
 
-Python 3.12+, uv only (no pip). Single test: `uv run pytest tests/test_booklet.py -k name`.
+Python 3.12+ (the dev env is pinned to 3.14 by `.python-version`: on Windows, 3.15 has no pyyaml wheel), uv only (no pip). Single test: `uv run pytest tests/test_booklet.py -k name`.
 
 ## Layout
 
