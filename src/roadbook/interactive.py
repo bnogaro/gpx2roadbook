@@ -39,6 +39,7 @@ ADVANCED = [
     st.EMOJI_LINES,
     st.DETAILS,
     st.MARGIN,
+    st.DESCENT,
     st.CLIMB,
     st.SUMMIT_ROWS,
     st.CLIMB_NAMES,

@@ -8,9 +8,8 @@ from __future__ import annotations
 
 import datetime as dt
 import itertools
-from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Protocol
 
 import opening_hours
 from opening_hours import OpeningHours, State
@@ -35,11 +34,29 @@ class DayHours:
     closed: bool = False  # closed all day
 
 
-type Gain = Callable[[float, float], float]  # metres climbed between two km
+class Terrain(Protocol):
+    """The route's profile, as the arrival times need it: `profile.Profile`."""
+
+    def gain(self, km_a: float, km_b: float, /) -> float:
+        """Metres climbed between two km."""
+        ...
+
+    def descent_km(self, km_a: float, km_b: float, /) -> float:
+        """Km going down between two km, steep enough to ride at the descent speed."""
+        ...
 
 
-def _flat(_a: float, _b: float) -> float:
-    return 0.0
+class _Flat:
+    """A route without a profile: flat all along."""
+
+    def gain(self, _a: float, _b: float) -> float:
+        return 0.0
+
+    def descent_km(self, _a: float, _b: float) -> float:
+        return 0.0
+
+
+_flat = _Flat()
 
 
 @dataclass(frozen=True)
@@ -63,8 +80,8 @@ def parse_break(text: str) -> list[float]:
 class Ride:
     """The ride the `[ride]` settings plan: its date and, given a start time and a speed, when it reaches each km.
 
-    The time to a km is its distance at `speed_kmh`, plus `climb_min_per_100m` for every 100 m climbed on the way,
-    plus the planned breaks before it.
+    The time to a km is its distance at `speed_kmh`, its descents at `descent_kmh` if given, plus `climb_min_per_100m`
+    for every 100 m climbed on the way, plus the planned breaks before it.
     """
 
     date: dt.date | None = None
@@ -74,6 +91,7 @@ class Ride:
     margin_min: float = 20.0
     climb_min_per_100m: float = 0.0
     breaks: tuple[tuple[float, float], ...] = ()  # (km, minutes): a break there delays every stop after it
+    descent_kmh: float = 0.0  # down a descent; 0: at speed_kmh, as on the flat
 
     @classmethod
     def of(cls, settings: RideSettings) -> Ride:
@@ -82,18 +100,20 @@ class Ride:
         start = dt.datetime.combine(date, time) if date and time and speed > 0 else None
         breaks = tuple(sorted(settings.breaks))
         margins = settings.margin_pct, settings.margin_min
-        return cls(date, start, speed, *margins, settings.climb_min_per_100m, breaks)
+        return cls(date, start, speed, *margins, settings.climb_min_per_100m, breaks, settings.descent_kmh)
 
-    def riding_h(self, km_from: float, km_to: float, gain: Gain = _flat) -> float | None:
-        """Hours riding from one km to another at the ride's speed, its climbing included, the breaks not; None without
+    def riding_h(self, km_from: float, km_to: float, terrain: Terrain = _flat) -> float | None:
+        """Hours riding from one km to another at the ride's speeds, its climbing included, the breaks not; None without
         a speed."""
         if self.speed_kmh <= 0:
             return None
-        return (km_to - km_from) / self.speed_kmh + gain(km_from, km_to) / 100 * self.climb_min_per_100m / 60
+        down = terrain.descent_km(km_from, km_to) if self.descent_kmh > 0 else 0.0
+        hours = (km_to - km_from - down) / self.speed_kmh + (down / self.descent_kmh if down else 0.0)
+        return hours + terrain.gain(km_from, km_to) / 100 * self.climb_min_per_100m / 60
 
-    def _at(self, start: dt.datetime, km: float, sign: int, gain: Gain) -> dt.datetime:
+    def _at(self, start: dt.datetime, km: float, sign: int, terrain: Terrain) -> dt.datetime:
         """The estimate for `km`, moved by its margin: earlier (sign -1) or later (+1)."""
-        riding = self.riding_h(0.0, km, gain) or 0.0  # a start time comes with a speed
+        riding = self.riding_h(0.0, km, terrain) or 0.0  # a start time comes with a speed
         resting = sum(minutes for at_km, minutes in self.breaks if at_km < km) / 60
         # the error grows with the time ridden: a little faster or slower adds up over a long day; breaks are planned
         spread = max(riding * self.margin_pct / 100, self.margin_min / 60)
@@ -102,18 +122,18 @@ class Ride:
         minute = at.replace(second=0, microsecond=0)
         return minute + dt.timedelta(minutes=1) if sign > 0 and at > minute else minute
 
-    def at(self, km: float, gain: Gain = _flat) -> dt.datetime | None:
+    def at(self, km: float, terrain: Terrain = _flat) -> dt.datetime | None:
         """When the rider is expected at `km`, without the margin; None without a start time and speed."""
-        return None if self.start is None else self._at(self.start, km, 0, gain)
+        return None if self.start is None else self._at(self.start, km, 0, terrain)
 
-    def window(self, km_from: float, km_to: float, gain: Gain = _flat) -> Window | None:
+    def window(self, km_from: float, km_to: float, terrain: Terrain = _flat) -> Window | None:
         """When the rider may be between `km_from` and `km_to`; None without a start time and speed.
 
-        `gain(a, b)` is the climbing, in metres, from km a to km b: the route's profile.
+        `terrain` is the route's profile, its climbing and descents; without one, the route counts as flat.
         """
         if self.start is None:
             return None
-        early, late = self._at(self.start, km_from, -1, gain), self._at(self.start, km_to, +1, gain)
+        early, late = self._at(self.start, km_from, -1, terrain), self._at(self.start, km_to, +1, terrain)
         return Window(max(self.start, early), late)
 
 

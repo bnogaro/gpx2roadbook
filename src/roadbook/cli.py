@@ -252,6 +252,10 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         float | None,
         typer.Option(*st.MARGIN.decls, help=st.MARGIN.help),
     ] = None,
+    descent_speed: Annotated[
+        float | None,
+        typer.Option(*st.DESCENT.decls, help=st.DESCENT.help),
+    ] = None,
     climb: Annotated[
         float | None,
         typer.Option(*st.CLIMB.decls, help=st.CLIMB.help),
@@ -321,6 +325,7 @@ def main(  # noqa: PLR0913, PLR0917  one parameter per CLI option, as Typer expe
         (st.START, start_time),
         (st.SPEED, speed),
         (st.MARGIN, margin),
+        (st.DESCENT, descent_speed),
         (st.CLIMB, climb),
         (st.BREAKS, [*cfg["ride"]["breaks"], *map(_break, break_ or [])] or None),
         (st.CHECKPOINT_EVERY, checkpoint_every),

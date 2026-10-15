@@ -42,6 +42,8 @@
 "Append a POI names reference sheet, without a booklet." = "Ajoute une fiche récapitulative avec le nom des POI, sans livret."
 "Arrival times may be off by, % of the time ridden" = "Marge des heures de passage, % du temps roulé"
 "How far off arrival times may be, % of the time ridden (default 15; at least 20 min)." = "Écart possible des heures de passage, en % du temps roulé (par défaut 15 ; au moins 20 min)."
+"Arrival times: average speed downhill, km/h (0: as on the flat)" = "Heures de passage : vitesse moyenne en descente, km/h (0 : comme sur le plat)"
+"Average speed down a descent steeper than 3 %, km/h: --speed is then the flat speed (default 0, at --speed)." = "Vitesse moyenne dans une descente de plus de 3 %, km/h : --speed est alors la vitesse sur le plat (par défaut 0, à --speed)."
 "Arrival times: minutes added per 100 m climbed" = "Heures de passage : minutes ajoutées par 100 m de D+"
 "Minutes added to arrival times per 100 m climbed (default 5)." = "Minutes ajoutées aux heures de passage par 100 m de dénivelé positif (par défaut 5)."
 "A summit row at every climb's top" = "Une ligne sommet en haut de chaque montée"
