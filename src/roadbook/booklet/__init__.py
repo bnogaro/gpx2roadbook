@@ -2,7 +2,8 @@
 
 In reading order:
 
-- the cover: the ride at a glance, its checkpoints, climbs and warnings, the keys to the emojis and grades;
+- the cover: the ride at a glance, its checkpoints, climbs and warnings, the keys to the km column's figures, the
+  emojis and grades;
 - the stops, a block each: its km large on the left, with the distance from the last stop; then what it has, water
   and toilets counted with the nearest named, each shop with its side of the road, its distance off it and its
   hours, those closed when the rider passes last. Between them, the climbs where they come, with their profile when

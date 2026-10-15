@@ -311,11 +311,10 @@ class Content:
         and places on the right."""
         eta = eta_text(s.window, self.ride.date) if s.window else ""
         head = Town(s.town or "", eta, self.clock.dark(s.km)) if s.town or eta else None
-        spans = s.km_end - s.km >= self.range_m / 1000
         left = [
             f"{s.km:.1f}",
             f"+{s.km - after:.1f}" if after is not None else "",
-            f"→ {s.km_end:.1f}" if spans else "",
+            f"→ {s.km_end:.1f}" if self.spans(s) else "",
         ]
         while left[-1] == "":
             left.pop()
@@ -326,6 +325,24 @@ class Content:
         ]
         far = any(p.offset_m > OFF_ROUTE_M for p in s.pois)  # somewhere to find off the road: a map helps
         return Block("stop", s.km, rows_h(self.f, len(rows)), rows, far=far, end=s.km_end)
+
+    def spans(self, s: Stop) -> bool:
+        """Whether a stop stretches far enough along the road to show where it ends."""
+        return s.km_end - s.km >= self.range_m / 1000
+
+    def km_key(self) -> list[str]:
+        """The key to the figures under a stop's km, those the booklet shows: the km from the stop before, and
+        where a stop or a climb ends."""
+        book = self.book
+        out = [_("{n}: km from the stop before", n="+12.3")] if len(book.stops) > 1 else []
+        stops, climbs = any(self.spans(s) for s in book.stops), bool(book.climbs)
+        if stops and climbs:
+            out.append(_("{n}: km where the stop or climb ends", n="→ 45.6"))
+        elif stops:
+            out.append(_("{n}: km where the stop ends", n="→ 45.6"))
+        elif climbs:
+            out.append(_("{n}: km where the climb ends", n="→ 45.6"))
+        return out
 
     def lines(self, s: Stop) -> list[Line]:
         """A stop's places, kind by kind in the categories' order: water and toilets counted, the nearest named;

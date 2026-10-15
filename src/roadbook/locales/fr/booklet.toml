@@ -19,6 +19,11 @@
 "no food for {span}" = "sans ravito sur {span}"
 "no water or food for {span}" = "sans eau ni ravito sur {span}"
 "Grades:" = "Pentes :"
+# the key to the figures under a stop's km
+"{n}: km from the stop before" = "{n} : km depuis l'arrêt précédent"
+"{n}: km where the stop ends" = "{n} : km de fin de l'arrêt"
+"{n}: km where the climb ends" = "{n} : km de fin de la montée"
+"{n}: km where the stop or climb ends" = "{n} : km de fin de l'arrêt ou de la montée"
 # the key's POI categories, the default ones
 "water" = "eau"
 "toilets" = "toilettes"

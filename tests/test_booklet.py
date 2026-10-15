@@ -314,6 +314,26 @@ def test_the_cover_profile_bands_only_what_some_stretch_is_short_of() -> None:
     assert not cover.lists  # nothing to warn of
 
 
+def test_the_cover_keys_the_figures_under_a_stops_km_that_the_booklet_shows() -> None:
+    climb = Climb(50, 53, 150, 5.0, 8.0, "3")
+    one, spread = Stop([_poi(10, "water")]), Stop([_poi(30, "bakery"), _poi(31, "grocery")])  # 1 km of road
+    since, stop_ends = "+12.3: km from the stop before", "→ 45.6: km where the stop ends"
+    assert _content(_book([one])).km_key() == []  # no stop before it, nothing that ends further on
+    assert _content(_book([one, spread])).km_key() == [since, stop_ends]
+    assert _content(_book([one], climbs=[climb])).km_key() == ["→ 45.6: km where the climb ends"]
+    assert _content(_book([one, spread], climbs=[climb])).km_key() == [
+        since,
+        "→ 45.6: km where the stop or climb ends",
+    ]
+    for f in ("a5", "a6"):  # first among the keys, wrapped to the page
+        key = _booklet(_book([one, spread]), f).cover().key
+        assert key[0].startswith(since)
+        assert all(text_mm(line, FORMATS[f].font - 1) <= FORMATS[f].body[0] for line in key)
+        assert any("water" in line for line in key)  # the emojis' key after it
+    with i18n.language("fr"):
+        assert _content(_book([one, spread])).km_key()[0] == "+12.3\N{NO-BREAK SPACE}: km depuis l'arrêt précédent"
+
+
 def test_a_shop_closed_when_passing_or_unknown_at_night_does_not_count() -> None:
     night = _t("23:00")
     closed = Stop([_poi(30, "grocery", verdict=Verdict("closed"))])
