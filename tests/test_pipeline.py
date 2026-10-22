@@ -249,8 +249,12 @@ _MEASURE = """<script>addEventListener("load", () => {
   const mm = document.createElement("div"); mm.style.width = "100mm"; document.body.append(mm);
   const per = mm.getBoundingClientRect().width / 100;
   const wide = (e) => (e.getBoundingClientRect().width / per).toFixed(1);
+  // the text's own width, in fractions of a pixel: scrollWidth rounds to whole ones, a quarter of a mm
+  const needs = (e) => {
+    const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width;
+  };
   const out = [...document.querySelectorAll(".strip .row.checkpoint :is(.lbl, .sub .fig)")].map((e) =>
-    [e.textContent, e.scrollWidth / per, e.getBoundingClientRect().width / per,
+    [e.textContent, needs(e) / per, e.getBoundingClientRect().width / per,
      [...e.parentElement.children].map((c) => `${c.className} "${c.textContent.trim()}" ${wide(c)}`).join(", ")
        + ` of ${wide(e.parentElement)}`].join("|"));
   const pre = document.createElement("pre"); pre.id = "measured"; pre.textContent = out.join("\\n");
