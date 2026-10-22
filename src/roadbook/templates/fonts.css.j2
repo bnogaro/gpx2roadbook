@@ -1,7 +1,41 @@
 {#- The road book's and the booklet's fonts. The emoji fonts carry digits, "#", "*" and the space too, for the keycap
     emojis, and draw them 1.25 em wide: second in line, after a missing "Segoe UI" (on Linux, macOS), they drew every
     figure of the strips and pages twice as wide as the text font would. So they are only asked for what is past
-    Latin-1, and what the text font leaves out of it: the emojis, the arrows "Segoe UI" has no glyph for. #}
+    Latin-1, and what the text font leaves out of it: the emojis, the arrows "Segoe UI" has no glyph for.
+    Where "Segoe UI" is missing, the strips and pages, laid out for its widths, get the fonts of Linux and macOS
+    scaled to draw a road book's text as wide as it does: "sans-serif" alone is DejaVu Sans on most Linux, 17 % wider
+    (22 % bold), and cut the strips' lines. Each `size-adjust` is Segoe UI's width over the font's on a road book's
+    French text, per weight and style; Segoe UI's semibold (600) takes their bold. Each face has its italic, or
+    the one the browser slants runs past the clipped towns' last letter. They leave the arrows (U+2190-21FF) to what
+    follows, as before: the bold of Segoe UI has no "↗", which Windows then draws in its own fallback, not DejaVu's. #}
+{%- set fallbacks = {
+    "Arial": [
+      (400, "normal", 96.7, ["Liberation Sans", "LiberationSans", "Arimo", "Arimo-Regular", "Arial", "ArialMT"]),
+      (700, "normal", 101.2, ["Liberation Sans Bold", "LiberationSans-Bold", "Arimo Bold", "Arimo-Bold", "Arial Bold",
+                              "Arial-BoldMT"]),
+      (400, "italic", 96.3, ["Liberation Sans Italic", "LiberationSans-Italic", "Arimo Italic", "Arimo-Italic",
+                             "Arial Italic", "Arial-ItalicMT"]),
+      (700, "italic", 97.9, ["Liberation Sans Bold Italic", "LiberationSans-BoldItalic", "Arimo Bold Italic",
+                             "Arimo-BoldItalic", "Arial Bold Italic", "Arial-BoldItalicMT"]),
+    ],
+    "Noto": [
+      (400, "normal", 94.9, ["Noto Sans Regular", "Noto Sans", "NotoSans-Regular"]),
+      (700, "normal", 99.0, ["Noto Sans Bold", "NotoSans-Bold"]),
+      (400, "italic", 98.4, ["Noto Sans Italic", "NotoSans-Italic"]),
+      (700, "italic", 100.4, ["Noto Sans Bold Italic", "NotoSans-BoldItalic"]),
+    ],
+    "DejaVu": [
+      (400, "normal", 85.2, ["DejaVu Sans", "DejaVuSans"]),
+      (700, "normal", 82.2, ["DejaVu Sans Bold", "DejaVuSans-Bold"]),
+      (400, "italic", 86.6, ["DejaVu Sans Oblique", "DejaVuSans-Oblique"]),
+      (700, "italic", 83.1, ["DejaVu Sans Bold Oblique", "DejaVuSans-BoldOblique"]),
+    ],
+} %}
   @font-face { font-family: "Roadbook Emoji"; src: local("Segoe UI Emoji"), local("Apple Color Emoji"), local("Noto Color Emoji");
                unicode-range: U+A9, U+AE, U+2000-10FFFF; }
-  body { font-family: "Segoe UI", "Roadbook Emoji", sans-serif; }
+{%- for family, faces in fallbacks.items() %}{% for weight, style, adjust, names in faces %}
+  @font-face { font-family: "Roadbook {{ family }}"; font-weight: {{ weight }}; font-style: {{ style }}; size-adjust: {{ adjust }}%;
+               src: {% for name in names %}local("{{ name }}"){{ ", " if not loop.last }}{% endfor %};
+               unicode-range: U+0-218F, U+2200-10FFFF; }
+{%- endfor %}{% endfor %}
+  body { font-family: "Segoe UI", "Roadbook Emoji", {% for family in fallbacks %}"Roadbook {{ family }}", {% endfor %}sans-serif; }

@@ -249,8 +249,12 @@ _MEASURE = """<script>addEventListener("load", () => {
   const mm = document.createElement("div"); mm.style.width = "100mm"; document.body.append(mm);
   const per = mm.getBoundingClientRect().width / 100;
   const wide = (e) => (e.getBoundingClientRect().width / per).toFixed(1);
+  // the text's own width, in fractions of a pixel: scrollWidth rounds to whole ones, a quarter of a mm
+  const needs = (e) => {
+    const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width;
+  };
   const out = [...document.querySelectorAll(".strip .row.checkpoint :is(.lbl, .sub .fig)")].map((e) =>
-    [e.textContent, e.scrollWidth / per, e.getBoundingClientRect().width / per,
+    [e.textContent, needs(e) / per, e.getBoundingClientRect().width / per,
      [...e.parentElement.children].map((c) => `${c.className} "${c.textContent.trim()}" ${wide(c)}`).join(", ")
        + ` of ${wide(e.parentElement)}`].join("|"));
   const pre = document.createElement("pre"); pre.id = "measured"; pre.textContent = out.join("\\n");
@@ -288,6 +292,69 @@ def test_a_checkpoints_label_and_countdown_fit_their_room(language: str, tmp_pat
         if float(needs) > float(has) + 0.1
     ]
     assert not cut, "\n".join(cut)
+
+
+# every row's km, label, sub line and heading that its box cuts, measured where Chrome lays them out in the face the
+# page's body names, and whether that face's fonts are installed at all
+_CUT = """<script>addEventListener("load", async () => {
+  const face = getComputedStyle(document.body).fontFamily.split(",")[0].replaceAll('"', "");
+  const faces = [...document.fonts].filter((f) => f.family.replaceAll('"', "") === face);
+  const loaded = faces.length > 0
+    && (await Promise.allSettled(faces.map((f) => f.load()))).every((r) => r.status === "fulfilled");
+  const mm = document.createElement("div"); mm.style.width = "100mm"; document.body.append(mm);
+  const per = mm.getBoundingClientRect().width / 100;
+  // the text's own width, in fractions of a pixel: scrollWidth rounds to whole ones, a quarter of a mm
+  const needs = (e) => {
+    const r = document.createRange(); r.selectNodeContents(e); return r.getBoundingClientRect().width;
+  };
+  const out = [...document.querySelectorAll(".strip .row :is(.km, .lbl, .sub .fig, .head span)")]
+    .filter((e) => needs(e) > e.getBoundingClientRect().width + 0.05 * per)
+    .map((e) => `${e.className} "${e.textContent.trim()}" needs ${(needs(e) / per).toFixed(2)} mm, `
+                + `has ${(e.getBoundingClientRect().width / per).toFixed(2)}`);
+  const pre = document.createElement("pre"); pre.id = "cut"; pre.dataset.loaded = loaded;
+  pre.textContent = out.join("\\n");
+  document.body.append(pre);
+});</script>"""
+
+
+@pytest.mark.skipif(not PROVENCE.exists(), reason="sample GPX not present")
+@pytest.mark.skipif(_find_browser() is None, reason="no Edge/Chrome to lay the strips out")
+@pytest.mark.parametrize("face", ["", "Roadbook Arial", "Roadbook Noto", "Roadbook DejaVu"])
+def test_the_strips_fit_in_each_fallback_for_segoe_ui(face: str, tmp_path: Path) -> None:
+    """Where Segoe UI is missing (Linux, macOS), the fonts standing in for it cut none of a strip's lines: unscaled,
+    DejaVu Sans cut climbs' grades and labels. The page as it is, then in each fallback face alone."""
+    cfg = load_config()
+    cfg["hours"]["enabled"] = True
+    cfg["ride"].update(date="2026-10-11", start="07:30", speed_kmh=24, breaks=[[95, 45]])
+    cfg["booklet"]["format"] = "off"
+    cfg["render"]["language"] = "fr"  # longer words
+    page = api.preview(PROVENCE, cfg).html
+    if face:
+        page = re.sub(
+            r"body \{ font-family: [^;]*;", f'body {{ font-family: "{face}", "Roadbook Emoji", monospace;', page
+        )
+    (tmp_path / "strips.html").write_text(page.replace("</body>", _CUT + "</body>"), encoding="utf-8")
+    browser = _find_browser()
+    assert browser is not None
+    dom = subprocess.run(  # noqa: S603  fixed argv, no shell; the browser is the PDF export's
+        [
+            browser,
+            "--headless",
+            "--disable-gpu",
+            "--virtual-time-budget=5000",
+            "--dump-dom",
+            (tmp_path / "strips.html").as_uri(),
+        ],
+        capture_output=True,
+        check=True,
+        encoding="utf-8",
+        timeout=60,
+    ).stdout
+    found = re.search(r'<pre id="cut" data-loaded="(\w+)">(.*?)</pre>', dom, re.DOTALL)
+    assert found, "the page was not measured"
+    if face and found.group(1) != "true":
+        pytest.skip(f"{face}'s fonts are not installed")
+    assert not found.group(2), html.unescape(found.group(2))
 
 
 def test_summit_elevation_gives_way_to_its_stop() -> None:
