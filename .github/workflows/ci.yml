@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  # main as it stands, each morning: a pull request that merged itself starts no run on main (GitHub's token starts
+  # none), pull requests are tested without the others merged since, and an advisory can land on any day
+  schedule:
+    - cron: "23 5 * * *"
 
 permissions:
   contents: read
