@@ -6,7 +6,9 @@ on:
   push:
     branches: [main]
     paths: [pyproject.toml]
-  workflow_dispatch:  # retry a failed release of the current version
+  # retry a failed release of the current version, from its build. Once PyPI has taken the upload, which it takes
+  # once, re-run the failed jobs of that run instead
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -100,6 +102,8 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write  # creates the v-tag and the release
+      id-token: write  # signs the attestation
+      attestations: write  # and stores it
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -113,6 +117,11 @@ jobs:
           pattern: app-*  # the app's zips, attached beside the wheel
           path: dist/
           merge-multiple: true
+      # says which commit and run of this repository made each file: `gh attestation verify <file> --repo
+      # bnogaro/gpx2roadbook`. The app's zips have no other proof; the wheel has PyPI's too
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8  # v4.2.2
+        with:
+          subject-path: dist/*
       - name: Tag and release
         env:
           GH_TOKEN: ${{ github.token }}

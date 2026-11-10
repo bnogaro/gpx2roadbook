@@ -15,6 +15,7 @@ permissions:
 jobs:
   app:
     strategy:
+      fail-fast: false  # a failure on one system says nothing about the other
       matrix:
         os: [windows-latest, macos-latest]  # macOS on Apple silicon: the runners' own, and the Macs sold since 2020
     runs-on: ${{ matrix.os }}
