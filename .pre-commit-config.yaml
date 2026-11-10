@@ -1,12 +1,23 @@
 default_install_hook_types: [pre-commit, commit-msg]
 
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.10
+  # ruff from the project's environment: the version uv.lock holds, the one CI runs. A rev pinned here fell behind
+  # it, and with every rule selected a commit could pass here and fail there. --no-sync: `uv sync` fails on Windows
+  # while roadbook-gui.exe runs; `make dev` brings the environment up to date
+  - repo: local
     hooks:
       - id: ruff-check
-        args: [--fix]
+        name: ruff check
+        entry: uv run --no-sync ruff check --fix --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
       - id: ruff-format
+        name: ruff format
+        entry: uv run --no-sync ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
 
   - repo: https://github.com/commitizen-tools/commitizen
     rev: v4.19.0

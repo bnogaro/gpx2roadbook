@@ -34,3 +34,15 @@ updates:
       actions:
         patterns: ["*"]
         update-types: [minor, patch]
+
+  # The hooks of .pre-commit-config.yaml (their rev), which the commits and CI's lint job run
+  - package-ecosystem: pre-commit
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      hooks:
+        patterns: ["*"]
+        update-types: [minor, patch]
