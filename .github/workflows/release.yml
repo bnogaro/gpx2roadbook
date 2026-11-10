@@ -18,6 +18,7 @@ concurrency:
 jobs:
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
@@ -42,6 +43,7 @@ jobs:
     needs: check
     if: needs.check.outputs.release == 'true'
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -78,6 +80,7 @@ jobs:
   publish:
     needs: [check, build, app]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     environment:
       name: pypi
       url: https://pypi.org/project/gpx2roadbook/${{ needs.check.outputs.version }}/
@@ -94,6 +97,7 @@ jobs:
   github-release:
     needs: [check, publish]
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write  # creates the v-tag and the release
     steps:

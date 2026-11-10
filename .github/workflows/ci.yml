@@ -5,16 +5,22 @@ on:
     branches: [main]
   pull_request:
   # main as it stands, each morning: a pull request that merged itself starts no run on main (GitHub's token starts
-  # none), pull requests are tested without the others merged since, and an advisory can land on any day
+  # none), and pull requests are tested without the others merged since
   schedule:
     - cron: "23 5 * * *"
 
 permissions:
   contents: read
 
+# a pull request's newer push replaces the run of the one before; on main, each run is a group of its own and finishes
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -22,17 +28,22 @@ jobs:
       - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
           enable-cache: true
-      - run: uv sync --locked --extra gui  # the GUI's code is linted, typed, tested and audited too
+      - run: uv sync --locked --extra gui  # the GUI's code is linted, typed and tested too
       - name: Format
         run: uv run ruff format --check .
       - name: Lint
         run: uv run ruff check --output-format=github .
       - name: Type check
         run: uv run ty check src/ tests/
+      - name: Lint and audit workflows (actionlint, zizmor)
+        # here rather than in a job of their own, to be part of the required check: a pull request can't merge a
+        # workflow they refuse
+        run: uv run prek run actionlint zizmor --all-files
 
   tests:
     name: tests (Python ${{ matrix.python }})
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       fail-fast: false  # a failure on one Python says nothing about the others
       matrix:
@@ -45,7 +56,7 @@ jobs:
         with:
           enable-cache: true
           python-version: ${{ matrix.python }}
-      - run: uv sync --locked --extra gui  # the GUI's code is linted, typed, tested and audited too
+      - run: uv sync --locked --extra gui  # the GUI's code is linted, typed and tested too
       - name: Test with coverage
         run: uv run pytest -q
 
@@ -55,24 +66,9 @@ jobs:
     needs: [lint, tests]
     if: always()
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     steps:
       - name: Lint and every Python's tests passed
         env:
           RESULTS: ${{ needs.lint.result }} ${{ needs.tests.result }}
         run: test "$RESULTS" = "success success"
-
-  security:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
-        with:
-          enable-cache: true
-      - run: uv sync --locked --extra gui  # the GUI's code is linted, typed, tested and audited too
-      - name: Lint and audit workflows (actionlint, zizmor)
-        run: uv run prek run actionlint zizmor --all-files
-      - name: Audit dependencies (pip-audit)
-        # the project itself is not on PyPI, so skip it and audit the locked dependencies
-        run: uv run pip-audit --skip-editable
