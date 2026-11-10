@@ -1,4 +1,6 @@
 version: 2
+# An update in a group merges itself once CI passes (.github/workflows/dependabot-auto-merge.yml); any other waits
+# for a person. So a group's update-types say what is taken unread.
 updates:
   # Python dependencies (pyproject.toml + uv.lock)
   - package-ecosystem: uv
@@ -15,6 +17,11 @@ updates:
       production-dependencies:
         dependency-type: production
         update-types: [patch]
+      # security fixes come ungrouped unless a group is theirs
+      security-fixes:
+        applies-to: security-updates
+        patterns: ["*"]
+        update-types: [minor, patch]
 
   # GitHub Actions (keeps the SHA pins and their version comments current)
   - package-ecosystem: github-actions
