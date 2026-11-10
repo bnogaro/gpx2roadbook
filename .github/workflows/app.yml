@@ -2,12 +2,13 @@ name: App
 
 # The downloadable app: the window, with Python and every dependency inside, for Windows and macOS
 # (scripts/build_app.py). The release workflow calls it and attaches the zips to the GitHub Release; run by hand, it
-# builds them as artifacts only, to try before a release; and on a pull request changing how it's built.
+# builds them as artifacts only, to try before a release; and on a pull request changing how it's built or its
+# dependencies.
 on:
   workflow_call:
   workflow_dispatch:
-  pull_request:  # a change to the app's build is tried on both systems before it ships
-    paths: [scripts/app.py, scripts/build_app.py, .github/workflows/app.yml]
+  pull_request:  # a change to the app's build, or to what goes in it, is tried on both systems before it ships
+    paths: [scripts/app.py, scripts/build_app.py, .github/workflows/app.yml, pyproject.toml, uv.lock]
 
 permissions:
   contents: read
