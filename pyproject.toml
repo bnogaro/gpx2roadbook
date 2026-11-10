@@ -83,7 +83,7 @@ asyncio_mode = "auto"  # as NiceGUI's User fixture asks; no wider loop scope, wh
 addopts = [
     "--cov=roadbook",
     "--cov-report=term-missing",
-    "--cov-fail-under=80",  # measured 80.5% (branch) when introduced; ratchet up as tests grow
+    "--cov-fail-under=95",  # measured 96.0% (branch) on Linux, 96.1% on Windows and macOS; ratchet up as tests grow
 ]
 
 [tool.coverage.run]
