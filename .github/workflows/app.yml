@@ -18,6 +18,7 @@ jobs:
       matrix:
         os: [windows-latest, macos-latest]  # macOS on Apple silicon: the runners' own, and the Macs sold since 2020
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 30  # a build takes 2 to 7 minutes; an app that opens its window and waits would take 6 hours
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:

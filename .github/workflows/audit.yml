@@ -1,0 +1,30 @@
+name: Audit
+
+# The locked dependencies against the known advisories (pip-audit). An advisory is published on its own day, whatever
+# is being merged: so main is audited each morning, and a pull request only when it changes what is locked. Not a
+# required check: an advisory on main would otherwise hold every pull request, the one fixing it aside.
+on:
+  schedule:
+    - cron: "41 5 * * *"
+  pull_request:
+    paths: [pyproject.toml, uv.lock, .github/workflows/audit.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e  # v10.3.2
+        with:
+          enable-cache: true
+      - run: uv sync --locked --extra gui  # the GUI's dependencies are audited too
+      - name: Audit dependencies (pip-audit)
+        # the project itself is the local editable install, not a PyPI release, so skip it
+        run: uv run pip-audit --skip-editable
